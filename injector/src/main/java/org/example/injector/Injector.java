@@ -207,8 +207,7 @@ public class Injector {
 
         // Modify the main method of the target class to run the implant method (before its own code)
         Bytecode newCode = new Bytecode(cf.getConstPool());
-        // TODO Don't hardcode the package name
-        newCode.addInvokestatic("org.example.target.Main", targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
+        newCode.addInvokestatic(cf.getName(), targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
         CodeAttribute newCodeAttr = newCode.toCodeAttribute();
 
         CodeAttribute mainCode = main.getCodeAttribute();

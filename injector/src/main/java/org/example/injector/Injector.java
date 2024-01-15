@@ -114,14 +114,10 @@ public class Injector {
             throw new UnsupportedOperationException("Not a directory");
         }
 
-        Path sourcePath = Path.of(directory.toUri());   // No better way to clone this instance?
+        // Convert "org.example.injector.Inject" to "org/example/injector/Inject.class"
         String[] packageHierarchy = clazz.getName().split("\\.");
         packageHierarchy[packageHierarchy.length - 1] += ".class";
-
-        // TODO There must be a better way
-        for (String pack : packageHierarchy) {
-            sourcePath = sourcePath.resolve(pack);
-        }
+        Path sourcePath = Path.of(directory.toString(), packageHierarchy);
 
         if (!Files.exists(sourcePath)) {
             throw new ClassNotFoundException(sourcePath.toString());

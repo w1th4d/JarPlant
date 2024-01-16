@@ -196,8 +196,6 @@ public class Injector {
         if (currentClinit == null) {
             // There are no static blocks in this class, create an empty one
             currentClinit = new MethodInfo(constPool, MethodInfo.nameClinit, "()V");
-            ExceptionsAttribute excAttr = new ExceptionsAttribute(constPool);
-            currentClinit.setExceptionsAttribute(excAttr);
             setStaticFlagForMethod(currentClinit);
             Bytecode stubCode = new Bytecode(constPool, 0, 0);
             stubCode.addReturn(CtClass.voidType);

@@ -41,7 +41,7 @@
                             <archive>
                                 <manifest>
                                     <mainClass>
-                                        org.example.injector.Injector
+                                        org.example.injector.Cli
                                     </mainClass>
                                 </manifest>
                             </archive>

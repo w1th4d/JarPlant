@@ -2,6 +2,7 @@ package org.example.injector;
 
 import javassist.CtClass;
 import javassist.bytecode.*;
+import org.example.implants.Stub;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -76,20 +77,9 @@ public class Injector {
         }
     }
 
-    // This is the method that will be transplanted into the target
-    public static void implant() {
-        // "java.class.init" is a made up property used to determine if an implant is already running in this JVM
-        // (as could the case be if more than one class is infected)
-        if (System.getProperty("java.class.init") == null) {
-            if (System.setProperty("java.class.init", "true") == null) {
-                System.out.println("This is the implant running (once per JVM)!");
-            }
-        }
-    }
-
     private static ClassFile getSelf() throws IOException {
         try {
-            return findAndReadClassFile(Injector.class);
+            return findAndReadClassFile(Stub.class);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Cannot find a class file for oneself! This program may be running through a very exotic ClassLoader.");
         }

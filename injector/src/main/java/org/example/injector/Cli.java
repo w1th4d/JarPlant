@@ -54,7 +54,7 @@ public class Cli {
             System.exit(5);
         }
 
-        Injector injector = Injector.of(implantClassFile);
+        MethodInjector injector = MethodInjector.of(implant);
         final boolean didInfect;
         try {
             didInfect = injector.infectTarget(target);

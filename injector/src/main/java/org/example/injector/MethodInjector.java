@@ -14,19 +14,27 @@ import java.util.Objects;
 import static org.example.injector.Helpers.readClassFile;
 import static org.example.injector.Helpers.setStaticFlagForMethod;
 
-public class Injector {
-    private final ClassFile implant;
+public class MethodInjector {
+    private final MethodInfo methodImplant;
 
-    Injector(final ClassFile implant) {
-        this.implant = implant;
+    MethodInjector(final MethodInfo methodImplant) {
+        this.methodImplant = methodImplant;
     }
 
-    public static Injector of(final ClassFile implant) {
-        return new Injector(implant);
+    public static MethodInjector of(final MethodInfo methodImplant) {
+        return new MethodInjector(methodImplant);
+    }
+
+    public static MethodInjector from(final ClassFile implantClass, final String methodName) throws UnsupportedOperationException {
+        MethodInfo implantMethod = implantClass.getMethod(methodName);
+        if (implantMethod == null) {
+            throw new UnsupportedOperationException("Implant class does not have specified '" + methodName + "' method.");
+        }
+
+        return new MethodInjector(implantMethod);
     }
 
     public boolean infectTarget(final Path targetClassFilePath) throws IOException {
-        final MethodInfo implantMethod = implant.getMethod("implant");
         final ClassFile targetClass = readClassFile(targetClassFilePath);
         final ConstPool constPool = targetClass.getConstPool();
 
@@ -34,10 +42,10 @@ public class Injector {
         MethodInfo targetImplantMethod;
         try {
             // Construct a target method from the source (implant) method
-            targetImplantMethod = new MethodInfo(constPool, implantMethod.getName(), implantMethod.getDescriptor());
-            targetImplantMethod.setExceptionsAttribute(implantMethod.getExceptionsAttribute());
+            targetImplantMethod = new MethodInfo(constPool, methodImplant.getName(), methodImplant.getDescriptor());
+            targetImplantMethod.setExceptionsAttribute(methodImplant.getExceptionsAttribute());
             HashMap<String, String> classTranslation = new HashMap<>();
-            CodeAttribute copy = (CodeAttribute) implantMethod.getCodeAttribute().copy(constPool, classTranslation);
+            CodeAttribute copy = (CodeAttribute) methodImplant.getCodeAttribute().copy(constPool, classTranslation);
             copy.setMaxLocals(1);  // Don't know why this is necessary, but it throws an error otherwise
             setStaticFlagForMethod(targetImplantMethod);
 

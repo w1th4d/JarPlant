@@ -37,6 +37,7 @@ public class SpringInjector {
     }
 
     public boolean infect(final JarFile targetJar) throws IOException {
+        // TODO Consider that some JARs may be multi-versioned
         boolean foundSignedClasses = false;
         List<JarEntry> classEntries = new ArrayList<>();
         Enumeration<JarEntry> entries = targetJar.entries();
@@ -78,27 +79,18 @@ public class SpringInjector {
 
         for (JarEntry jarEntry : selectedTargets.keySet()) {
             ClassFile springContext = selectedTargets.get(jarEntry);
-            infect(springContext);
-            // TODO Somehow edit the entry inside the actual JAR file
-            // Alternatively, create a new JAR file and put it on the side
+
+            if (!hasComponentScanEnabled(springContext)) {
+                // TODO Explicitly add a @Bean to the configuration
+                // Maybe it doesn't hurt to add it despite @ContentScan being enabled?
+                System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan). Infection not (yet) supported!");
+                return false;
+            }
+
+            // TODO Just add implant class to the JAR (also set the package name)
         }
 
         return true;
-    }
-
-    public void infect(ClassFile springContextClass) {
-        // TODO Do the infection thing!
-
-        // Merge strategy:
-        // Take the implant, move over all methods, fields and consts.
-        // Make sure all attributes tag along (especially the Annotation for the REST handler method).
-        // This is a more risky approach but should be slightly stealthier (more difficult to find when troubleshooting the app).
-
-        // Add strategy:
-        // Just add a new class file into the JAR file (copy the implant class as-is). Just make sure the package name match the target.
-        // This is only the case where @ComponentScan (or @SpringBootApplication) annotations are used in the target app.
-
-        // Maybe injecting another @Configuration into the target JAR could work? How does Spring handle several Configurations?
     }
 
     private static boolean isSpringContext(final ClassFile classFile) {
@@ -119,5 +111,17 @@ public class SpringInjector {
             case "org.springframework.context.annotation.Configuration" -> true;
             default -> false;
         };
+    }
+
+    private static boolean hasComponentScanEnabled(final ClassFile springContextClassFile) {
+        List<Annotation> componentScanAnnotations = springContextClassFile.getAttributes().stream()
+                .filter(attribute -> attribute instanceof AnnotationsAttribute)
+                .map(attribute -> (AnnotationsAttribute) attribute)
+                .filter(annotationAttribute -> annotationAttribute.getName().equals("RuntimeVisibleAnnotations"))
+                .flatMap(runtimeAnnotationAttribute -> Arrays.stream(runtimeAnnotationAttribute.getAnnotations())
+                        .filter(annotation -> annotation.getTypeName().equals("org.springframework.context.annotation.ComponentScan"))
+                )
+                .toList();
+        return !componentScanAnnotations.isEmpty();
     }
 }

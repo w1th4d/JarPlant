@@ -11,6 +11,7 @@
     <modules>
         <module>injector</module>
         <module>target-app</module>
+        <module>target-app-spring-boot</module>
     </modules>
 
     <properties>

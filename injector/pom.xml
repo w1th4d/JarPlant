@@ -23,6 +23,13 @@
             <artifactId>javassist</artifactId>
             <version>3.30.2-GA</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <version>3.2.2</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

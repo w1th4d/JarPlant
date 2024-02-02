@@ -1,7 +1,10 @@
-package org.example.injector;
+package org.example;
 
 import javassist.bytecode.ClassFile;
 import javassist.bytecode.MethodInfo;
+import org.example.injector.ImplantReader;
+import org.example.injector.MethodInjector;
+import org.example.injector.TargetAnalyzer;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -153,8 +153,11 @@ public class SpringInjector {
             codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
             targetBeanMethod.setCodeAttribute(codeAttr);
 
-            ExceptionsAttribute exceptions = (ExceptionsAttribute) implantBeanMethod.getExceptionsAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
-            targetBeanMethod.setExceptionsAttribute(exceptions);
+            ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
+            if (exceptionsAttr != null) {
+                ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(existingSpringConfig.getConstPool(), translateTable);
+                targetBeanMethod.setExceptionsAttribute(exceptions);
+            }
 
             copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
 
@@ -180,9 +183,11 @@ public class SpringInjector {
         AnnotationsAttribute targetAnnotationsAttr = new AnnotationsAttribute(target.getConstPool(), "RuntimeVisibleAnnotations");
         for (Annotation annotation : sourceAnnotationsAttr.getAnnotations()) {
             Annotation copiedAnnotation = new Annotation(annotation.getTypeName(), target.getConstPool());
-            for (String memberValueName : annotation.getMemberNames()) {
-                MemberValue memberValue = annotation.getMemberValue(memberValueName);
-                copiedAnnotation.addMemberValue(memberValueName, memberValue);
+            if (annotation.getMemberNames() != null) {
+                for (String memberValueName : annotation.getMemberNames()) {
+                    MemberValue memberValue = annotation.getMemberValue(memberValueName);
+                    copiedAnnotation.addMemberValue(memberValueName, memberValue);
+                }
             }
             targetAnnotationsAttr.addAnnotation(copiedAnnotation);
         }

@@ -101,8 +101,6 @@ public class ClassInjector {
 
 
     private static void modifyClinit(JarFileFiddler.WrappedJarEntry jarEntry, ClassFile targetClass, ClassFile implantClass) throws IOException {
-        ConstPool constPool = targetClass.getConstPool();
-
         MethodInfo implantInitMethod = implantClass.getMethod("implant");
         if (implantInitMethod == null) {
             throw new UnsupportedOperationException("Implant class does not have a 'public static implant()' function.");
@@ -111,9 +109,9 @@ public class ClassInjector {
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
         if (currentClinit == null) {
             // There are no static blocks in this class, create an empty one
-            currentClinit = new MethodInfo(constPool, MethodInfo.nameClinit, "()V");
+            currentClinit = new MethodInfo(targetClass.getConstPool(), MethodInfo.nameClinit, "()V");
             setStaticFlagForMethod(currentClinit);
-            Bytecode stubCode = new Bytecode(constPool, 0, 0);
+            Bytecode stubCode = new Bytecode(targetClass.getConstPool(), 0, 0);
             stubCode.addReturn(CtClass.voidType);
             currentClinit.setCodeAttribute(stubCode.toCodeAttribute());
 
@@ -125,14 +123,14 @@ public class ClassInjector {
         }
 
         // Modify the clinit method of the target class to run the implant method (before its own code)
-        Bytecode additionalClinitCode = new Bytecode(constPool);
+        Bytecode additionalClinitCode = new Bytecode(targetClass.getConstPool());
         additionalClinitCode.addInvokestatic(implantClass.getName(), implantInitMethod.getName(), implantInitMethod.getDescriptor());
         CodeAttribute additionalClinitCodeAttr = additionalClinitCode.toCodeAttribute();
         CodeAttribute currentClinitCodeAttr = currentClinit.getCodeAttribute();
         ByteBuffer concatenatedCode = ByteBuffer.allocate(additionalClinitCodeAttr.getCodeLength() + currentClinit.getCodeAttribute().getCodeLength());
         concatenatedCode.put(additionalClinitCodeAttr.getCode());
         concatenatedCode.put(currentClinitCodeAttr.getCode());
-        CodeAttribute newCodeAttribute = new CodeAttribute(constPool, currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
+        CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
 
         // Modify the class file

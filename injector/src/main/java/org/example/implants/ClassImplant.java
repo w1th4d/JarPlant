@@ -1,15 +1,16 @@
 package org.example.implants;
 
-public class ClassImplant implements Runnable {
+public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
     public static void implant() {
         // "java.class.init" is a made up property used to determine if an implant is already running in this JVM
         // (as could the case be if more than one class is infected)
         if (System.getProperty("java.class.init") == null) {
             if (System.setProperty("java.class.init", "true") == null) {
                 System.out.println("This is the implant running (once per JVM)!");
-                Thread background = new Thread(new ClassImplant());
-                background.setUncaughtExceptionHandler(null);
-                //Runtime.getRuntime().addShutdownHook(background);   // This is just to prevent it from getting GC:d
+                ClassImplant implant = new ClassImplant();
+                Thread background = new Thread(implant);
+                background.setDaemon(true); // This means that the thread will die when the main thread is done
+                background.setUncaughtExceptionHandler(implant);
                 background.start();
             }
         }
@@ -20,8 +21,15 @@ public class ClassImplant implements Runnable {
         try {
             Thread.sleep(3000);
         } catch (InterruptedException ignored) {
+            System.out.println("Interrupted.");
         }
 
-        System.out.println("Doing the thing!");
+        System.out.println("Implant goes BOOM!");
+        throw new RuntimeException("This is intentional.");
+    }
+
+    @Override
+    public void uncaughtException(Thread thread, Throwable throwable) {
+        // Silently ignore (don't throw up error messages on stderr)
     }
 }

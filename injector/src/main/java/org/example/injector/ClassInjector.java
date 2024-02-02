@@ -10,10 +10,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.jar.JarEntry;
 
-import static org.example.injector.Helpers.setStaticFlagForMethod;
+import static org.example.injector.Helpers.*;
 
 public class ClassInjector {
     final static String IMPLANT_CLASS_NAME = "Init";
@@ -115,7 +114,6 @@ public class ClassInjector {
         }
     }
 
-
     private static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
         MethodInfo implantInitMethod = implantClass.getMethod("implant");
         if (implantInitMethod == null) {
@@ -178,27 +176,5 @@ public class ClassInjector {
 
         classFile.setName(newFqcn);
         classFile.compact();
-    }
-
-    private static String parsePackageNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
-        return String.join(".", packageParts);
-    }
-
-    private static String parseClassNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        return parts[parts.length - 1];
-    }
-
-    private static JarEntry convertToJarEntry(final ClassFile classFile) {
-        String fullPathInsideJar = classFile.getName().replace(".", "/") + ".class";
-        return new JarEntry(fullPathInsideJar);
     }
 }

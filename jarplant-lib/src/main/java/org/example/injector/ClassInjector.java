@@ -99,7 +99,7 @@ public class ClassInjector {
                      * by an app.
                      */
                     modifyClinit(currentlyProcessing, implantedClass);
-                    currentlyProcessing.write(entry.addOnly());
+                    currentlyProcessing.write(entry.addAndGetStream());
                     System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);

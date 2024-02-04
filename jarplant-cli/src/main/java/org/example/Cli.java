@@ -22,19 +22,28 @@ public class Cli {
                     "    |_______||___._||__|  |___|   |__||___._||__|__||____|\n" +
                     "    Java archive implant toolkit   v0.1   by w1th4d & kugg";
 
+    private final static String examples = "for more options, see command help pages:\n" +
+            "  $ java -jar jarplant.jar class-injector -h\n" +
+            "  $ java -jar jarplant.jar spring-injector -h\n\n" +
+            "example usage:\n" +
+            "  $ java -jar jarplant.jar class-injector \\\n" +
+            "    --target path/to/target.jar --output spiked-target.jar";
+
     enum Command {
         CLASS_INJECTOR, SPRING_INJECTOR
     }
 
     public static void main(String[] args) {
-        ArgumentParser parser = ArgumentParsers.newFor("JarPlant").build()
+        ArgumentParser parser = ArgumentParsers.newFor("java -jar jarplant.jar").build()
                 .defaultHelp(true)
-                .description(banner);
+                .description(banner)
+                .epilog(examples);
         Subparsers subparsers = parser.addSubparsers()
                 .metavar("command");
 
         Subparser classInjectorParser = subparsers.addParser("class-injector")
-                .help("Inject a regular class implant into a JAR containing any classes.")
+                .help("Inject a class implant into a JAR containing regular classes. This will modify *all* classes in the JAR to call the implant's 'init()' method when loaded.")
+                .description(banner)
                 .setDefault("command", Command.CLASS_INJECTOR);
         classInjectorParser.addArgument("--target", "-t")
                 .help("Path to the JAR file to spike.")
@@ -47,11 +56,13 @@ public class Cli {
                 .type(Arguments.fileType().verifyCanCreate())
                 .required(true);
         classInjectorParser.addArgument("--implant-class")
+                .help("Name of the class containing a custom 'init()' method and other implant logic.")
                 .choices("ClassImplant")
                 .setDefault("ClassImplant");
 
         Subparser springInjectorParser = subparsers.addParser("spring-injector")
-                .help("Inject a Spring component into a JAR packaged Spring application.")
+                .help("Inject a Spring component into a JAR-packaged Spring application. The component will be loaded and included in the Spring context.")
+                .description(banner)
                 .setDefault("command", Command.SPRING_INJECTOR);
         springInjectorParser.addArgument("--target", "-t")
                 .help("Path to the JAR file to spike.")
@@ -63,12 +74,14 @@ public class Cli {
                 .metavar("JAR")
                 .type(Arguments.fileType().verifyCanCreate())
                 .required(true);
-        springInjectorParser.addArgument("--implant-config")
-                .choices("SpringImplantConfiguration")
-                .setDefault("SpringImplantConfiguration");
         springInjectorParser.addArgument("--implant-component")
+                .help("Name of the Spring component to inject into the class. This will typically be a '@RestController' class.")
                 .choices("SpringImplantController")
                 .setDefault("SpringImplantController");
+        springInjectorParser.addArgument("--implant-config")
+                .help("Name of the Spring configuration class to use as a template in case the target Spring config needs to be modified. Only the '@Bean' annotated methods in this class will be copied to the target config.")
+                .choices("SpringImplantConfiguration")
+                .setDefault("SpringImplantConfiguration");
 
         Namespace namespace;
         try {

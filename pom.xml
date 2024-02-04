@@ -5,11 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.example</groupId>
-    <artifactId>ClassMod</artifactId>
+    <artifactId>jarplant</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
+
     <modules>
-        <module>injector</module>
+        <module>jarplant-cli</module>
+        <module>jarplant-implants</module>
+        <module>jarplant-lib</module>
         <module>target-app</module>
         <module>target-app-spring-boot</module>
     </modules>
@@ -20,4 +23,13 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.example</groupId>
+                <artifactId>jarplant</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>

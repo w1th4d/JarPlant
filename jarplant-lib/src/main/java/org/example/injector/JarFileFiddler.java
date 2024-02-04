@@ -139,7 +139,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         }
 
         // This is a spectacular one...
-        public DataOutputStream addOnly() throws IOException {
+        public DataOutputStream addAndGetStream() throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 

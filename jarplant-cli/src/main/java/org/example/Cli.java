@@ -14,6 +14,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class Cli {
+    // Credz: 'Square' font by Chris Gill, 30-JUN-94 -- based on .sig of Jeb Hagan.
+    private final static String banner =
+            "       _____               ______  __                __   \n" +
+                    "     _|     |.---.-..----.|   __ \\|  |.---.-..-----.|  |_ \n" +
+                    "    |       ||  _  ||   _||    __/|  ||  _  ||     ||   _|\n" +
+                    "    |_______||___._||__|  |___|   |__||___._||__|__||____|\n" +
+                    "    Java archive implant toolkit   v0.1   by w1th4d & kugg";
+
     enum Command {
         CLASS_INJECTOR, SPRING_INJECTOR
     }
@@ -21,7 +29,7 @@ public class Cli {
     public static void main(String[] args) {
         ArgumentParser parser = ArgumentParsers.newFor("JarPlant").build()
                 .defaultHelp(true)
-                .description("Java Archive Implant Toolkit.");
+                .description(banner);
         Subparsers subparsers = parser.addSubparsers()
                 .metavar("command");
 
@@ -114,6 +122,10 @@ public class Cli {
 
     public static void runClassInjector(Path targetPath, Path outputPath, Class<?> implantClass) {
         ClassInjector injector = new ClassInjector(implantClass);
+
+        System.out.println(banner);
+        System.out.println();
+
         System.out.println("[i] Implant class: " + implantClass);
         System.out.println("[i] Target JAR: " + targetPath);
         System.out.println("[i] Output JAR: " + outputPath);
@@ -136,6 +148,10 @@ public class Cli {
 
     public static void runSpringInjector(Path targetPath, Path outputPath, Class<?> implantComponent, Class<?> implantConfClass) {
         SpringInjector injector = new SpringInjector(implantComponent, implantConfClass);
+
+        System.out.println(banner);
+        System.out.println();
+
         System.out.println("[i] Implant Spring component: " + implantComponent);
         System.out.println("[i] Implant Spring config class: " + implantConfClass);
         System.out.println("[i] Target JAR: " + targetPath);

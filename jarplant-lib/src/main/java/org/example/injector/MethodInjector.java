@@ -25,6 +25,10 @@ public class MethodInjector {
         return new MethodInjector(methodImplant);
     }
 
+    public static MethodInjector from(final Class<?> implantClass, final String methodName) throws UnsupportedOperationException, IOException, ClassNotFoundException {
+        ClassFile source = ImplantReader.findAndReadClassFile(implantClass);
+        return from(source, methodName);
+    }
     public static MethodInjector from(final ClassFile implantClass, final String methodName) throws UnsupportedOperationException {
         MethodInfo implantMethod = implantClass.getMethod(methodName);
         if (implantMethod == null) {
@@ -34,7 +38,7 @@ public class MethodInjector {
         return new MethodInjector(implantMethod);
     }
 
-    public boolean infectTarget(final Path targetClassFilePath) throws IOException {
+    public boolean infectTarget(final Path targetClassFilePath, final Path outputPath) throws IOException {
         final ClassFile targetClass = readClassFile(targetClassFilePath);
         final ConstPool constPool = targetClass.getConstPool();
 
@@ -85,7 +89,7 @@ public class MethodInjector {
         CodeAttribute newCodeAttribute = new CodeAttribute(constPool, currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
 
-        targetClass.write(new DataOutputStream(new FileOutputStream(targetClassFilePath.toFile())));
+        targetClass.write(new DataOutputStream(new FileOutputStream(outputPath.toFile())));
 
         return true;
     }

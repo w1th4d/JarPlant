@@ -6,7 +6,9 @@ import net.sourceforge.argparse4j.inf.*;
 import org.example.implants.ClassImplant;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
+import org.example.implants.Stub;
 import org.example.injector.ClassInjector;
+import org.example.injector.MethodInjector;
 import org.example.injector.SpringInjector;
 
 import java.io.IOException;
@@ -23,6 +25,7 @@ public class Cli {
                     "    Java archive implant toolkit   v0.1   by w1th4d & kugg";
 
     private final static String examples = "for more options, see command help pages:\n" +
+            "  $ java -jar jarplant.jar method-injector -h\n" +
             "  $ java -jar jarplant.jar class-injector -h\n" +
             "  $ java -jar jarplant.jar spring-injector -h\n\n" +
             "example usage:\n" +
@@ -30,7 +33,7 @@ public class Cli {
             "    --target path/to/target.jar --output spiked-target.jar";
 
     enum Command {
-        CLASS_INJECTOR, SPRING_INJECTOR
+        METHOD_INJECTOR, CLASS_INJECTOR, SPRING_INJECTOR
     }
 
     public static void main(String[] args) {
@@ -40,6 +43,30 @@ public class Cli {
                 .epilog(examples);
         Subparsers subparsers = parser.addSubparsers()
                 .metavar("command");
+
+        Subparser methodInjectorParser = subparsers.addParser("method-injector")
+                .help("Copy a simple static method into the target. This injector only operates on a class (not a JAR). The target class will be modified to run the implanted method when loaded. This injector offers only a limited set of features but can be more difficult to detect.")
+                .description(banner)
+                .setDefault("command", Command.METHOD_INJECTOR);
+        methodInjectorParser.addArgument("--target", "-t")
+                .help("Path to the class file to spike.")
+                .metavar("CLASS-FILE")
+                .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
+                .required(true);
+        methodInjectorParser.addArgument("--output", "-o")
+                .help("Path to where the spiked class will be written. This could be the same file as the target.")
+                .metavar("CLASS-FILE")
+                .type(Arguments.fileType().verifyCanCreate())
+                .required(true);
+        methodInjectorParser.addArgument("--implant-class")
+                .help("Name of the class holding the method implant.")
+                .choices("Stub")
+                .setDefault("Stub");
+        methodInjectorParser.addArgument("--implant-method")
+                .help("The name of the method to copy into the target.")
+                .metavar("METHOD-NAME")
+                .type(String.class)
+                .setDefault("implant");
 
         Subparser classInjectorParser = subparsers.addParser("class-injector")
                 .help("Inject a class implant into a JAR containing regular classes. This will modify *all* classes in the JAR to call the implant's 'init()' method when loaded.")
@@ -107,6 +134,16 @@ public class Cli {
 
         Command command = namespace.get("command");
         switch (command) {
+            case METHOD_INJECTOR -> {
+                String implantClassName = namespace.getString("implant_class");
+                String implantMethodName = namespace.getString("implant_method");
+                if (implantClassName.equals("Stub")) {
+                    runMethodInjector(targetPath, outputPath, Stub.class, implantMethodName);
+                } else {
+                    System.out.println("[!] Unknown --implant-class.");
+                    System.exit(1);
+                }
+            }
             case CLASS_INJECTOR -> {
                 String implantClassName = namespace.getString("implant_class");
                 if (implantClassName.equals("ClassImplant")) {
@@ -130,6 +167,38 @@ public class Cli {
                 parser.printHelp();
                 System.exit(1);
             }
+        }
+    }
+
+    public static void runMethodInjector(Path targetClassFile, Path outputClassFile, Class<?> sourceClass, String methodName) {
+        MethodInjector injector;
+        try {
+            injector = MethodInjector.from(sourceClass, methodName);
+        } catch (IOException | ClassNotFoundException | UnsupportedOperationException e) {
+            System.out.println("[!] MethodInjector failed! Reason: " + e.getMessage());
+            System.exit(2);
+            throw new RuntimeException("Unreachable");
+        }
+
+        System.out.println(banner);
+        System.out.println();
+
+        System.out.println("[i] Source class: " + injector.getClass().getName());
+        System.out.println("[i] Target class: " + targetClassFile);
+
+        final boolean didInfect;
+        try {
+            didInfect = injector.infectTarget(targetClassFile, outputClassFile);
+        } catch (IOException e) {
+            System.out.println("[!] Cannot infect target class file! Error message: " + e.getMessage());
+            System.exit(3);
+            throw new RuntimeException("Unreachable");
+        }
+
+        if (!didInfect) {
+            System.out.println("[-] Did not infect target. It looks like it may already be infected?");
+        } else {
+            System.out.println("[+] Infected target class: " + targetClassFile);
         }
     }
 

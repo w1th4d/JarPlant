@@ -75,21 +75,24 @@ public class ImplantReader {
         }
     }
 
-    public static MethodInfo readImplant(final Path classFilePath, final String sourceMethodName) throws IOException {
+    public static ClassFile readImplantClass(final Path classFilePath) throws IOException {
+        ClassFile classFile;
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(classFilePath.toFile())))) {
-            return readImplant(in, sourceMethodName);
+            classFile = new ClassFile(in);
         }
+        return classFile;
     }
 
-    public static MethodInfo readImplant(final DataInputStream classFileInputStream, final String sourceMethodName) throws IOException {
-        return readImplant(new ClassFile(classFileInputStream), sourceMethodName);
+    public static MethodInfo readImplantMethod(final Path classFilePath, final String methodName) throws IOException {
+        ClassFile sourceClass = readImplantClass(classFilePath);
+        return readImplantMethod(sourceClass, methodName);
     }
 
-    public static MethodInfo readImplant(final ClassFile sourceClass, final String sourceMethodName) throws IOException {
-        MethodInfo implantMethod = sourceClass.getMethod(sourceMethodName);
+    public static MethodInfo readImplantMethod(final ClassFile sourceClass, final String methodName) throws IOException {
+        MethodInfo implantMethod = sourceClass.getMethod(methodName);
 
         if (implantMethod == null) {
-            throw new IOException("Cannot find method '" + sourceMethodName + "' in " + sourceClass.getName());
+            throw new IOException("Cannot find method '" + methodName + "' in " + sourceClass.getName());
         }
 
         return implantMethod;

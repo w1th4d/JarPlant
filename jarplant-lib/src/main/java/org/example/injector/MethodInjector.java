@@ -29,13 +29,15 @@ public class MethodInjector {
         ClassFile source = ImplantReader.findAndReadClassFile(implantClass);
         return from(source, methodName);
     }
-    public static MethodInjector from(final ClassFile implantClass, final String methodName) throws UnsupportedOperationException {
-        MethodInfo implantMethod = implantClass.getMethod(methodName);
-        if (implantMethod == null) {
-            throw new UnsupportedOperationException("Implant class does not have specified '" + methodName + "' method.");
-        }
 
-        return new MethodInjector(implantMethod);
+    public static MethodInjector from(final Path classFilePath, final String methodName) throws IOException {
+        MethodInfo methodInfo = ImplantReader.readImplantMethod(classFilePath, methodName);
+        return new MethodInjector(methodInfo);
+    }
+
+    public static MethodInjector from(final ClassFile implantClass, final String methodName) throws UnsupportedOperationException, IOException {
+        MethodInfo methodInfo = ImplantReader.readImplantMethod(implantClass, methodName);
+        return new MethodInjector(methodInfo);
     }
 
     public boolean infectTarget(final Path targetClassFilePath, final Path outputPath) throws IOException {

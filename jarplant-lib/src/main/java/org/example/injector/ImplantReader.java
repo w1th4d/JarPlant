@@ -2,7 +2,7 @@ package org.example.injector;
 
 import javassist.bytecode.ClassFile;
 import javassist.bytecode.MethodInfo;
-import org.example.implants.Stub;
+import org.example.implants.MethodImplant;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -16,7 +16,7 @@ import static org.example.injector.Helpers.readClassFile;
 public class ImplantReader {
     public static ClassFile getStubImplant() throws IOException {
         try {
-            return findAndReadClassFile(Stub.class);
+            return findAndReadClassFile(MethodImplant.class);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Cannot find a class file for oneself! This program may be running through a very exotic ClassLoader.");
         }

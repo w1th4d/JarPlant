@@ -4,9 +4,9 @@ import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.*;
 import org.example.implants.ClassImplant;
+import org.example.implants.MethodImplant;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
-import org.example.implants.Stub;
 import org.example.injector.ClassInjector;
 import org.example.injector.MethodInjector;
 import org.example.injector.SpringInjector;
@@ -138,7 +138,7 @@ public class Cli {
                 String implantClassName = namespace.getString("implant_class");
                 String implantMethodName = namespace.getString("implant_method");
                 if (implantClassName.equals("Stub")) {
-                    runMethodInjector(targetPath, outputPath, Stub.class, implantMethodName);
+                    runMethodInjector(targetPath, outputPath, MethodImplant.class, implantMethodName);
                 } else {
                     System.out.println("[!] Unknown --implant-class.");
                     System.exit(1);

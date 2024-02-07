@@ -7,13 +7,12 @@ import org.example.implants.ClassImplant;
 import org.example.implants.MethodImplant;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
-import org.example.injector.ClassInjector;
-import org.example.injector.MethodInjector;
-import org.example.injector.SpringInjector;
+import org.example.injector.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 public class Cli {
     // Credz: 'Square' font by Chris Gill, 30-JUN-94 -- based on .sig of Jeb Hagan.
@@ -211,6 +210,18 @@ public class Cli {
         System.out.println("[i] Implant class: " + implantClass);
         System.out.println("[i] Target JAR: " + targetPath);
         System.out.println("[i] Output JAR: " + outputPath);
+        System.out.println();
+
+        System.out.println("[+] Reading implant config...");
+        Map<String, Object> config;
+        try {
+            config = Helpers.readImplantConfig(ImplantReader.findAndReadClassFile(implantClass));
+        } catch (ClassNotFoundException | IOException e) {
+            throw new RuntimeException("Could not load implant.", e);
+        }
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            System.out.println("[i] " + entry.getKey() + ": " + entry.getValue());
+        }
         System.out.println();
 
         try {

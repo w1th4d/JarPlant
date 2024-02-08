@@ -48,10 +48,10 @@ public class MethodInjector {
         MethodInfo targetImplantMethod;
         try {
             // Construct a target method from the source (implant) method
-            targetImplantMethod = new MethodInfo(constPool, methodImplant.getName(), methodImplant.getDescriptor());
+            targetImplantMethod = new MethodInfo(targetClass.getConstPool(), methodImplant.getName(), methodImplant.getDescriptor());
             targetImplantMethod.setExceptionsAttribute(methodImplant.getExceptionsAttribute());
             HashMap<String, String> classTranslation = new HashMap<>();
-            CodeAttribute copy = (CodeAttribute) methodImplant.getCodeAttribute().copy(constPool, classTranslation);
+            CodeAttribute copy = (CodeAttribute) methodImplant.getCodeAttribute().copy(targetClass.getConstPool(), classTranslation);
             copy.setMaxLocals(1);  // Don't know why this is necessary, but it throws an error otherwise
             setStaticFlagForMethod(targetImplantMethod);
 
@@ -67,9 +67,9 @@ public class MethodInjector {
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
         if (currentClinit == null) {
             // There are no static blocks in this class, create an empty one
-            currentClinit = new MethodInfo(constPool, MethodInfo.nameClinit, "()V");
+            currentClinit = new MethodInfo(targetClass.getConstPool(), MethodInfo.nameClinit, "()V");
             setStaticFlagForMethod(currentClinit);
-            Bytecode stubCode = new Bytecode(constPool, 0, 0);
+            Bytecode stubCode = new Bytecode(targetClass.getConstPool(), 0, 0);
             stubCode.addReturn(CtClass.voidType);
             currentClinit.setCodeAttribute(stubCode.toCodeAttribute());
 
@@ -81,14 +81,14 @@ public class MethodInjector {
         }
 
         // Modify the clinit method of the target class to run the implant method (before its own code)
-        Bytecode additionalClinitCode = new Bytecode(constPool);
+        Bytecode additionalClinitCode = new Bytecode(targetClass.getConstPool());
         additionalClinitCode.addInvokestatic(targetClass.getName(), targetImplantMethod.getName(), targetImplantMethod.getDescriptor());
         CodeAttribute additionalClinitCodeAttr = additionalClinitCode.toCodeAttribute();
         CodeAttribute currentClinitCodeAttr = currentClinit.getCodeAttribute();
         ByteBuffer concatenatedCode = ByteBuffer.allocate(additionalClinitCodeAttr.getCodeLength() + currentClinit.getCodeAttribute().getCodeLength());
         concatenatedCode.put(additionalClinitCodeAttr.getCode());
         concatenatedCode.put(currentClinitCodeAttr.getCode());
-        CodeAttribute newCodeAttribute = new CodeAttribute(constPool, currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
+        CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
 
         targetClass.write(new DataOutputStream(new FileOutputStream(outputPath.toFile())));

@@ -59,8 +59,8 @@ public class Cli {
                 .required(true);
         methodInjectorParser.addArgument("--implant-class")
                 .help("Name of the class holding the method implant.")
-                .choices("Stub")
-                .setDefault("Stub");
+                .choices("MethodImplant")
+                .setDefault("MethodImplant");
         methodInjectorParser.addArgument("--implant-method")
                 .help("The name of the method to copy into the target.")
                 .metavar("METHOD-NAME")
@@ -118,25 +118,15 @@ public class Cli {
             throw new RuntimeException("Unreachable");
         }
 
-        Path targetPath;
-        Path outputPath;
-        try {
-            targetPath = Path.of(namespace.getString("target"));
-            outputPath = Path.of(namespace.getString("output"));
-            if (Files.exists(outputPath) && targetPath.toRealPath().equals(outputPath.toRealPath())) {
-                System.out.println("[!] Target JAR and output JAR cannot be the same.");
-                System.exit(1);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Path targetPath = Path.of(namespace.getString("target"));
+        Path outputPath = Path.of(namespace.getString("output"));
 
         Command command = namespace.get("command");
         switch (command) {
             case METHOD_INJECTOR -> {
                 String implantClassName = namespace.getString("implant_class");
                 String implantMethodName = namespace.getString("implant_method");
-                if (implantClassName.equals("Stub")) {
+                if (implantClassName.equals("MethodImplant")) {
                     runMethodInjector(targetPath, outputPath, MethodImplant.class, implantMethodName);
                 } else {
                     System.out.println("[!] Unknown --implant-class.");
@@ -144,6 +134,8 @@ public class Cli {
                 }
             }
             case CLASS_INJECTOR -> {
+                assertNotSameFile(targetPath, outputPath);
+
                 String implantClassName = namespace.getString("implant_class");
                 if (implantClassName.equals("ClassImplant")) {
                     runClassInjector(targetPath, outputPath, ClassImplant.class);
@@ -153,6 +145,8 @@ public class Cli {
                 }
             }
             case SPRING_INJECTOR -> {
+                assertNotSameFile(targetPath, outputPath);
+
                 String implantComponent = namespace.getString("implant_component");
                 String implantConfClass = namespace.getString("implant_config");
                 if (implantComponent.equals("SpringImplantController") && implantConfClass.equals("SpringImplantConfiguration")) {
@@ -262,6 +256,17 @@ public class Cli {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static void assertNotSameFile(Path target, Path output) {
+        try {
+            if (Files.exists(output) && target.toRealPath().equals(output.toRealPath())) {
+                System.out.println("[!] Target JAR and output JAR cannot be the same.");
+                System.exit(1);
+            }
+        } catch (IOException e) {
+            System.out.println("[!] Cannot read file: " + e.getMessage());
         }
     }
 }

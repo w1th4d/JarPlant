@@ -11,8 +11,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.jar.JarEntry;
 
 public class Helpers {
@@ -70,38 +68,5 @@ public class Helpers {
         // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
         String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
         return new JarEntry(fullPathInsideJar);
-    }
-
-    public static Map<String, Object> readImplantConfig(ClassFile implant) {
-        Map<String, Object> configFields = new HashMap<>();
-
-        for (FieldInfo field : implant.getFields()) {
-            if (!isStaticFlagSet(field)) {
-                continue;
-            }
-            if (!isFinalFlagSet(field)) {
-                continue;
-            }
-            String fieldName = field.getName();
-            if (!fieldName.startsWith("CONF_")) {
-                continue;
-            }
-
-            int valueConstPoolIndex = field.getConstantValue();
-            if (valueConstPoolIndex == 0) {
-                throw new RuntimeException("The static final field '" + fieldName + "' has no value.");
-            }
-
-            Object fieldValue = switch (field.getDescriptor()) {
-                case "Ljava/lang/String;" -> field.getConstPool().getStringInfo(valueConstPoolIndex);
-                case "Z" -> field.getConstPool().getIntegerInfo(valueConstPoolIndex);   // Booleans are Integers
-                case "I" -> field.getConstPool().getIntegerInfo(valueConstPoolIndex);   // Actual Integer
-                default -> null;
-            };
-
-            configFields.put(fieldName, fieldValue);
-        }
-
-        return configFields;
     }
 }

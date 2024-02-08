@@ -15,34 +15,17 @@ import static org.example.injector.Helpers.readClassFile;
 import static org.example.injector.Helpers.setStaticFlagForMethod;
 
 public class MethodInjector {
-    private final MethodInfo methodImplant;
+    private final ImplantHandler implantClass;
+    private final String implantMethodName;
 
-    MethodInjector(final MethodInfo methodImplant) {
-        this.methodImplant = methodImplant;
-    }
-
-    public static MethodInjector of(final MethodInfo methodImplant) {
-        return new MethodInjector(methodImplant);
-    }
-
-    public static MethodInjector from(final Class<?> implantClass, final String methodName) throws UnsupportedOperationException, IOException, ClassNotFoundException {
-        ClassFile source = ImplantReader.findAndReadClassFile(implantClass);
-        return from(source, methodName);
-    }
-
-    public static MethodInjector from(final Path classFilePath, final String methodName) throws IOException {
-        MethodInfo methodInfo = ImplantReader.readImplantMethod(classFilePath, methodName);
-        return new MethodInjector(methodInfo);
-    }
-
-    public static MethodInjector from(final ClassFile implantClass, final String methodName) throws UnsupportedOperationException, IOException {
-        MethodInfo methodInfo = ImplantReader.readImplantMethod(implantClass, methodName);
-        return new MethodInjector(methodInfo);
+    public MethodInjector(ImplantHandler implantClass, String implantMethodName) {
+        this.implantClass = implantClass;
+        this.implantMethodName = implantMethodName;
     }
 
     public boolean infectTarget(final Path targetClassFilePath, final Path outputPath) throws IOException {
         final ClassFile targetClass = readClassFile(targetClassFilePath);
-        final ConstPool constPool = targetClass.getConstPool();
+        final MethodInfo methodImplant = implantClass.loadFreshSpecimen().getMethod(implantMethodName);
 
         // Add the implant method to target class
         MethodInfo targetImplantMethod;

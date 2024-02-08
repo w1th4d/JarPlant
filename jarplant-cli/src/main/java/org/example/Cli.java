@@ -7,7 +7,10 @@ import org.example.implants.ClassImplant;
 import org.example.implants.MethodImplant;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
-import org.example.injector.*;
+import org.example.injector.ClassInjector;
+import org.example.injector.ImplantHandler;
+import org.example.injector.MethodInjector;
+import org.example.injector.SpringInjector;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -138,7 +141,13 @@ public class Cli {
 
                 String implantClassName = namespace.getString("implant_class");
                 if (implantClassName.equals("ClassImplant")) {
-                    runClassInjector(targetPath, outputPath, ClassImplant.class);
+                    ImplantHandler implantHandler;
+                    try {
+                        implantHandler = ImplantHandler.findAndCreateFor(ClassImplant.class);
+                    } catch (ClassNotFoundException | IOException e) {
+                        throw new RuntimeException("Cannot find built-in implant class.", e);
+                    }
+                    runClassInjector(targetPath, outputPath, implantHandler);
                 } else {
                     System.out.println("[!] Unknown --implant-class.");
                     System.exit(1);
@@ -150,7 +159,15 @@ public class Cli {
                 String implantComponent = namespace.getString("implant_component");
                 String implantConfClass = namespace.getString("implant_config");
                 if (implantComponent.equals("SpringImplantController") && implantConfClass.equals("SpringImplantConfiguration")) {
-                    runSpringInjector(targetPath, outputPath, SpringImplantController.class, SpringImplantConfiguration.class);
+                    ImplantHandler componentHandler;
+                    ImplantHandler springConfigHandler;
+                    try {
+                        componentHandler = ImplantHandler.findAndCreateFor(SpringImplantController.class);
+                        springConfigHandler = ImplantHandler.findAndCreateFor(SpringImplantConfiguration.class);
+                    } catch (ClassNotFoundException | IOException e) {
+                        throw new RuntimeException("Cannot find built-in implant class.", e);
+                    }
+                    runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);
                 } else {
                     System.out.println("[!] Unknown --implant-component or --implant-config.");
                     System.exit(1);
@@ -166,7 +183,8 @@ public class Cli {
     public static void runMethodInjector(Path targetClassFile, Path outputClassFile, Class<?> sourceClass, String methodName) {
         MethodInjector injector;
         try {
-            injector = MethodInjector.from(sourceClass, methodName);
+            ImplantHandler implantHandler = ImplantHandler.findAndCreateFor(sourceClass);
+            injector = new MethodInjector(implantHandler, methodName);
         } catch (IOException | ClassNotFoundException | UnsupportedOperationException e) {
             System.out.println("[!] MethodInjector failed! Reason: " + e.getMessage());
             System.exit(2);
@@ -195,13 +213,13 @@ public class Cli {
         }
     }
 
-    public static void runClassInjector(Path targetPath, Path outputPath, Class<?> implantClass) {
-        ClassInjector injector = new ClassInjector(implantClass);
+    public static void runClassInjector(Path targetPath, Path outputPath, ImplantHandler implantHandler) {
+        ClassInjector injector = new ClassInjector(implantHandler);
 
         System.out.println(banner);
         System.out.println();
 
-        System.out.println("[i] Implant class: " + implantClass);
+        System.out.println("[i] Implant class: " + implantHandler.getImplantClassName());
         System.out.println("[i] Target JAR: " + targetPath);
         System.out.println("[i] Output JAR: " + outputPath);
         System.out.println();
@@ -209,8 +227,8 @@ public class Cli {
         System.out.println("[+] Reading implant config...");
         Map<String, Object> config;
         try {
-            config = Helpers.readImplantConfig(ImplantReader.findAndReadClassFile(implantClass));
-        } catch (ClassNotFoundException | IOException e) {
+            config = implantHandler.readImplantConfig();
+        } catch (IOException e) {
             throw new RuntimeException("Could not load implant.", e);
         }
         for (Map.Entry<String, Object> entry : config.entrySet()) {
@@ -233,14 +251,14 @@ public class Cli {
         }
     }
 
-    public static void runSpringInjector(Path targetPath, Path outputPath, Class<?> implantComponent, Class<?> implantConfClass) {
-        SpringInjector injector = new SpringInjector(implantComponent, implantConfClass);
+    public static void runSpringInjector(Path targetPath, Path outputPath, ImplantHandler componentHandler, ImplantHandler springConfigHandler) {
+        SpringInjector injector = new SpringInjector(componentHandler, springConfigHandler);
 
         System.out.println(banner);
         System.out.println();
 
-        System.out.println("[i] Implant Spring component: " + implantComponent);
-        System.out.println("[i] Implant Spring config class: " + implantConfClass);
+        System.out.println("[i] Implant Spring component: " + componentHandler.getImplantClassName());
+        System.out.println("[i] Implant Spring config class: " + componentHandler.getImplantClassName());
         System.out.println("[i] Target JAR: " + targetPath);
         System.out.println("[i] Output JAR: " + outputPath);
         System.out.println();

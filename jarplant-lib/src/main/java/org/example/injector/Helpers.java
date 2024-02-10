@@ -32,6 +32,11 @@ public class Helpers {
         return (accessFlags & AccessFlag.FINAL) != 0;
     }
 
+    public static boolean isVolatileFlagSet(FieldInfo field) {
+        int accessFlags = field.getAccessFlags();
+        return (accessFlags & AccessFlag.VOLATILE) != 0;
+    }
+
     public static void setStaticFlagForMethod(MethodInfo clinit) {
         int accessFlags = clinit.getAccessFlags();
         accessFlags |= AccessFlag.STATIC;   // Yes, bit-flipping!

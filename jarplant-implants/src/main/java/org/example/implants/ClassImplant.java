@@ -19,7 +19,7 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
      * JVM system property to create and use as a "marker" to determine if an implant has been detonated in this JVM.
      * This property name could be anything that does not already naturally exist in the JVM. Just make it blend in.
      */
-    static final String CONF_JVM_MARKER_PROP = "java.class.init";
+    static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
 
     /**
      * Controls whether the implant's thread will block the JVM from fully exiting until the implant is done.
@@ -32,7 +32,7 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
      * <p>Essentially, setting this to 'false' makes the implant background thread a "daemon thread". This means that
      * the JVM will not wait for it when all regular threads (like the main thread) are done.</p>
      */
-    static final boolean CONF_BLOCK_JVM_SHUTDOWN = false;
+    static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
 
     /**
      * Optional delay (in milliseconds) before the implant payload will detonate.
@@ -41,7 +41,7 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
      * DO NOT set a delay and CONF_BLOCK_JVM_SHUTDOWN to 'true' unless you want to risk delaying the JVM from shutting
      * down properly.
      */
-    static final int CONF_DELAY_MS = 0;
+    static volatile int CONF_DELAY_MS = 0;
 
     /**
      * The entry point in this implant class.
@@ -77,6 +77,10 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
 
         // ---------- BEGIN PAYLOAD CODE HERE ----------
         System.out.println("BOOM!");
+        System.out.println("Config: ");
+        System.out.println("CONF_JVM_MARKER_PROP: " + CONF_JVM_MARKER_PROP);
+        System.out.println("CONF_BLOCK_JVM_SHUTDOWN: " + CONF_BLOCK_JVM_SHUTDOWN);
+        System.out.println("CONF_DELAY_MS: " + CONF_DELAY_MS);
 
     }
 

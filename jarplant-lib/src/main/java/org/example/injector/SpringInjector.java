@@ -51,7 +51,7 @@ public class SpringInjector {
                      * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
                      * component needs to be explicitly referenced as a @Bean in the config class.
                      */
-                    ClassFile implantComponent = implantComponentHandler.loadFreshSpecimen();
+                    ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
@@ -93,7 +93,7 @@ public class SpringInjector {
     }
 
     private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
-        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshSpecimen();
+        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());

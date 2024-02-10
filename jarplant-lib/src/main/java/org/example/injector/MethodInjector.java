@@ -25,7 +25,7 @@ public class MethodInjector {
 
     public boolean infectTarget(final Path targetClassFilePath, final Path outputPath) throws IOException {
         final ClassFile targetClass = readClassFile(targetClassFilePath);
-        final MethodInfo methodImplant = implantClass.loadFreshSpecimen().getMethod(implantMethodName);
+        final MethodInfo methodImplant = implantClass.loadFreshConfiguredSpecimen().getMethod(implantMethodName);
 
         // Add the implant method to target class
         MethodInfo targetImplantMethod;

@@ -52,7 +52,7 @@ public class ClassInjector {
                      * Since there are other classes in this directory, the implant will blend in better here.
                      * Any directory will do and only one occurrence of the implant class in the JAR is enough.
                      */
-                    ClassFile implant = implantHandler.loadFreshSpecimen();
+                    ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
                     deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
                     JarEntry newJarEntry = convertToJarEntry(implant);
                     implant.write(fiddler.addNewEntry(newJarEntry));

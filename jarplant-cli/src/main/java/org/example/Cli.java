@@ -224,16 +224,14 @@ public class Cli {
         System.out.println("[i] Output JAR: " + outputPath);
         System.out.println();
 
-        System.out.println("[+] Reading implant config...");
-        Map<String, Object> config;
-        try {
-            config = implantHandler.readImplantConfig();
-        } catch (IOException e) {
-            throw new RuntimeException("Could not load implant.", e);
+        System.out.println("[+] Reading available implant config properties...");
+        Map<String, String> availableConfig = implantHandler.getAvailableConfig();
+        for (Map.Entry<String, String> entry : availableConfig.entrySet()) {
+            System.out.println("[i] " + entry.getKey() + " (" + entry.getValue() + ")");
         }
-        for (Map.Entry<String, Object> entry : config.entrySet()) {
-            System.out.println("[i] " + entry.getKey() + ": " + entry.getValue());
-        }
+        implantHandler.getConfigModifications().put("CONF_JVM_MARKER_PROP", "this.is.a.test");
+        implantHandler.getConfigModifications().put("CONF_BLOCK_JVM_SHUTDOWN", true);
+        implantHandler.getConfigModifications().put("CONF_DELAY_MS", 2000);
         System.out.println();
 
         try {

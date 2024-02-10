@@ -1,25 +1,28 @@
 package org.example.injector;
 
-import javassist.bytecode.ClassFile;
-import javassist.bytecode.FieldInfo;
+import javassist.bytecode.*;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class ImplantHandler {
-    private final ByteBuffer classData;
+    private final byte[] classData;
     private final String implantClassName;
+    private final Map<String, String> availableConfig;
+    private final Map<String, Object> configModifications;
 
-    public ImplantHandler(ByteBuffer classData, String implantClassName) {
+    public ImplantHandler(byte[] classData, String implantClassName, Map<String, String> availableConfig) {
         this.classData = classData;
         this.implantClassName = implantClassName;
+        this.availableConfig = Collections.unmodifiableMap(availableConfig);
+        this.configModifications = new HashMap<>();
     }
 
     // Finds the class file using some weird Java quirks
@@ -57,8 +60,9 @@ public class ImplantHandler {
             throw new ClassNotFoundException(sourcePath.toString());
         }
 
-        ByteBuffer bytes = bufferFrom(sourcePath);
-        return new ImplantHandler(bytes, className);
+        byte[] bytes = bufferFrom(sourcePath);
+        Map<String, String> availableConfig = readImplantConfig(readClassFile(bytes));
+        return new ImplantHandler(bytes, className, availableConfig);
     }
 
     private static ImplantHandler findAndReadFromJar(final String className, final Path jarFilePath) throws ClassNotFoundException, IOException {
@@ -70,21 +74,21 @@ public class ImplantHandler {
                 throw new ClassNotFoundException(lookingForFileName);
             }
 
-            ByteBuffer bytes;
+            byte[] bytes;
             try (DataInputStream inputStream = new DataInputStream(jarFile.getInputStream(classFileInJar))) {
                 bytes = bufferFrom(inputStream);
             }
 
-            return new ImplantHandler(bytes, className);
+            Map<String, String> availableConfig = readImplantConfig(readClassFile(bytes));
+            return new ImplantHandler(bytes, className, availableConfig);
         }
     }
 
-    private static ByteBuffer bufferFrom(Path classFilePath) throws IOException {
-        byte[] bytes = Files.readAllBytes(classFilePath);
-        return ByteBuffer.wrap(bytes);
+    private static byte[] bufferFrom(Path classFilePath) throws IOException {
+        return Files.readAllBytes(classFilePath);
     }
 
-    private static ByteBuffer bufferFrom(DataInputStream in) throws IOException {
+    private static byte[] bufferFrom(DataInputStream in) throws IOException {
         ByteArrayOutputStream allocator = new ByteArrayOutputStream();
         byte[] chunk = new byte[4096];
         int bytesRead;
@@ -93,31 +97,48 @@ public class ImplantHandler {
             allocator.write(chunk, 0, bytesRead);
         } while (bytesRead != -1);
 
-        return ByteBuffer.wrap(allocator.toByteArray());
+        return allocator.toByteArray();
     }
 
     public String getImplantClassName() {
         return implantClassName;
     }
 
+    public Map<String, String> getAvailableConfig() {
+        return availableConfig;     // Unmodifiable map
+    }
+
+    public Map<String, Object> getConfigModifications() {
+        return configModifications; // Modifiable map
+    }
+
     // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
-    public ClassFile loadFreshSpecimen() throws IOException {
+    public ClassFile loadFreshConfiguredSpecimen() throws IOException {
+        ClassFile instance = readClassFile(classData);
+        overrideImplantConfig(instance, configModifications);
+        return instance;
+    }
+
+    public ClassFile loadFreshRawSpecimen() throws IOException {
+        return readClassFile(classData);
+    }
+
+    private static ClassFile readClassFile(byte[] classData) throws IOException {
         ClassFile instance;
-        try (DataInputStream classDataInput = new DataInputStream(new ByteArrayInputStream(classData.array()))) {
+        try (DataInputStream classDataInput = new DataInputStream(new ByteArrayInputStream(classData))) {
             instance = new ClassFile(classDataInput);
         }
         return instance;
     }
 
-    public Map<String, Object> readImplantConfig() throws IOException {
-        ClassFile implantInstance = loadFreshSpecimen();
-        Map<String, Object> configFields = new HashMap<>();
+    private static Map<String, String> readImplantConfig(ClassFile implantInstance) {
+        Map<String, String> configFields = new HashMap<>();
 
         for (FieldInfo field : implantInstance.getFields()) {
             if (!Helpers.isStaticFlagSet(field)) {
                 continue;
             }
-            if (!Helpers.isFinalFlagSet(field)) {
+            if (!Helpers.isVolatileFlagSet(field)) {
                 continue;
             }
             String fieldName = field.getName();
@@ -125,21 +146,90 @@ public class ImplantHandler {
                 continue;
             }
 
-            int valueConstPoolIndex = field.getConstantValue();
-            if (valueConstPoolIndex == 0) {
-                throw new RuntimeException("The static final field '" + fieldName + "' has no value.");
-            }
-
-            Object fieldValue = switch (field.getDescriptor()) {
-                case "Ljava/lang/String;" -> field.getConstPool().getStringInfo(valueConstPoolIndex);
-                case "Z" -> field.getConstPool().getIntegerInfo(valueConstPoolIndex);   // Booleans are Integers
-                case "I" -> field.getConstPool().getIntegerInfo(valueConstPoolIndex);   // Actual Integer
-                default -> null;
-            };
-
-            configFields.put(fieldName, fieldValue);
+            String type = field.getDescriptor();
+            configFields.put(fieldName, type);
         }
 
         return configFields;
+    }
+
+    private static void overrideImplantConfig(ClassFile instance, Map<String, Object> newConfig) throws IOException {
+        if (newConfig.isEmpty()) {
+            return;
+        }
+
+        MethodInfo clinit = instance.getMethod(MethodInfo.nameClinit);
+        if (clinit == null) {
+            throw new RuntimeException("Expected there to be a <clinit>.");
+        }
+
+        byte[] code = clinit.getCodeAttribute().getCode();
+        CodeIterator codeIterator = clinit.getCodeAttribute().iterator();
+        int index = -1;
+        while (codeIterator.hasNext()) {
+            try {
+                index = codeIterator.next();
+            } catch (BadBytecode e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (index == -1) {
+            throw new RuntimeException("No code in <clinit>.");
+        }
+        DataInput converter = new DataInputStream(new ByteArrayInputStream(code));
+        converter.skipBytes(index);
+        int opcode = converter.readUnsignedByte();
+        if (opcode == Opcode.RETURN) {
+            MethodInfo overrideConfigMethod = generateOverrideConfigMethod(instance, newConfig);
+
+            Bytecode bytecode = new Bytecode(instance.getConstPool());
+            bytecode.addInvokestatic(instance.getName(), overrideConfigMethod.getName(), overrideConfigMethod.getDescriptor());
+            try {
+                codeIterator.insertAt(index, bytecode.get());
+            } catch (BadBytecode e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private static MethodInfo generateOverrideConfigMethod(ClassFile instance, Map<String, Object> newConfig) {
+        Bytecode bytecode = new Bytecode(instance.getConstPool());
+
+        for (Map.Entry<String, Object> entry : newConfig.entrySet()) {
+            if (entry.getValue() instanceof String strValue) {
+                int constPoolIndex = instance.getConstPool().addStringInfo(strValue);
+                bytecode.addLdc(constPoolIndex);
+                bytecode.addPutstatic(instance.getName(), entry.getKey(), "Ljava/lang/String;");
+            } else if (entry.getValue() instanceof Boolean) {
+                boolean boolValue = (boolean) entry.getValue();
+                if (boolValue) {
+                    bytecode.addIconst(1);
+                } else {
+                    bytecode.addIconst(0);
+                }
+                bytecode.addPutstatic(instance.getName(), entry.getKey(), "Z");
+            } else if (entry.getValue() instanceof Integer) {
+                int intValue = (int) entry.getValue();
+                int constPoolIndex = instance.getConstPool().addIntegerInfo(intValue);
+                bytecode.addLdc(constPoolIndex);
+                bytecode.addPutstatic(instance.getName(), entry.getKey(), "I");
+            }
+        }
+
+        bytecode.addReturn(null);
+        bytecode.setMaxLocals(newConfig.size());
+
+        MethodInfo overrideConfigMethod = new MethodInfo(instance.getConstPool(), "overrideConfigValues", "()V");
+        overrideConfigMethod.setCodeAttribute(bytecode.toCodeAttribute());
+        Helpers.setStaticFlagForMethod(overrideConfigMethod);
+
+        try {
+            instance.addMethod(overrideConfigMethod);
+        } catch (DuplicateMemberException e) {
+            throw new RuntimeException("Class already infected?", e);
+        }
+
+        return overrideConfigMethod;
     }
 }

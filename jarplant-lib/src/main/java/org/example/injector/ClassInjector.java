@@ -1,6 +1,5 @@
 package org.example.injector;
 
-import javassist.CtClass;
 import javassist.bytecode.*;
 
 import java.io.DataInputStream;
@@ -90,15 +89,10 @@ public class ClassInjector {
 
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
         if (currentClinit == null) {
-            // There are no static blocks in this class, create an empty one
-            currentClinit = new MethodInfo(targetClass.getConstPool(), MethodInfo.nameClinit, "()V");
-            setStaticFlagForMethod(currentClinit);
-            Bytecode stubCode = new Bytecode(targetClass.getConstPool(), 0, 0);
-            stubCode.addReturn(CtClass.voidType);
-            currentClinit.setCodeAttribute(stubCode.toCodeAttribute());
-
+            // The target does not already have a class initializer (aka <clinit>) to merge implant code into.
+            // This is fine, but to make things a bit more streamlined, create an empty one first.
             try {
-                targetClass.addMethod(currentClinit);
+                currentClinit = createAndAddClassInitializerStub(targetClass);
             } catch (DuplicateMemberException e) {
                 throw new RuntimeException("Internal error: <clinit> already exist despite not existing", e);
             }

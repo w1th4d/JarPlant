@@ -225,8 +225,8 @@ public class Cli {
         System.out.println();
 
         System.out.println("[+] Reading available implant config properties...");
-        Map<String, String> availableConfig = implantHandler.getAvailableConfig();
-        for (Map.Entry<String, String> entry : availableConfig.entrySet()) {
+        Map<String, ImplantHandler.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
+        for (Map.Entry<String, ImplantHandler.ConfDataType> entry : availableConfig.entrySet()) {
             System.out.println("[i] " + entry.getKey() + " (" + entry.getValue() + ")");
         }
         implantHandler.getConfigModifications().put("CONF_JVM_MARKER_PROP", "this.is.a.test");

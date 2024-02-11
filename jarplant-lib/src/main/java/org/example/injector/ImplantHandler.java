@@ -15,10 +15,10 @@ import java.util.jar.JarFile;
 public class ImplantHandler {
     private final byte[] classData;
     private final String implantClassName;
-    private final Map<String, String> availableConfig;
+    private final Map<String, ConfDataType> availableConfig;
     private final Map<String, Object> configModifications;
 
-    public ImplantHandler(byte[] classData, String implantClassName, Map<String, String> availableConfig) {
+    public ImplantHandler(byte[] classData, String implantClassName, Map<String, ConfDataType> availableConfig) {
         this.classData = classData;
         this.implantClassName = implantClassName;
         this.availableConfig = Collections.unmodifiableMap(availableConfig);
@@ -61,7 +61,7 @@ public class ImplantHandler {
         }
 
         byte[] bytes = bufferFrom(sourcePath);
-        Map<String, String> availableConfig = readImplantConfig(readClassFile(bytes));
+        Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(bytes));
         return new ImplantHandler(bytes, className, availableConfig);
     }
 
@@ -79,7 +79,7 @@ public class ImplantHandler {
                 bytes = bufferFrom(inputStream);
             }
 
-            Map<String, String> availableConfig = readImplantConfig(readClassFile(bytes));
+            Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(bytes));
             return new ImplantHandler(bytes, className, availableConfig);
         }
     }
@@ -104,7 +104,7 @@ public class ImplantHandler {
         return implantClassName;
     }
 
-    public Map<String, String> getAvailableConfig() {
+    public Map<String, ConfDataType> getAvailableConfig() {
         return availableConfig;     // Unmodifiable map
     }
 
@@ -131,8 +131,8 @@ public class ImplantHandler {
         return instance;
     }
 
-    private static Map<String, String> readImplantConfig(ClassFile implantInstance) {
-        Map<String, String> configFields = new HashMap<>();
+    private static Map<String, ConfDataType> readImplantConfig(ClassFile implantInstance) {
+        Map<String, ConfDataType> configFields = new HashMap<>();
 
         for (FieldInfo field : implantInstance.getFields()) {
             if (!Helpers.isStaticFlagSet(field)) {
@@ -146,8 +146,8 @@ public class ImplantHandler {
                 continue;
             }
 
-            String type = field.getDescriptor();
-            configFields.put(fieldName, type);
+            String typeDescriptor = field.getDescriptor();
+            configFields.put(fieldName, ConfDataType.valueOfDescriptor(typeDescriptor));
         }
 
         return configFields;
@@ -200,7 +200,7 @@ public class ImplantHandler {
             if (entry.getValue() instanceof String strValue) {
                 int constPoolIndex = instance.getConstPool().addStringInfo(strValue);
                 bytecode.addLdc(constPoolIndex);
-                bytecode.addPutstatic(instance.getName(), entry.getKey(), "Ljava/lang/String;");
+                bytecode.addPutstatic(instance.getName(), entry.getKey(), ConfDataType.STRING.descriptor);
             } else if (entry.getValue() instanceof Boolean) {
                 boolean boolValue = (boolean) entry.getValue();
                 if (boolValue) {
@@ -208,12 +208,12 @@ public class ImplantHandler {
                 } else {
                     bytecode.addIconst(0);
                 }
-                bytecode.addPutstatic(instance.getName(), entry.getKey(), "Z");
+                bytecode.addPutstatic(instance.getName(), entry.getKey(), ConfDataType.BOOLEAN.descriptor);
             } else if (entry.getValue() instanceof Integer) {
                 int intValue = (int) entry.getValue();
                 int constPoolIndex = instance.getConstPool().addIntegerInfo(intValue);
                 bytecode.addLdc(constPoolIndex);
-                bytecode.addPutstatic(instance.getName(), entry.getKey(), "I");
+                bytecode.addPutstatic(instance.getName(), entry.getKey(), ConfDataType.INT.descriptor);
             }
         }
 
@@ -231,5 +231,27 @@ public class ImplantHandler {
         }
 
         return overrideConfigMethod;
+    }
+
+    public enum ConfDataType {
+        STRING("Ljava/lang/String;"),
+        BOOLEAN("Z"),
+        INT("I"),
+        UNSUPPORTED("");
+
+        public final String descriptor;
+
+        ConfDataType(String descriptor) {
+            this.descriptor = descriptor;
+        }
+
+        public static ConfDataType valueOfDescriptor(String descriptor) {
+            for (ConfDataType type : values()) {
+                if (type.descriptor.equals(descriptor)) {
+                    return type;
+                }
+            }
+            return UNSUPPORTED;
+        }
     }
 }

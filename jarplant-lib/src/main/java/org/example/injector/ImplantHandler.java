@@ -109,8 +109,18 @@ public class ImplantHandler {
         return availableConfig;     // Unmodifiable map
     }
 
-    public Map<String, Object> getConfigModifications() {
-        return configModifications; // Modifiable map
+    public void setConfig(String key, Object value) throws ImplantConfigException {
+        if (!availableConfig.containsKey(key)) {
+            throw new ImplantConfigException("Config property '" + key + "' is not declared in implant class.");
+        }
+
+        Class<?> providedValueClass = value.getClass();
+        Class<?> expectedValueClass = availableConfig.get(key).type;
+        if (providedValueClass != expectedValueClass) {
+            throw new ImplantConfigException("Wrong data type '" + value.getClass() + "' for config property '" + key + "'.");
+        }
+
+        configModifications.put(key, value);
     }
 
     // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
@@ -229,21 +239,32 @@ public class ImplantHandler {
     }
 
     public enum ConfDataType {
-        STRING("Ljava/lang/String;"),
-        BOOLEAN("Z"),
-        INT("I"),
-        UNSUPPORTED("");
+        STRING(String.class, "Ljava/lang/String;"),
+        BOOLEAN(Boolean.class, "Z"),
+        INT(Integer.class, "I"),
+        UNSUPPORTED(Object.class, "");
 
+        public final Class<?> type;
         public final String descriptor;
 
-        ConfDataType(String descriptor) {
+        ConfDataType(Class<?> type, String descriptor) {
+            this.type = type;
             this.descriptor = descriptor;
         }
 
+        public static ConfDataType valueOfType(Class<?> type) {
+            for (ConfDataType element : values()) {
+                if (element.type.equals(type)) {
+                    return element;
+                }
+            }
+            return UNSUPPORTED;
+        }
+
         public static ConfDataType valueOfDescriptor(String descriptor) {
-            for (ConfDataType type : values()) {
-                if (type.descriptor.equals(descriptor)) {
-                    return type;
+            for (ConfDataType element : values()) {
+                if (element.descriptor.equals(descriptor)) {
+                    return element;
                 }
             }
             return UNSUPPORTED;

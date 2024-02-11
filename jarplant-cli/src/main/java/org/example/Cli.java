@@ -12,7 +12,11 @@ import org.example.injector.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Cli {
     // Credz: 'Square' font by Chris Gill, 30-JUN-94 -- based on .sig of Jeb Hagan.
@@ -85,6 +89,11 @@ public class Cli {
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
                 .choices("ClassImplant")
                 .setDefault("ClassImplant");
+        classInjectorParser.addArgument("--config")
+                .help("Override one or more configuration properties inside the implant.")
+                .metavar("KEY=VALUE")
+                .nargs("*")
+                .type(String.class);
 
         Subparser springInjectorParser = subparsers.addParser("spring-injector")
                 .help("Inject a Spring component implant into JAR-packaged Spring application. The component will be loaded and included in the Spring context. The component could be something like an extra REST controller or scheduled task.")
@@ -144,6 +153,15 @@ public class Cli {
                     } catch (ClassNotFoundException | IOException e) {
                         throw new RuntimeException("Cannot find built-in implant class.", e);
                     }
+
+                    Map<String, Object> configOverrides = parseConfigOverrides(namespace);
+                    try {
+                        implantHandler.setConfig(configOverrides);
+                    } catch (ImplantConfigException e) {
+                        System.out.println("[!] " + e.getMessage());
+                        System.exit(1);
+                    }
+
                     runClassInjector(targetPath, outputPath, implantHandler);
                 } else {
                     System.out.println("[!] Unknown --implant-class.");
@@ -164,6 +182,15 @@ public class Cli {
                     } catch (ClassNotFoundException | IOException e) {
                         throw new RuntimeException("Cannot find built-in implant class.", e);
                     }
+
+                    Map<String, Object> configOverrides = parseConfigOverrides(namespace);
+                    try {
+                        componentHandler.setConfig(configOverrides);
+                    } catch (ImplantConfigException e) {
+                        System.out.println("[!] " + e.getMessage());
+                        System.exit(1);
+                    }
+
                     runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);
                 } else {
                     System.out.println("[!] Unknown --implant-component or --implant-config.");
@@ -175,6 +202,29 @@ public class Cli {
                 System.exit(1);
             }
         }
+    }
+
+    private static Map<String, Object> parseConfigOverrides(Namespace namespace) {
+        Map<String, Object> config = new HashMap<>();
+
+        ArrayList<String> configArgs = namespace.get("config");
+        Pattern regex = Pattern.compile("^(?<key>\\w+)=(?<value>[\\w ]+)$");
+        for (String configArg : configArgs) {
+            Matcher match = regex.matcher(configArg);
+            if (!match.matches()) {
+                System.out.println("[!] Each config entry must be in the format KEY=VALUE. Example: CONF_LOCAL_PORT=1234");
+                System.exit(1);
+            }
+            String key = match.group("key");
+            String value = match.group("value");
+            if (key == null && value == null) {
+                throw new RuntimeException("Internal error: Regex groups does not exist despite a match.");
+            }
+
+            config.put(key, value);
+        }
+
+        return config;
     }
 
     public static void runMethodInjector(Path targetClassFile, Path outputClassFile, Class<?> sourceClass, String methodName) {
@@ -225,15 +275,6 @@ public class Cli {
         Map<String, ImplantHandler.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
         for (Map.Entry<String, ImplantHandler.ConfDataType> entry : availableConfig.entrySet()) {
             System.out.println("[i] " + entry.getKey() + " (" + entry.getValue() + ")");
-        }
-        try {
-            implantHandler.setConfig("CONF_JVM_MARKER_PROP", "this.is.a.test");
-            implantHandler.setConfig("CONF_BLOCK_JVM_SHUTDOWN", true);
-            implantHandler.setConfig("CONF_DELAY_MS", 2000);
-            System.out.println("[+] Wrote custom config.");
-        } catch (ImplantConfigException e) {
-            System.out.println("[!] Failed to write custom config: " + e.getMessage());
-            System.exit(1);
         }
 
         try {

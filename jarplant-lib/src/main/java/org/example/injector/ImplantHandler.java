@@ -109,18 +109,51 @@ public class ImplantHandler {
         return availableConfig;     // Unmodifiable map
     }
 
+    public void setConfig(Map<String, Object> bulkConfigs) throws ImplantConfigException {
+        for (Map.Entry<String, Object> entry : bulkConfigs.entrySet()) {
+            setConfig(entry.getKey(), entry.getValue());
+        }
+    }
+
     public void setConfig(String key, Object value) throws ImplantConfigException {
         if (!availableConfig.containsKey(key)) {
-            throw new ImplantConfigException("Config property '" + key + "' is not declared in implant class.");
+            throw new ImplantConfigException("Config property " + key + " is not declared in implant class.");
         }
 
         Class<?> providedValueClass = value.getClass();
         Class<?> expectedValueClass = availableConfig.get(key).type;
-        if (providedValueClass != expectedValueClass) {
-            throw new ImplantConfigException("Wrong data type '" + value.getClass() + "' for config property '" + key + "'.");
+        if (providedValueClass == String.class && expectedValueClass == String.class) {
+            configModifications.put(key, value);
+        } else if (providedValueClass == String.class) {
+            Object convertedValue = attemptStringToValueParsing(key, (String) value, expectedValueClass);
+            configModifications.put(key, convertedValue);
+        } else if (providedValueClass != expectedValueClass) {
+            throw new ImplantConfigException("Wrong data type '" + providedValueClass + "' for config property " + key + " (" + expectedValueClass + ").");
+        } else {
+            configModifications.put(key, value);
         }
+    }
 
-        configModifications.put(key, value);
+    private static Object attemptStringToValueParsing(String key, String value, Class<?> expectedValueClass) throws ImplantConfigException {
+        if (expectedValueClass == String.class) {
+            return value;
+        } else if (expectedValueClass == Boolean.class) {
+            if (value.equalsIgnoreCase("true")) {
+                return true;
+            } else if (value.equalsIgnoreCase("false")) {
+                return false;
+            } else {
+                throw new ImplantConfigException("Expected boolean (true/false) value for config property " + key + ".");
+            }
+        } else if (expectedValueClass == Integer.class) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                throw new ImplantConfigException("Expected integer value for config property '" + key + "'.");
+            }
+        } else {
+            throw new ImplantConfigException("Cannot parse String value '" + value + "' to data type suitable for config property " + key + " (" + expectedValueClass + ").");
+        }
     }
 
     // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
@@ -221,6 +254,7 @@ public class ImplantHandler {
                 int constPoolIndex = bytecode.getConstPool().addStringInfo(strValue);
                 bytecode.addLdc(constPoolIndex);
                 bytecode.addPutstatic(forClass.getName(), confKey, ConfDataType.STRING.descriptor);
+                System.out.println("[ ] Wrote config override: " + confKey + "=" + strValue + " (String)");
             } else if (confValue instanceof Boolean boolValue) {
                 if (boolValue) {
                     bytecode.addIconst(1);
@@ -228,10 +262,12 @@ public class ImplantHandler {
                     bytecode.addIconst(0);
                 }
                 bytecode.addPutstatic(forClass.getName(), entry.getKey(), ConfDataType.BOOLEAN.descriptor);
+                System.out.println("[ ] Wrote config override: " + confKey + "=" + boolValue + " (Boolean)");
             } else if (confValue instanceof Integer intValue) {
                 int constPoolIndex = bytecode.getConstPool().addIntegerInfo(intValue);
                 bytecode.addLdc(constPoolIndex);
                 bytecode.addPutstatic(forClass.getName(), confKey, ConfDataType.INT.descriptor);
+                System.out.println("[ ] Wrote config override: " + confKey + "=" + intValue + " (Integer)");
             }
         }
 

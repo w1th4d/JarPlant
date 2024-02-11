@@ -34,7 +34,8 @@ public class MethodInjector {
             targetImplantMethod.setExceptionsAttribute(methodImplant.getExceptionsAttribute());
             HashMap<String, String> classTranslation = new HashMap<>();
             CodeAttribute copy = (CodeAttribute) methodImplant.getCodeAttribute().copy(targetClass.getConstPool(), classTranslation);
-            copy.setMaxLocals(1);  // Don't know why this is necessary, but it throws an error otherwise
+            copy.setMaxLocals(10);  // This is not a sustainable solution
+            copy.setMaxStack(10);
             setStaticFlagForMethod(targetImplantMethod);
 
             targetImplantMethod.getAttributes().removeIf(Objects::isNull);  // Cringe workaround due to internal bug in Javassist

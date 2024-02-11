@@ -68,7 +68,7 @@ public class Cli {
                 .setDefault("init");
 
         Subparser classInjectorParser = subparsers.addParser("class-injector")
-                .help("Inject a class implant into a JAR containing regular classes. This will modify *all* classes in the JAR to call the implant's 'init()' method when loaded.")
+                .help("Inject a class implant into any JAR. The implant will detonate whenever any class in the JAR is used but the payload will only run once (or possibly twice in some very fringe cases). This is the most versatile implant type and works with any JAR (even ones without a main function, like a library).")
                 .description(banner)
                 .setDefault("command", Command.CLASS_INJECTOR);
         classInjectorParser.addArgument("--target", "-t")
@@ -87,7 +87,7 @@ public class Cli {
                 .setDefault("ClassImplant");
 
         Subparser springInjectorParser = subparsers.addParser("spring-injector")
-                .help("Inject a Spring component into a JAR-packaged Spring application. The component will be loaded and included in the Spring context.")
+                .help("Inject a Spring component implant into JAR-packaged Spring application. The component will be loaded and included in the Spring context. The component could be something like an extra REST controller or scheduled task.")
                 .description(banner)
                 .setDefault("command", Command.SPRING_INJECTOR);
         springInjectorParser.addArgument("--target", "-t")

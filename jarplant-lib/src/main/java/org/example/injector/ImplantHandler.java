@@ -9,6 +9,7 @@ import java.security.CodeSource;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -163,9 +164,22 @@ public class ImplantHandler {
             throw new RuntimeException("Expected there to be a <clinit>.");
         }
 
-        byte[] code = clinit.getCodeAttribute().getCode();
         CodeIterator codeIterator = clinit.getCodeAttribute().iterator();
-        int index = -1;
+        Optional<Integer> endOfClinit = searchForEndOfMethodIndex(clinit.getCodeAttribute(), codeIterator);
+        if (endOfClinit.isEmpty()) {
+            throw new RuntimeException("No code in <clinit>.");
+        }
+
+        try {
+            Bytecode bytecode = generateConfigOverrideBytecode(instance, newConfig);
+            codeIterator.insertAt(endOfClinit.get(), bytecode.get());
+        } catch (BadBytecode e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) throws IOException {
+        int index = 0;
         while (codeIterator.hasNext()) {
             try {
                 index = codeIterator.next();
@@ -174,63 +188,44 @@ public class ImplantHandler {
             }
         }
 
-        if (index == -1) {
-            throw new RuntimeException("No code in <clinit>.");
-        }
-        DataInput converter = new DataInputStream(new ByteArrayInputStream(code));
+        DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
         converter.skipBytes(index);
         int opcode = converter.readUnsignedByte();
-        if (opcode == Opcode.RETURN) {
-            MethodInfo overrideConfigMethod = generateOverrideConfigMethod(instance, newConfig);
-
-            Bytecode bytecode = new Bytecode(instance.getConstPool());
-            bytecode.addInvokestatic(instance.getName(), overrideConfigMethod.getName(), overrideConfigMethod.getDescriptor());
-            try {
-                codeIterator.insertAt(index, bytecode.get());
-            } catch (BadBytecode e) {
-                throw new RuntimeException(e);
-            }
+        if (opcode != Opcode.RETURN) {
+            return Optional.empty();
         }
+
+        return Optional.of(index);
     }
 
-    private static MethodInfo generateOverrideConfigMethod(ClassFile instance, Map<String, Object> newConfig) {
-        Bytecode bytecode = new Bytecode(instance.getConstPool());
+    private static Bytecode generateConfigOverrideBytecode(ClassFile forClass, Map<String, Object> newConfig) {
+        Bytecode bytecode = new Bytecode(forClass.getConstPool());
+        bytecode.setMaxLocals(newConfig.size());
 
+        // For each new config, generate bytecode that sets the value of the corresponding class field
         for (Map.Entry<String, Object> entry : newConfig.entrySet()) {
-            if (entry.getValue() instanceof String strValue) {
-                int constPoolIndex = instance.getConstPool().addStringInfo(strValue);
+            String confKey = entry.getKey();
+            Object confValue = entry.getValue();
+
+            if (confValue instanceof String strValue) {
+                int constPoolIndex = bytecode.getConstPool().addStringInfo(strValue);
                 bytecode.addLdc(constPoolIndex);
-                bytecode.addPutstatic(instance.getName(), entry.getKey(), ConfDataType.STRING.descriptor);
-            } else if (entry.getValue() instanceof Boolean) {
-                boolean boolValue = (boolean) entry.getValue();
+                bytecode.addPutstatic(forClass.getName(), confKey, ConfDataType.STRING.descriptor);
+            } else if (confValue instanceof Boolean boolValue) {
                 if (boolValue) {
                     bytecode.addIconst(1);
                 } else {
                     bytecode.addIconst(0);
                 }
-                bytecode.addPutstatic(instance.getName(), entry.getKey(), ConfDataType.BOOLEAN.descriptor);
-            } else if (entry.getValue() instanceof Integer) {
-                int intValue = (int) entry.getValue();
-                int constPoolIndex = instance.getConstPool().addIntegerInfo(intValue);
+                bytecode.addPutstatic(forClass.getName(), entry.getKey(), ConfDataType.BOOLEAN.descriptor);
+            } else if (confValue instanceof Integer intValue) {
+                int constPoolIndex = bytecode.getConstPool().addIntegerInfo(intValue);
                 bytecode.addLdc(constPoolIndex);
-                bytecode.addPutstatic(instance.getName(), entry.getKey(), ConfDataType.INT.descriptor);
+                bytecode.addPutstatic(forClass.getName(), confKey, ConfDataType.INT.descriptor);
             }
         }
 
-        bytecode.addReturn(null);
-        bytecode.setMaxLocals(newConfig.size());
-
-        MethodInfo overrideConfigMethod = new MethodInfo(instance.getConstPool(), "overrideConfigValues", "()V");
-        overrideConfigMethod.setCodeAttribute(bytecode.toCodeAttribute());
-        Helpers.setStaticFlagForMethod(overrideConfigMethod);
-
-        try {
-            instance.addMethod(overrideConfigMethod);
-        } catch (DuplicateMemberException e) {
-            throw new RuntimeException("Class already infected?", e);
-        }
-
-        return overrideConfigMethod;
+        return bytecode;
     }
 
     public enum ConfDataType {

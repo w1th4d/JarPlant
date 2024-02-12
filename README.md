@@ -28,25 +28,23 @@ usage: java -jar jarplant.jar [-h] command ...
 
 positional arguments:
   command
-    method-injector      Copy a simple static method  into the target. This
-                         injector only operates  on  a  class  (not a JAR).
-                         The target  class  will  be  modified  to  run the
-                         implanted  method  when   loaded.   This  injector
-                         offers only a limited set  of  features but can be
-                         more difficult to detect.
-    class-injector       Inject a  class  implant  into  a  JAR  containing
-                         regular classes. This  will  modify  *all* classes
-                         in the JAR to  call  the implant's 'init()' method
-                         when loaded.
-    spring-injector      Inject a  Spring  component  into  a  JAR-packaged
-                         Spring application. The  component  will be loaded
-                         and included in the Spring context.
+    class-injector       Inject a class implant  into  any JAR. The implant
+                         will detonate whenever  any  class  in  the JAR is
+                         used but  the  payload  will  only  run  once  (or
+                         possibly twice in  some  very  fringe cases). This
+                         is the most versatile implant  type and works with
+                         any JAR (even ones  without  a main function, like
+                         a library).
+    spring-injector      Inject  a  Spring  component   implant  into  JAR-
+                         packaged Spring  application.  The  component will
+                         be loaded and included in  the Spring context. The
+                         component could be  something  like  an extra REST
+                         controller or scheduled task.
 
 named arguments:
   -h, --help             show this help message and exit
 
 for more options, see command help pages:
-  $ java -jar jarplant.jar method-injector -h
   $ java -jar jarplant.jar class-injector -h
   $ java -jar jarplant.jar spring-injector -h
 
@@ -56,16 +54,6 @@ example usage:
 ```
 
 ## Injectors
-
-### MethodInjector
-
-The first PoC.
-This injector copies a method into the target class.
-
-This injector only requires a class file (not a JAR) but is limited in its language capabilities.
-For instance, the implant method cannot call any other methods (in the same class) yet.
-
-Since no additional class files are added, it may be more difficult to detect this implant.
 
 ### ClassInjector
 

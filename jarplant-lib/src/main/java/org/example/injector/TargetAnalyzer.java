@@ -24,6 +24,6 @@ public class TargetAnalyzer {
 
     public boolean isInfected() throws IOException {
         // TODO Figure out a more dynamic way of determining infection status (other than just this method name)
-        return target.getMethod("implant") != null;
+        return target.getMethod("init") != null;
     }
 }

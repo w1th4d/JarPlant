@@ -1,8 +1,7 @@
 package org.example.injector;
 
-import javassist.bytecode.AccessFlag;
-import javassist.bytecode.ClassFile;
-import javassist.bytecode.MethodInfo;
+import javassist.CtClass;
+import javassist.bytecode.*;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -19,6 +18,21 @@ public class Helpers {
             cf = new ClassFile(in);
         }
         return cf;
+    }
+
+    public static boolean isStaticFlagSet(FieldInfo field) {
+        int accessFlags = field.getAccessFlags();
+        return (accessFlags & AccessFlag.STATIC) != 0;
+    }
+
+    public static boolean isFinalFlagSet(FieldInfo field) {
+        int accessFlags = field.getAccessFlags();
+        return (accessFlags & AccessFlag.FINAL) != 0;
+    }
+
+    public static boolean isVolatileFlagSet(FieldInfo field) {
+        int accessFlags = field.getAccessFlags();
+        return (accessFlags & AccessFlag.VOLATILE) != 0;
     }
 
     public static void setStaticFlagForMethod(MethodInfo clinit) {
@@ -57,5 +71,16 @@ public class Helpers {
         // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
         String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
         return new JarEntry(fullPathInsideJar);
+    }
+
+    public static MethodInfo createAndAddClassInitializerStub(ClassFile instance) throws DuplicateMemberException {
+        MethodInfo clinit = new MethodInfo(instance.getConstPool(), MethodInfo.nameClinit, "()V");
+        setStaticFlagForMethod(clinit);
+        Bytecode stubCode = new Bytecode(instance.getConstPool(), 0, 0);
+        stubCode.addReturn(CtClass.voidType);
+        clinit.setCodeAttribute(stubCode.toCodeAttribute());
+
+        instance.addMethod(clinit);
+        return clinit;
     }
 }

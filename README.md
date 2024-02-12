@@ -40,6 +40,12 @@ positional arguments:
                          be loaded and included in  the Spring context. The
                          component could be  something  like  an extra REST
                          controller or scheduled task.
+    implant-list         List all bundled implants.
+    implant-info         See more details  about  a  specific implant. This
+                         includes reading its  class  to  see all available
+                         configuration properties and  their  data types. A
+                         class file path can be  specified to read a custom
+                         implant.
 
 named arguments:
   -h, --help             show this help message and exit
@@ -47,6 +53,7 @@ named arguments:
 for more options, see command help pages:
   $ java -jar jarplant.jar class-injector -h
   $ java -jar jarplant.jar spring-injector -h
+    ...
 
 example usage:
   $ java -jar jarplant.jar class-injector \

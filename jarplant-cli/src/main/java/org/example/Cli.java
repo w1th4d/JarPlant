@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -175,6 +176,10 @@ public class Cli {
         Map<String, Object> config = new HashMap<>();
 
         ArrayList<String> configArgs = namespace.get("config");
+        if (configArgs == null) {
+            return Collections.emptyMap();
+        }
+
         Pattern regex = Pattern.compile("^(?<key>\\w+)=(?<value>[\\w ]+)$");
         for (String configArg : configArgs) {
             Matcher match = regex.matcher(configArg);

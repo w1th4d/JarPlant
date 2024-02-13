@@ -4,6 +4,7 @@ import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.*;
 import org.example.implants.ClassImplant;
+import org.example.implants.ImplantInfo;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
 import org.example.injector.ClassInjector;
@@ -14,10 +15,7 @@ import org.example.injector.SpringInjector;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,13 +30,14 @@ public class Cli {
 
     private final static String examples = "for more options, see command help pages:\n" +
             "  $ java -jar jarplant.jar class-injector -h\n" +
-            "  $ java -jar jarplant.jar spring-injector -h\n\n" +
+            "  $ java -jar jarplant.jar spring-injector -h\n" +
+            "    ...\n\n" +
             "example usage:\n" +
             "  $ java -jar jarplant.jar class-injector \\\n" +
             "    --target path/to/target.jar --output spiked-target.jar";
 
     enum Command {
-        CLASS_INJECTOR, SPRING_INJECTOR
+        CLASS_INJECTOR, SPRING_INJECTOR, IMPLANT_LIST, IMPLANT_INFO
     }
 
     public static void main(String[] args) {
@@ -96,6 +95,22 @@ public class Cli {
                 .choices("SpringImplantConfiguration")
                 .setDefault("SpringImplantConfiguration");
 
+        Subparser implantListParser = subparsers.addParser("implant-list")
+                .help("List all bundled implants.")
+                .description(banner)
+                .setDefault("command", Command.IMPLANT_LIST);
+
+        Subparser implantInfoParser = subparsers.addParser("implant-info")
+                .help("See more details about a specific implant. This includes reading its class to see all available configuration properties and their data types. A class file path can be specified to read a custom implant.")
+                .description(banner)
+                .setDefault("command", Command.IMPLANT_INFO);
+        implantInfoParser.addArgument("implant")
+                .help("Implant to list details about. Can be a name of a bundled implant or a path to a class file (or a mix of both).")
+                .metavar("IMPLANT")
+                .type(String.class)
+                .nargs("*")
+                .required(false);
+
         Namespace namespace;
         try {
             namespace = parser.parseArgs(args);
@@ -105,66 +120,12 @@ public class Cli {
             throw new RuntimeException("Unreachable");
         }
 
-        Path targetPath = Path.of(namespace.getString("target"));
-        Path outputPath = Path.of(namespace.getString("output"));
-
         Command command = namespace.get("command");
         switch (command) {
-            case CLASS_INJECTOR -> {
-                assertNotSameFile(targetPath, outputPath);
-
-                String implantClassName = namespace.getString("implant_class");
-                if (implantClassName.equals("ClassImplant")) {
-                    ImplantHandler implantHandler;
-                    try {
-                        implantHandler = ImplantHandler.findAndCreateFor(ClassImplant.class);
-                    } catch (ClassNotFoundException | IOException e) {
-                        throw new RuntimeException("Cannot find built-in implant class.", e);
-                    }
-
-                    Map<String, Object> configOverrides = parseConfigOverrides(namespace);
-                    try {
-                        implantHandler.setConfig(configOverrides);
-                    } catch (ImplantConfigException e) {
-                        System.out.println("[!] " + e.getMessage());
-                        System.exit(1);
-                    }
-
-                    runClassInjector(targetPath, outputPath, implantHandler);
-                } else {
-                    System.out.println("[!] Unknown --implant-class.");
-                    System.exit(1);
-                }
-            }
-            case SPRING_INJECTOR -> {
-                assertNotSameFile(targetPath, outputPath);
-
-                String implantComponent = namespace.getString("implant_component");
-                String implantConfClass = namespace.getString("implant_config");
-                if (implantComponent.equals("SpringImplantController") && implantConfClass.equals("SpringImplantConfiguration")) {
-                    ImplantHandler componentHandler;
-                    ImplantHandler springConfigHandler;
-                    try {
-                        componentHandler = ImplantHandler.findAndCreateFor(SpringImplantController.class);
-                        springConfigHandler = ImplantHandler.findAndCreateFor(SpringImplantConfiguration.class);
-                    } catch (ClassNotFoundException | IOException e) {
-                        throw new RuntimeException("Cannot find built-in implant class.", e);
-                    }
-
-                    Map<String, Object> configOverrides = parseConfigOverrides(namespace);
-                    try {
-                        componentHandler.setConfig(configOverrides);
-                    } catch (ImplantConfigException e) {
-                        System.out.println("[!] " + e.getMessage());
-                        System.exit(1);
-                    }
-
-                    runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);
-                } else {
-                    System.out.println("[!] Unknown --implant-component or --implant-config.");
-                    System.exit(1);
-                }
-            }
+            case CLASS_INJECTOR -> classInjector(namespace);
+            case SPRING_INJECTOR -> springInjector(namespace);
+            case IMPLANT_LIST -> listImplants();
+            case IMPLANT_INFO -> printImplantInfo(namespace);
             default -> {
                 parser.printHelp();
                 System.exit(1);
@@ -172,31 +133,33 @@ public class Cli {
         }
     }
 
-    private static Map<String, Object> parseConfigOverrides(Namespace namespace) {
-        Map<String, Object> config = new HashMap<>();
+    private static void classInjector(Namespace namespace) {
+        Path targetPath = Path.of(namespace.getString("target"));
+        Path outputPath = Path.of(namespace.getString("output"));
+        assertNotSameFile(targetPath, outputPath);
 
-        ArrayList<String> configArgs = namespace.get("config");
-        if (configArgs == null) {
-            return Collections.emptyMap();
-        }
+        String implantClassName = namespace.getString("implant_class");
+        if (implantClassName.equals("ClassImplant")) {
+            ImplantHandler implantHandler;
+            try {
+                implantHandler = ImplantHandler.findAndCreateFor(ClassImplant.class);
+            } catch (ClassNotFoundException | IOException e) {
+                throw new RuntimeException("Cannot find built-in implant class.", e);
+            }
 
-        Pattern regex = Pattern.compile("^(?<key>\\w+)=(?<value>[\\w ]+)$");
-        for (String configArg : configArgs) {
-            Matcher match = regex.matcher(configArg);
-            if (!match.matches()) {
-                System.out.println("[!] Each config entry must be in the format KEY=VALUE. Example: CONF_LOCAL_PORT=1234");
+            Map<String, Object> configOverrides = parseConfigOverrides(namespace);
+            try {
+                implantHandler.setConfig(configOverrides);
+            } catch (ImplantConfigException e) {
+                System.out.println("[!] " + e.getMessage());
                 System.exit(1);
             }
-            String key = match.group("key");
-            String value = match.group("value");
-            if (key == null && value == null) {
-                throw new RuntimeException("Internal error: Regex groups does not exist despite a match.");
-            }
 
-            config.put(key, value);
+            runClassInjector(targetPath, outputPath, implantHandler);
+        } else {
+            System.out.println("[!] Unknown --implant-class.");
+            System.exit(1);
         }
-
-        return config;
     }
 
     public static void runClassInjector(Path targetPath, Path outputPath, ImplantHandler implantHandler) {
@@ -231,6 +194,38 @@ public class Cli {
         }
     }
 
+    private static void springInjector(Namespace namespace) {
+        Path targetPath = Path.of(namespace.getString("target"));
+        Path outputPath = Path.of(namespace.getString("output"));
+        assertNotSameFile(targetPath, outputPath);
+
+        String implantComponent = namespace.getString("implant_component");
+        String implantConfClass = namespace.getString("implant_config");
+        if (implantComponent.equals("SpringImplantController") && implantConfClass.equals("SpringImplantConfiguration")) {
+            ImplantHandler componentHandler;
+            ImplantHandler springConfigHandler;
+            try {
+                componentHandler = ImplantHandler.findAndCreateFor(SpringImplantController.class);
+                springConfigHandler = ImplantHandler.findAndCreateFor(SpringImplantConfiguration.class);
+            } catch (ClassNotFoundException | IOException e) {
+                throw new RuntimeException("Cannot find built-in implant class.", e);
+            }
+
+            Map<String, Object> configOverrides = parseConfigOverrides(namespace);
+            try {
+                componentHandler.setConfig(configOverrides);
+            } catch (ImplantConfigException e) {
+                System.out.println("[!] " + e.getMessage());
+                System.exit(1);
+            }
+
+            runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);
+        } else {
+            System.out.println("[!] Unknown --implant-component or --implant-config.");
+            System.exit(1);
+        }
+    }
+
     public static void runSpringInjector(Path targetPath, Path outputPath, ImplantHandler componentHandler, ImplantHandler springConfigHandler) {
         SpringInjector injector = new SpringInjector(componentHandler, springConfigHandler);
 
@@ -254,6 +249,84 @@ public class Cli {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, Object> parseConfigOverrides(Namespace namespace) {
+        Map<String, Object> config = new HashMap<>();
+
+        ArrayList<String> configArgs = namespace.get("config");
+        if (configArgs == null) {
+            return Collections.emptyMap();
+        }
+
+        Pattern regex = Pattern.compile("^(?<key>\\w+)=(?<value>[\\w ]+)$");
+        for (String configArg : configArgs) {
+            Matcher match = regex.matcher(configArg);
+            if (!match.matches()) {
+                System.out.println("[!] Each config entry must be in the format KEY=VALUE. Example: CONF_LOCAL_PORT=1234");
+                System.exit(1);
+            }
+            String key = match.group("key");
+            String value = match.group("value");
+            if (key == null && value == null) {
+                throw new RuntimeException("Internal error: Regex groups does not exist despite a match.");
+            }
+
+            config.put(key, value);
+        }
+
+        return config;
+    }
+
+    private static void listImplants() {
+        System.out.println(banner);
+        System.out.println();
+
+        System.out.println("[+] Bundled implants:");
+        for (ImplantInfo info : ImplantInfo.values()) {
+            System.out.println("[+]   " + info.name() + ": " + info.summary);
+        }
+    }
+
+    private static void printImplantInfo(Namespace namespace) {
+        System.out.println(banner);
+        System.out.println();
+
+        List<String> implants = namespace.getList("implant");
+        for (String implant : implants) {
+            ImplantHandler implantHandler;
+            try {
+                ImplantInfo bundled = ImplantInfo.valueOf(implant);
+                implantHandler = ImplantHandler.findAndCreateFor(bundled.clazz);
+                System.out.println("[i] Bundled implant '" + implant + "':");
+            } catch (ClassNotFoundException | IOException e) {
+                throw new RuntimeException("Failed to read bundled implant: " + e.getMessage());
+            } catch (IllegalArgumentException e) {
+                // This is Javas way of saying that no enum value was found
+                // Try interpreting this as a file instead
+                try {
+                    Path classFilePath = Path.of(implant);
+                    if (!Files.exists(classFilePath)) {
+                        System.out.println("[!] Implant not found: " + implant);
+                        System.out.println();
+                        continue;
+                    }
+                    implantHandler = ImplantHandler.createFor(classFilePath);
+                    System.out.println("[i] File '" + implant + "':");
+                } catch (IOException e2) {
+                    System.out.println("[!] Failed to read class file: " + e2.getMessage());
+                    System.out.println();
+                    continue;
+                }
+            }
+
+            System.out.println("[i]   Class: " + implantHandler.getImplantClassName());
+            System.out.println("[i]   Available configuration properties:");
+            for (Map.Entry<String, ImplantHandler.ConfDataType> entry : implantHandler.getAvailableConfig().entrySet()) {
+                System.out.println("[i]     " + entry.getKey() + " (" + entry.getValue() + ")");
+            }
+            System.out.println();
         }
     }
 

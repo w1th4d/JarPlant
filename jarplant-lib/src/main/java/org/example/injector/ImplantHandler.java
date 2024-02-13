@@ -26,6 +26,14 @@ public class ImplantHandler {
         this.configModifications = new HashMap<>();
     }
 
+    public static ImplantHandler createFor(Path classFilePath) throws IOException {
+        byte[] bytes = bufferFrom(classFilePath);
+        ClassFile classFile = readClassFile(bytes);
+        String className = classFile.getName();
+        Map<String, ConfDataType> availableConfig = readImplantConfig(classFile);
+        return new ImplantHandler(bytes, className, availableConfig);
+    }
+
     // Finds the class file using some weird Java quirks
     public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();

@@ -121,35 +121,35 @@ public class ImplantHandlerTests {
     public void testSetConfig_CorrectProp_Success() throws IOException, ClassNotFoundException, ImplantConfigException {
         ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
 
-        implant.setConfig("CONF_STRING", "A new config?");
+        implant.setConfig("CONF_STRING", "Modified");
         implant.setConfig("CONF_BOOLEAN", true);
-        implant.setConfig("CONF_INT", 42);
+        implant.setConfig("CONF_INT", 2);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
         String ret = runner.exec(implantClass);
-        assertEquals("CONF_STRING=\"A new config?\";CONF_BOOLEAN=true;CONF_INT=42;", ret);
+        assertEquals("CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
     }
 
     @Test
     public void testSetConfig_BulkConfigOverride_AddAllOverrides() throws IOException, ClassNotFoundException, ImplantConfigException {
         ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
         Map<String, Object> bulk = new HashMap<>();
-        bulk.put("CONF_STRING", "A new config!");
+        bulk.put("CONF_STRING", "Modified");
         bulk.put("CONF_BOOLEAN", true);
-        bulk.put("CONF_INT", 42);
+        bulk.put("CONF_INT", 2);
 
         implant.setConfig(bulk);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
         String ret = runner.exec(implantClass);
-        assertEquals("CONF_STRING=\"A new config!\";CONF_BOOLEAN=true;CONF_INT=42;", ret);
+        assertEquals("CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
     }
 
     @Test(expected = ImplantConfigException.class)
     public void testSetConfig_InvalidDataType_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
         ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
 
-        implant.setConfig("CONF_BOOLEAN", 42);
+        implant.setConfig("CONF_BOOLEAN", 2);
         implant.loadFreshConfiguredSpecimen();
     }
 
@@ -158,11 +158,11 @@ public class ImplantHandlerTests {
         ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
 
         implant.setConfig("CONF_BOOLEAN", "true");
-        implant.setConfig("CONF_INT", "42");
+        implant.setConfig("CONF_INT", "2");
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
         String ret = runner.exec(implantClass);
-        assertEquals("CONF_STRING=\"Test configuration!\";CONF_BOOLEAN=true;CONF_INT=42;", ret);
+        assertEquals("CONF_STRING=\"Original\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
     }
 
     @Test(expected = ImplantConfigException.class)

@@ -121,6 +121,17 @@ public class ImplantHandlerTests {
     }
 
     @Test
+    public void testSetConfig_PartialOverride_OnlyChangeAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException {
+        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+
+        implant.setConfig("CONF_BOOLEAN", true);
+        ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
+
+        String ret = runner.exec(implantClass);
+        assertEquals("CONF_STRING=\"Original\";CONF_BOOLEAN=true;CONF_INT=1;", ret);
+    }
+
+    @Test
     public void testSetConfig_BulkConfigOverride_AddAllOverrides() throws IOException, ClassNotFoundException, ImplantConfigException {
         ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
         Map<String, Object> bulk = new HashMap<>();
@@ -133,6 +144,19 @@ public class ImplantHandlerTests {
 
         String ret = runner.exec(implantClass);
         assertEquals("CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
+    }
+
+    @Test
+    public void testSetConfig_PartialBulkConfOverride_AddOnlyAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException {
+        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        Map<String, Object> bulk = new HashMap<>();
+        bulk.put("CONF_BOOLEAN", true);
+
+        implant.setConfig(bulk);
+        ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
+
+        String ret = runner.exec(implantClass);
+        assertEquals("CONF_STRING=\"Original\";CONF_BOOLEAN=true;CONF_INT=1;", ret);
     }
 
     @Test(expected = ImplantConfigException.class)

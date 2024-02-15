@@ -7,7 +7,6 @@ import org.junit.Test;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,25 +16,16 @@ import java.util.UUID;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
+import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 public class ImplantHandlerTests {
     private final TestImplantRunner runner = new TestImplantRunner();
 
-    private Path findTestEnvironmentDir() {
-        // This perhaps naively exploits the fact that the root resource path will be the `target/test-classes` dir.
-        URL testClassesDir = this.getClass().getClassLoader().getResource("");
-        if (testClassesDir == null) {
-            throw new RuntimeException("Failed to find resource directory for testing environment.");
-        }
-
-        return Path.of(testClassesDir.getPath());
-    }
-
     @Test
     public void testCreateFor_ClassFile_Success() throws IOException {
-        Path testEnv = findTestEnvironmentDir();
+        Path testEnv = findTestEnvironmentDir(this.getClass());
         Path classFile = testEnv.resolve("org/example/implants/TestImplant.class");
 
         ImplantHandler implant = ImplantHandler.createFor(classFile);
@@ -53,7 +43,7 @@ public class ImplantHandlerTests {
     @Test
     public void testFindAndCreateFor_ClassNameAndPath_Success() throws IOException, ClassNotFoundException {
         String className = TestImplant.class.getName();
-        Path classPath = findTestEnvironmentDir();
+        Path classPath = findTestEnvironmentDir(this.getClass());
 
         ImplantHandler implant = ImplantHandler.findAndCreateFor(className, classPath);
         runner.exec(implant.loadFreshRawSpecimen());
@@ -72,7 +62,7 @@ public class ImplantHandlerTests {
             jarWriter.putNextEntry(manifestEntry);
             jarWriter.write(manifest.getBytes(StandardCharsets.UTF_8));
 
-            Path classFile = findTestEnvironmentDir().resolve("org/example/implants/TestImplant.class");
+            Path classFile = findTestEnvironmentDir(this.getClass()).resolve("org/example/implants/TestImplant.class");
             JarEntry classEntry = new JarEntry("org/example/implants/TestImplant.class");
             jarWriter.putNextEntry(classEntry);
             jarWriter.write(Files.readAllBytes(classFile));

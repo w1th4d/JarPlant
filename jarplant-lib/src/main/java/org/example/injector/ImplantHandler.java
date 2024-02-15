@@ -13,13 +13,15 @@ import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import static org.example.injector.Helpers.searchForEndOfMethodIndex;
+
 public class ImplantHandler {
     private final byte[] classData;
     private final String implantClassName;
     private final Map<String, ConfDataType> availableConfig;
     private final Map<String, Object> configModifications;
 
-    public ImplantHandler(byte[] classData, String implantClassName, Map<String, ConfDataType> availableConfig) {
+    ImplantHandler(byte[] classData, String implantClassName, Map<String, ConfDataType> availableConfig) {
         this.classData = classData;
         this.implantClassName = implantClassName;
         this.availableConfig = Collections.unmodifiableMap(availableConfig);
@@ -226,26 +228,6 @@ public class ImplantHandler {
         } catch (BadBytecode e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) throws IOException {
-        int index = 0;
-        while (codeIterator.hasNext()) {
-            try {
-                index = codeIterator.next();
-            } catch (BadBytecode e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
-        converter.skipBytes(index);
-        int opcode = converter.readUnsignedByte();
-        if (opcode != Opcode.RETURN) {
-            return Optional.empty();
-        }
-
-        return Optional.of(index);
     }
 
     private static Bytecode generateConfigOverrideBytecode(ClassFile forClass, Map<String, Object> newConfig) {

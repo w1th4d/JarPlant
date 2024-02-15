@@ -3,12 +3,10 @@ package org.example.injector;
 import javassist.CtClass;
 import javassist.bytecode.*;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 
 public class Helpers {
@@ -25,20 +23,15 @@ public class Helpers {
         return (accessFlags & AccessFlag.STATIC) != 0;
     }
 
-    public static boolean isFinalFlagSet(FieldInfo field) {
-        int accessFlags = field.getAccessFlags();
-        return (accessFlags & AccessFlag.FINAL) != 0;
-    }
-
     public static boolean isVolatileFlagSet(FieldInfo field) {
         int accessFlags = field.getAccessFlags();
         return (accessFlags & AccessFlag.VOLATILE) != 0;
     }
 
-    public static void setStaticFlagForMethod(MethodInfo clinit) {
-        int accessFlags = clinit.getAccessFlags();
+    public static void setStaticFlagForMethod(MethodInfo method) {
+        int accessFlags = method.getAccessFlags();
         accessFlags |= AccessFlag.STATIC;   // Yes, bit-flipping!
-        clinit.setAccessFlags(accessFlags);
+        method.setAccessFlags(accessFlags);
     }
 
     public static String parsePackageNameFromFqcn(final String fqcn) {
@@ -82,5 +75,25 @@ public class Helpers {
 
         instance.addMethod(clinit);
         return clinit;
+    }
+
+    public static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) throws IOException {
+        int index = 0;
+        while (codeIterator.hasNext()) {
+            try {
+                index = codeIterator.next();
+            } catch (BadBytecode e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
+        converter.skipBytes(index);
+        int opcode = converter.readUnsignedByte();
+        if (opcode != Opcode.RETURN) {
+            return Optional.empty();
+        }
+
+        return Optional.of(index);
     }
 }

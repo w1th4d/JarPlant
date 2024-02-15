@@ -101,10 +101,9 @@ public class ImplantHandler {
         ByteArrayOutputStream allocator = new ByteArrayOutputStream();
         byte[] chunk = new byte[4096];
         int bytesRead;
-        do {
-            bytesRead = in.read(chunk);
+        while ((bytesRead = in.read(chunk)) != -1) {
             allocator.write(chunk, 0, bytesRead);
-        } while (bytesRead != -1);
+        }
 
         return allocator.toByteArray();
     }

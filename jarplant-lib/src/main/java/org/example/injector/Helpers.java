@@ -7,9 +7,12 @@ import java.io.*;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 import java.util.jar.JarEntry;
 
 public class Helpers {
+    private static final Set<Integer> returnOpcodes = Set.of(Opcode.RETURN, Opcode.DRETURN, Opcode.ARETURN, Opcode.FRETURN, Opcode.IRETURN, Opcode.LRETURN);
+
     public static ClassFile readClassFile(final Path classFilePath) throws IOException {
         final ClassFile cf;
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(classFilePath.toFile())))) {
@@ -48,10 +51,17 @@ public class Helpers {
         if (parts.length < 2) {
             throw new RuntimeException("Not a fully qualified class name: " + fqcn);
         }
+        if (parts[parts.length - 1].equals("class")) {
+            throw new RuntimeException("Not a fully qualified class name (hint: don't include .class extension): " + fqcn);
+
+        }
         return parts[parts.length - 1];
     }
 
     public static String convertToClassFormatFqcn(final String dotFormatClassName) {
+        if (!dotFormatClassName.contains(".")) {
+            throw new RuntimeException("Not a fully qualified class name: " + dotFormatClassName);
+        }
         return dotFormatClassName.replace(".", "/");
     }
 
@@ -90,7 +100,7 @@ public class Helpers {
         DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
         converter.skipBytes(index);
         int opcode = converter.readUnsignedByte();
-        if (opcode != Opcode.RETURN) {
+        if (!returnOpcodes.contains(opcode)) {
             return Optional.empty();
         }
 

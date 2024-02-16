@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.jar.JarEntry;
@@ -163,6 +164,32 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             if (hasWrittenToOutputJar) {
                 throw new IllegalStateException("JAR entry has already been written to output JAR.");
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof WrappedJarEntry entry)) return false;
+
+            //return Objects.equals(jarEntry, entry.jarEntry) ;
+            return this.jarEntry.getName().equals(entry.jarEntry.getName()) &&
+                    //this.jarEntry.getAttributes().equals(entry.jarEntry.getAttributes()) &&
+                    this.jarEntry.getSize() == entry.jarEntry.getSize() &&
+                    this.jarEntry.getCompressedSize() == entry.jarEntry.getCompressedSize() &&
+                    this.jarEntry.getCrc() == entry.jarEntry.getCrc() &&
+                    this.jarEntry.getCreationTime().equals(entry.jarEntry.getCreationTime()) &&
+                    this.jarEntry.getLastModifiedTime().equals(entry.jarEntry.getLastModifiedTime()) &&
+                    this.jarEntry.getLastAccessTime().equals(entry.jarEntry.getLastAccessTime()) &&
+                    this.jarEntry.getTime() == entry.jarEntry.getTime() &&
+                    this.jarEntry.getComment().equals(entry.jarEntry.getComment()) &&
+                    Arrays.equals(this.jarEntry.getExtra(), entry.jarEntry.getExtra()) &&
+                    Arrays.equals(this.jarEntry.getCodeSigners(), entry.jarEntry.getCodeSigners()) &&
+                    Arrays.equals(this.jarEntry.getCertificates(), entry.jarEntry.getCertificates());
+        }
+
+        @Override
+        public int hashCode() {
+            return jarEntry != null ? jarEntry.hashCode() : 0;
         }
     }
 }

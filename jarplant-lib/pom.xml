@@ -48,7 +48,7 @@
         <dependency>
             <groupId>org.example</groupId>
             <artifactId>target-app</artifactId>
-            <version>${parent.version}</version>
+            <version>${project.parent.version}</version>
             <scope>test</scope>
         </dependency>
 

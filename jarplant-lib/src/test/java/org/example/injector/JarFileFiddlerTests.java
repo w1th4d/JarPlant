@@ -9,8 +9,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.DataInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -131,7 +130,7 @@ public class JarFileFiddlerTests {
     }
 
     @Test
-    public void testIterator_ModifyEntry_OnlyEntryModified() {
+    public void testIterator_ModifyEntry_OnlyEntryModified() throws IOException {
         String nameOfMain = "org/example/target/Main.class";
         HashMap<String, Long> originalFileHashes = new HashMap<>();
 
@@ -149,7 +148,7 @@ public class JarFileFiddlerTests {
                     entry.forward();
                 }
             }
-        } catch (IOException | DuplicateMemberException e) {
+        } catch (DuplicateMemberException e) {
             throw new RuntimeException(e);
         }
 
@@ -168,20 +167,18 @@ public class JarFileFiddlerTests {
     @Test
     public void testIterator_ReplaceEntryFromBuffer_EntryReplaced() throws IOException {
         String nameOfMain = "org/example/target/Main.class";
-        ByteBuffer insert = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
+        ByteBuffer replacementData = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
 
         // Go through entire JAR but replace Main with something else
         try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
-                    // Replace entry contents
-                    entry.replaceWith(insert);
+                    // This is what's being tested
+                    entry.replaceWith(replacementData);
                 } else {
                     entry.forward();
                 }
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
 
         // Take a look at the Main only
@@ -189,28 +186,102 @@ public class JarFileFiddlerTests {
             ZipEntry main = output.getEntry(nameOfMain);
             assertNotNull("Entry was added.", main);
 
-            long originalHash = crc32(insert.rewind());
+            long originalHash = crc32(replacementData.rewind());
             long foundHash = main.getCrc();
             assertEquals("Entry is modified.", originalHash, foundHash);
         }
     }
 
     @Test
-    @Ignore
-    public void testIterator_ReplaceEntryFromStream_EntryReplaced() {
+    public void testIterator_ReplaceEntryFromStream_EntryReplaced() throws IOException {
+        String nameOfMain = "org/example/target/Main.class";
+        byte[] replacementData = new byte[]{1, 2, 3, 4, 5};
+        InputStream replacementStream = new ByteArrayInputStream(replacementData);
 
+        // Go through entire JAR but replace Main with something else
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                if (entry.getName().equals(nameOfMain)) {
+                    // This is what's being tested
+                    entry.replaceWith(replacementStream);
+                } else {
+                    entry.forward();
+                }
+            }
+        }
+
+        // Take a look at the Main only
+        try (JarFile output = new JarFile(outputJar.toFile())) {
+            ZipEntry main = output.getEntry(nameOfMain);
+            assertNotNull("Entry was added.", main);
+
+            long originalHash = crc32(ByteBuffer.wrap(replacementData));
+            long foundHash = main.getCrc();
+            assertEquals("Entry is modified.", originalHash, foundHash);
+        }
     }
 
     @Test
-    @Ignore
-    public void testIterator_AddAndGetStream_EntryReplaced() {
+    public void testIterator_ReplaceAndGetStream_EntryReplaced() throws IOException {
+        String nameOfMain = "org/example/target/Main.class";
+        byte[] replacementData = new byte[]{1, 2, 3, 4, 5};
 
+        // Go through entire JAR but replace Main with something else
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                if (entry.getName().equals(nameOfMain)) {
+                    // This is what's being tested
+                    DataOutputStream replacementStream = entry.replaceAndGetStream();
+                    replacementStream.write(replacementData);
+                } else {
+                    entry.forward();
+                }
+            }
+        }
+
+        // Take a look at the Main only
+        try (JarFile output = new JarFile(outputJar.toFile())) {
+            ZipEntry main = output.getEntry(nameOfMain);
+            assertNotNull("Entry was added.", main);
+
+            long originalHash = crc32(ByteBuffer.wrap(replacementData));
+            long foundHash = main.getCrc();
+            assertEquals("Entry is modified.", originalHash, foundHash);
+        }
     }
 
-    @Test(expected = Exception.class)
-    @Ignore
-    public void testIterator_AddToReadOnlyFiddler_Exception() {
+    @Test(expected = IllegalStateException.class)
+    public void testIterator_AddToReadOnlyFiddler_Exception() throws IOException {
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                // Forward it despite there being no output JAR
+                entry.forward();
+            }
+        }
+    }
 
+    @Test(expected = IllegalStateException.class)
+    public void testIterator_ForwardSameEntryTwice_Exception() throws IOException {
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                // Forward it twice
+                entry.forward();
+                entry.forward();
+            }
+        }
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testIterator_ModifyAndForwardSameEntry_Exception() throws IOException {
+        ByteBuffer replacement = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
+
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                // First forward and then try to modify the same entry
+                entry.forward();
+                entry.replaceWith(replacement);
+            }
+        }
     }
 
     private static Set<JarEntry> readAllJarEntries(Path jarFile) {

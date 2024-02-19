@@ -1,21 +1,27 @@
 package org.example.injector;
 
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.DuplicateMemberException;
+import javassist.bytecode.FieldInfo;
 import org.example.TestHelpers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
+import java.util.zip.CRC32;
+import java.util.zip.ZipEntry;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class JarFileFiddlerTests {
     private Path testJar;
@@ -91,11 +97,8 @@ public class JarFileFiddlerTests {
 
     @Test
     public void testIterator_PassOnWholeJar_AllClassesInOutput() throws IOException {
-        // Arrange
         Set<String> passedOnEntries = new HashSet<>(expectedFileNames.size());
-        Set<String> entriesInOutput = new HashSet<>(expectedFileNames.size());
 
-        // Act
         // Go through the whole testJar and passOn() all entries
         try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
@@ -104,56 +107,92 @@ public class JarFileFiddlerTests {
             }
         }
 
-        // Assert
         // Now re-open outputJar and go through all entries
-        try (JarFileFiddler output = JarFileFiddler.open(outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : output) {
-                entriesInOutput.add(entry.getName());
-            }
-        }
-
-        // Match all entries that was passedOn() with the entries found in output
-        assertEquals("All files were passed on to output JAR.", passedOnEntries, entriesInOutput);
+        Set<String> foundEntries = readAllJarEntries(outputJar).stream()
+                .map(ZipEntry::getName)
+                .collect(Collectors.toSet());
+        assertEquals("All files were passed on to output JAR.", foundEntries, passedOnEntries);
     }
 
     @Test
     @Ignore // This is not yet implemented
     public void testIterator_PassOnWholeJar_CopiedEntriesMetadata() throws IOException {
-        // Arrange
-        Set<JarFileFiddler.WrappedJarEntry> passedOnEntries = new HashSet<>(expectedFileNames.size());
-        Set<JarFileFiddler.WrappedJarEntry> entriesInOutput = new HashSet<>(expectedFileNames.size());
+        Set<JarEntry> passedOnEntries = new HashSet<>(expectedFileNames.size());
 
-        // Act
-        // Go through the whole testJar and passOn() all entries
         try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 entry.passOn();
-                passedOnEntries.add(entry);
+                passedOnEntries.add(entry.getEntry());
             }
         }
 
-        // Assert
-        // Now re-open outputJar and go through all entries
-        try (JarFileFiddler output = JarFileFiddler.open(outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : output) {
-                entriesInOutput.add(entry);
-            }
-        }
-
-        // Match all entries that was passedOn() with the entries found in output
+        Set<JarEntry> entriesInOutput = readAllJarEntries(outputJar);
         assertEquals("All metadata for entries were passed on to output JAR.", passedOnEntries, entriesInOutput);
     }
 
     @Test
-    @Ignore
     public void testIterator_ModifyEntry_OnlyEntryModified() {
+        String nameOfMain = "org/example/target/Main.class";
+        HashMap<String, Long> originalFileHashes = new HashMap<>();
 
+        // Go through the entire JAR and modify Main.class
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                originalFileHashes.put(entry.getName(), entry.getEntry().getCrc());
+
+                if (entry.getName().equals(nameOfMain)) {
+                    ClassFile mainClass = new ClassFile(new DataInputStream(entry.getContent()));
+                    mainClass.addField(new FieldInfo(mainClass.getConstPool(), "ADDED_FIELD", "I"));
+                    // This is what's being tested:
+                    mainClass.write(entry.addAndGetStream());
+                } else {
+                    entry.passOn();
+                }
+            }
+        } catch (IOException | DuplicateMemberException e) {
+            throw new RuntimeException(e);
+        }
+
+        // Make sure that only Main.class is modified (but not the other entries)
+        for (JarEntry entry : readAllJarEntries(outputJar)) {
+            long originalHash = originalFileHashes.get(entry.getName());
+            long foundHash = entry.getCrc();
+            if (entry.getName().equals(nameOfMain)) {
+                assertNotEquals("Modified entry CRC differs.", originalHash, foundHash);
+            } else {
+                assertEquals("Unmodified entry CRC matches.", originalHash, foundHash);
+            }
+        }
     }
 
     @Test
-    @Ignore
-    public void testIterator_AddEntryFromBuffer_EntryAdded() {
+    public void testIterator_AddEntryFromBuffer_EntryAdded() throws IOException {
+        String nameOfMain = "org/example/target/Main.class";
+        ByteBuffer insert = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
 
+        // Go through entire JAR but replace Main with something else
+        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+                if (entry.getName().equals(nameOfMain)) {
+                    // Add a new entry
+                    entry.add(insert);
+                } else {
+                    entry.passOn();
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        // Take a look at the Main only
+        try (JarFile output = new JarFile(outputJar.toFile())) {
+            ZipEntry main = output.getEntry(nameOfMain);
+            assertNotNull("Entry was added.", main);
+
+            long originalHash = crc32(insert.rewind());
+            long foundHash = main.getCrc();
+            assertEquals("Entry is modified.", originalHash, foundHash);
+        }
     }
 
     @Test
@@ -172,5 +211,26 @@ public class JarFileFiddlerTests {
     @Ignore
     public void testIterator_AddToReadOnlyFiddler_Exception() {
 
+    }
+
+    private static Set<JarEntry> readAllJarEntries(Path jarFile) {
+        Set<JarEntry> results = new HashSet<>();
+
+        try (JarFile jar = new JarFile(jarFile.toFile())) {
+            Enumeration<JarEntry> entries = jar.entries();
+            while (entries.hasMoreElements()) {
+                results.add(entries.nextElement());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot open JAR file used for testing.", e);
+        }
+
+        return results;
+    }
+
+    private static long crc32(ByteBuffer buffer) {
+        CRC32 sum = new CRC32();
+        sum.update(buffer);
+        return sum.getValue();
     }
 }

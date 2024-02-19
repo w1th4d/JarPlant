@@ -104,7 +104,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             return jarFile.getInputStream(jarEntry);
         }
 
-        public void passOn() throws IOException {
+        public void forward() throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 
@@ -116,7 +116,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             hasWrittenToOutputJar = true;
         }
 
-        public void add(ByteBuffer content) throws IOException {
+        public void replaceWith(ByteBuffer content) throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 
@@ -128,7 +128,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             hasWrittenToOutputJar = true;
         }
 
-        public void add(InputStream in) throws IOException {
+        public void replaceWith(InputStream in) throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 
@@ -140,7 +140,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         }
 
         // This is a spectacular one...
-        public DataOutputStream addAndGetStream() throws IOException {
+        public DataOutputStream replaceAndGetStream() throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 

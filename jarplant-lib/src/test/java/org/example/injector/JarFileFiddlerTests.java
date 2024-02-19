@@ -96,14 +96,14 @@ public class JarFileFiddlerTests {
     }
 
     @Test
-    public void testIterator_PassOnWholeJar_AllClassesInOutput() throws IOException {
-        Set<String> passedOnEntries = new HashSet<>(expectedFileNames.size());
+    public void testIterator_ForwardWholeJar_AllClassesInOutput() throws IOException {
+        Set<String> forwardedEntries = new HashSet<>(expectedFileNames.size());
 
-        // Go through the whole testJar and passOn() all entries
+        // Go through the whole testJar and forward() all entries
         try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
-                entry.passOn();
-                passedOnEntries.add(entry.getName());
+                entry.forward();
+                forwardedEntries.add(entry.getName());
             }
         }
 
@@ -111,23 +111,23 @@ public class JarFileFiddlerTests {
         Set<String> foundEntries = readAllJarEntries(outputJar).stream()
                 .map(ZipEntry::getName)
                 .collect(Collectors.toSet());
-        assertEquals("All files were passed on to output JAR.", foundEntries, passedOnEntries);
+        assertEquals("All files were forwarded to output JAR.", foundEntries, forwardedEntries);
     }
 
     @Test
-    @Ignore // This is not yet implemented
-    public void testIterator_PassOnWholeJar_CopiedEntriesMetadata() throws IOException {
-        Set<JarEntry> passedOnEntries = new HashSet<>(expectedFileNames.size());
+    @Ignore // JarFileFiddler does not yet copy all the ZipFile properties (WrappedJarEntry.equals() checks these)
+    public void testIterator_ForwardWholeJar_CopiedEntriesMetadata() throws IOException {
+        Set<JarEntry> forwardedEntries = new HashSet<>(expectedFileNames.size());
 
         try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
-                entry.passOn();
-                passedOnEntries.add(entry.getEntry());
+                entry.forward();
+                forwardedEntries.add(entry.getEntry());
             }
         }
 
         Set<JarEntry> entriesInOutput = readAllJarEntries(outputJar);
-        assertEquals("All metadata for entries were passed on to output JAR.", passedOnEntries, entriesInOutput);
+        assertEquals("All metadata for entries were forwarded to output JAR.", forwardedEntries, entriesInOutput);
     }
 
     @Test
@@ -144,9 +144,9 @@ public class JarFileFiddlerTests {
                     ClassFile mainClass = new ClassFile(new DataInputStream(entry.getContent()));
                     mainClass.addField(new FieldInfo(mainClass.getConstPool(), "ADDED_FIELD", "I"));
                     // This is what's being tested:
-                    mainClass.write(entry.addAndGetStream());
+                    mainClass.write(entry.replaceAndGetStream());
                 } else {
-                    entry.passOn();
+                    entry.forward();
                 }
             }
         } catch (IOException | DuplicateMemberException e) {
@@ -166,7 +166,7 @@ public class JarFileFiddlerTests {
     }
 
     @Test
-    public void testIterator_AddEntryFromBuffer_EntryAdded() throws IOException {
+    public void testIterator_ReplaceEntryFromBuffer_EntryReplaced() throws IOException {
         String nameOfMain = "org/example/target/Main.class";
         ByteBuffer insert = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
 
@@ -174,10 +174,10 @@ public class JarFileFiddlerTests {
         try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
-                    // Add a new entry
-                    entry.add(insert);
+                    // Replace entry contents
+                    entry.replaceWith(insert);
                 } else {
-                    entry.passOn();
+                    entry.forward();
                 }
             }
         } catch (IOException e) {
@@ -197,13 +197,13 @@ public class JarFileFiddlerTests {
 
     @Test
     @Ignore
-    public void testIterator_AddEntryFromStream_EntryAdded() {
+    public void testIterator_ReplaceEntryFromStream_EntryReplaced() {
 
     }
 
     @Test
     @Ignore
-    public void testIterator_AddAndGetStream_EntryAdded() {
+    public void testIterator_AddAndGetStream_EntryReplaced() {
 
     }
 

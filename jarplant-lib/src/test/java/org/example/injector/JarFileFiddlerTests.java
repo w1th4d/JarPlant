@@ -284,6 +284,12 @@ public class JarFileFiddlerTests {
         }
     }
 
+    @Test(expected = Exception.class)
+    public void testCreate_SameFile_Exception() throws IOException {
+        JarFileFiddler subject = JarFileFiddler.open(testJar, testJar);
+        subject.close();
+    }
+
     private static Set<JarEntry> readAllJarEntries(Path jarFile) {
         Set<JarEntry> results = new HashSet<>();
 

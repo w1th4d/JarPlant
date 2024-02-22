@@ -31,7 +31,11 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         return new JarFileFiddler(new JarFile(jarFilePath.toFile()));
     }
 
-    public static JarFileFiddler open(final Path jarFilePath, final Path outputJarFilePath) throws IOException {
+    public static JarFileFiddler open(final Path jarFilePath, final Path outputJarFilePath) throws IllegalArgumentException, IOException {
+        if (outputJarFilePath.toRealPath().equals(jarFilePath.toRealPath())) {
+            throw new IllegalArgumentException("Output JAR is the same as input JAR. This is not yet supported.");
+        }
+
         return new JarFileFiddler(
                 new JarFile(jarFilePath.toFile()),
                 new JarOutputStream(new FileOutputStream(outputJarFilePath.toFile()))

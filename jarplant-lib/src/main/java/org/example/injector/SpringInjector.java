@@ -72,7 +72,7 @@ public class SpringInjector {
                             continue;
                         }
 
-                        currentlyProcessing.write(entry.replaceAndGetStream());
+                        currentlyProcessing.write(entry.replaceContentByStream());
                         System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                     } else {
                         entry.forward();

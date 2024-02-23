@@ -119,7 +119,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             hasWrittenToOutputJar = true;
         }
 
-        public void replaceWith(ByteBuffer content) throws IOException {
+        public void replaceContentWith(ByteBuffer content) throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 
@@ -131,7 +131,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
             hasWrittenToOutputJar = true;
         }
 
-        public void replaceWith(InputStream in) throws IOException {
+        public void replaceContentWith(InputStream in) throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 
@@ -143,7 +143,7 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         }
 
         // This is a spectacular one...
-        public DataOutputStream replaceAndGetStream() throws IOException {
+        public DataOutputStream replaceContentByStream() throws IOException {
             assertThatOutputJarIsSpecified();
             assertThatEntryHasNotAlreadyBeenWritten();
 

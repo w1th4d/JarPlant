@@ -145,7 +145,7 @@ public class JarFileFiddlerTests {
                     ClassFile mainClass = new ClassFile(new DataInputStream(entry.getContent()));
                     mainClass.addField(new FieldInfo(mainClass.getConstPool(), "ADDED_FIELD", "I"));
                     // This is what's being tested:
-                    mainClass.write(entry.replaceAndGetStream());
+                    mainClass.write(entry.replaceContentByStream());
                 } else {
                     entry.forward();
                 }
@@ -176,7 +176,7 @@ public class JarFileFiddlerTests {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
                     // This is what's being tested
-                    entry.replaceWith(replacementData);
+                    entry.replaceContentWith(replacementData);
                 } else {
                     entry.forward();
                 }
@@ -205,7 +205,7 @@ public class JarFileFiddlerTests {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
                     // This is what's being tested
-                    entry.replaceWith(replacementStream);
+                    entry.replaceContentWith(replacementStream);
                 } else {
                     entry.forward();
                 }
@@ -233,7 +233,7 @@ public class JarFileFiddlerTests {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
                     // This is what's being tested
-                    DataOutputStream replacementStream = entry.replaceAndGetStream();
+                    DataOutputStream replacementStream = entry.replaceContentByStream();
                     replacementStream.write(replacementData);
                 } else {
                     entry.forward();
@@ -281,7 +281,7 @@ public class JarFileFiddlerTests {
             for (JarFileFiddler.WrappedJarEntry entry : subject) {
                 // First forward and then try to modify the same entry
                 entry.forward();
-                entry.replaceWith(replacement);
+                entry.replaceContentWith(replacement);
             }
         }
     }

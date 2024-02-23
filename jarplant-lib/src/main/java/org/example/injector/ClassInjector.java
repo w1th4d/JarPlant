@@ -69,7 +69,7 @@ public class ClassInjector {
                  * by an app.
                  */
                 modifyClinit(currentlyProcessing, implantedClass);
-                currentlyProcessing.write(entry.replaceAndGetStream());
+                currentlyProcessing.write(entry.replaceContentByStream());
                 System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
             }
 

@@ -6,7 +6,6 @@ import javassist.bytecode.FieldInfo;
 import org.example.TestHelpers;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
@@ -114,7 +113,6 @@ public class JarFileFiddlerTests {
     }
 
     @Test
-    @Ignore // JarFileFiddler does not yet copy all the ZipFile properties (WrappedJarEntry.equals() checks these)
     public void testIterator_ForwardWholeJar_CopiedEntriesMetadata() throws IOException {
         Set<JarEntry> forwardedEntries = new HashSet<>(expectedFileNames.size());
 
@@ -125,8 +123,12 @@ public class JarFileFiddlerTests {
             }
         }
 
-        Set<JarEntry> entriesInOutput = readAllJarEntries(outputJar);
-        assertEquals("All metadata for entries were forwarded to output JAR.", forwardedEntries, entriesInOutput);
+        try (JarFile outputJarFile = new JarFile(outputJar.toFile())) {
+            for (JarEntry forwardedEntry : forwardedEntries) {
+                JarEntry correspondingOutputEntry = (JarEntry) outputJarFile.getEntry(forwardedEntry.getName());
+                assertAllJarEntryMetadataEquals(forwardedEntry, correspondingOutputEntry);
+            }
+        }
     }
 
     @Test
@@ -309,5 +311,21 @@ public class JarFileFiddlerTests {
         CRC32 sum = new CRC32();
         sum.update(buffer);
         return sum.getValue();
+    }
+
+    private static void assertAllJarEntryMetadataEquals(JarEntry a, JarEntry b) {
+        assertEquals(a.getName(), b.getName());
+        assertEquals(a.getSize(), b.getSize());
+        assertEquals(a.getCompressedSize(), b.getCompressedSize());
+        assertEquals(a.getCrc(), b.getCrc());
+        assertEquals(a.getCreationTime(), b.getCreationTime());
+        assertEquals(a.getLastModifiedTime(), b.getLastModifiedTime());
+        assertEquals(a.getLastAccessTime(), b.getLastAccessTime());
+        assertEquals(a.getTime(), b.getTime());
+        assertEquals(a.getTimeLocal(), b.getTimeLocal());
+        assertEquals(a.getComment(), b.getComment());
+        assertArrayEquals(a.getExtra(), b.getExtra());
+        assertArrayEquals(a.getCodeSigners(), b.getCodeSigners());
+        assertArrayEquals(a.getCertificates(), b.getCertificates());
     }
 }

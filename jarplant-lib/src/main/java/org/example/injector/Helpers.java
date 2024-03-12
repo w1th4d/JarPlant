@@ -9,6 +9,8 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarEntry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Helpers {
     private static final Set<Integer> returnOpcodes = Set.of(Opcode.RETURN, Opcode.DRETURN, Opcode.ARETURN, Opcode.FRETURN, Opcode.IRETURN, Opcode.LRETURN);
@@ -63,6 +65,17 @@ public class Helpers {
             throw new RuntimeException("Not a fully qualified class name: " + dotFormatClassName);
         }
         return dotFormatClassName.replace(".", "/");
+    }
+
+    public static String convertToBinaryClassNameFromPath(final String classFilePath) {
+        Pattern pattern = Pattern.compile("\\/?((\\w+\\/)*)?(\\w+)\\.class");
+        Matcher matcher = pattern.matcher(classFilePath);
+        if (!matcher.matches() || matcher.groupCount() < 3) {
+            throw new RuntimeException("Not a path to a class file: " + classFilePath);
+        }
+        String packageName = matcher.group(1).replace("/", ".");
+        String className = matcher.group(3);
+        return packageName + className;
     }
 
     public static JarEntry convertToJarEntry(final ClassFile classFile) {

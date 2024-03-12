@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.jar.JarEntry;
 
 import static org.example.TestHelpers.findTestEnvironmentDir;
+import static org.example.injector.Helpers.readClassFile;
 import static org.junit.Assert.*;
 
 // testMethodName_Input_ExpectedOutcome
@@ -23,7 +24,7 @@ public class HelpersTests {
     public void getTestClassFile() throws IOException {
         Path testEnv = findTestEnvironmentDir(this.getClass());
         Path aClassFile = testEnv.resolve("org/example/TestClass.class");
-        this.testClass = Helpers.readClassFile(aClassFile);
+        this.testClass = readClassFile(aClassFile);
     }
 
     @Test
@@ -159,6 +160,39 @@ public class HelpersTests {
     }
 
     @Test
+    public void testConvertToClassFormatFcqn_ValidJarEntryPath_BinaryClassName() {
+        assertEquals(Helpers.convertToBinaryClassNameFromPath("org/example/TestClass.class"),
+                "org.example.TestClass");
+        assertEquals(Helpers.convertToBinaryClassNameFromPath("/org/example/TestClass.class"),
+                "org.example.TestClass");
+        assertEquals(Helpers.convertToBinaryClassNameFromPath("TestClass.class"),
+                "TestClass");
+        assertEquals(Helpers.convertToBinaryClassNameFromPath("/TestClass.class"),
+                "TestClass");
+    }
+
+    @Test
+    public void testConvertToClassFormatFcqn_InvalidJarEntryPath_Exception() {
+        String[] invalidInputs = new String[]{
+                "org/example/TestClass",
+                "org/example/TestClass/",
+                "TestClass",
+                "org.example.TestClass",
+                "org.example.TestClass.class",
+                "",
+        };
+
+        // Act + Assert: Fail if any input did not result in an exception
+        for (String invalidInput : invalidInputs) {
+            try {
+                Helpers.convertToBinaryClassNameFromPath(invalidInput);
+                fail();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    @Test
     public void testConvertToJarEntry_ValidClassFile_EndsWithPath() {
         JarEntry jarEntry = Helpers.convertToJarEntry(testClass);
 
@@ -167,7 +201,7 @@ public class HelpersTests {
     }
 
     @Test
-    public void testCreateAndAddClassInitializerStu_ValidClass_ClinitStubWithOnlyAReturnOpcode() throws DuplicateMemberException, IOException {
+    public void testCreateAndAddClassInitializerStub_ValidClass_ClinitStubWithOnlyAReturnOpcode() throws DuplicateMemberException, IOException {
         // Act
         MethodInfo stub = Helpers.createAndAddClassInitializerStub(testClass);
 

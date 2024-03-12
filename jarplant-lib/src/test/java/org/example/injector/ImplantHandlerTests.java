@@ -21,7 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 public class ImplantHandlerTests {
-    private final TestImplantRunner runner = new TestImplantRunner();
+    private final TestImplantRunner runner = TestImplantRunner.getInstance();
 
     @Test
     public void testCreateFor_ClassFile_Success() throws IOException {
@@ -29,7 +29,7 @@ public class ImplantHandlerTests {
         Path classFile = testEnv.resolve("org/example/implants/TestImplant.class");
 
         ImplantHandler implant = ImplantHandler.createFor(classFile);
-        runner.exec(implant.loadFreshRawSpecimen());
+        runner.load(implant.loadFreshRawSpecimen());
     }
 
     @Test
@@ -37,7 +37,7 @@ public class ImplantHandlerTests {
         Class<?> clazz = TestImplant.class;
 
         ImplantHandler implant = ImplantHandler.findAndCreateFor(clazz);
-        runner.exec(implant.loadFreshRawSpecimen());
+        runner.load(implant.loadFreshRawSpecimen());
     }
 
     @Test
@@ -46,7 +46,7 @@ public class ImplantHandlerTests {
         Path classPath = findTestEnvironmentDir(this.getClass());
 
         ImplantHandler implant = ImplantHandler.findAndCreateFor(className, classPath);
-        runner.exec(implant.loadFreshRawSpecimen());
+        runner.load(implant.loadFreshRawSpecimen());
     }
 
     @Test
@@ -116,7 +116,8 @@ public class ImplantHandlerTests {
         implant.setConfig("CONF_INT", 2);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
-        String ret = runner.exec(implantClass);
+        Class<?> loadedImplantClass = runner.load(implantClass);
+        String ret = runner.runMethod(loadedImplantClass, "init", String.class);
         assertEquals("CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
     }
 
@@ -127,7 +128,8 @@ public class ImplantHandlerTests {
         implant.setConfig("CONF_BOOLEAN", true);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
-        String ret = runner.exec(implantClass);
+        Class<?> loadedImplantClass = runner.load(implantClass);
+        String ret = runner.runMethod(loadedImplantClass, "init", String.class);
         assertEquals("CONF_STRING=\"Original\";CONF_BOOLEAN=true;CONF_INT=1;", ret);
     }
 
@@ -142,7 +144,8 @@ public class ImplantHandlerTests {
         implant.setConfig(bulk);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
-        String ret = runner.exec(implantClass);
+        Class<?> loadedImplantClass = runner.load(implantClass);
+        String ret = runner.runMethod(loadedImplantClass, "init", String.class);
         assertEquals("CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
     }
 
@@ -155,7 +158,8 @@ public class ImplantHandlerTests {
         implant.setConfig(bulk);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
-        String ret = runner.exec(implantClass);
+        Class<?> loadedImplantClass = runner.load(implantClass);
+        String ret = runner.runMethod(loadedImplantClass, "init", String.class);
         assertEquals("CONF_STRING=\"Original\";CONF_BOOLEAN=true;CONF_INT=1;", ret);
     }
 
@@ -175,7 +179,8 @@ public class ImplantHandlerTests {
         implant.setConfig("CONF_INT", "2");
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
 
-        String ret = runner.exec(implantClass);
+        Class<?> loadedImplantClass = runner.load(implantClass);
+        String ret = runner.runMethod(loadedImplantClass, "init", String.class);
         assertEquals("CONF_STRING=\"Original\";CONF_BOOLEAN=true;CONF_INT=2;", ret);
     }
 

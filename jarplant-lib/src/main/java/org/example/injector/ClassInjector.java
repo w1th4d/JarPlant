@@ -81,7 +81,7 @@ public class ClassInjector {
         }
     }
 
-    private static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
+    static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
         MethodInfo implantInitMethod = implantClass.getMethod("init");
         if (implantInitMethod == null) {
             throw new UnsupportedOperationException("Implant class does not have a 'public static init()' function.");

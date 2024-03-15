@@ -1,13 +1,19 @@
 package org.example.injector;
 
 import javassist.bytecode.*;
+import org.example.TestImplantRunner;
+import org.example.implants.TestImplant;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.UUID;
 
+import static org.example.TestHelpers.createTempJarFile;
 import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.example.injector.Helpers.readClassFile;
 import static org.junit.Assert.*;
@@ -53,6 +59,38 @@ public class ClassInjectorTests {
 
         int amountOfBytecodeLeft = actualBytecode.length - expectedPreservedBytecode.length;
         assertTrue("There's added bytecode in the modified <clinit>.", amountOfBytecodeLeft > 0);
+    }
+
+    /**
+     * Test config override consistency.
+     * This one is a bit special. It tests that the config values are the same both at time of init() and later.
+     * This relates to how and where the config override bytecode is inserted into the implant class initializer.
+     */
+    @Test
+    @Ignore // TODO Fix the failing test
+    public void testConfigOverride_DifferentTimeOfRead_SameValues() throws IOException, ClassNotFoundException, ImplantConfigException {
+        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        implant.setConfig("CONF_STRING", "Modified");
+        implant.setConfig("CONF_BOOLEAN", true);
+        implant.setConfig("CONF_INT", 2);
+        ClassInjector injector = new ClassInjector(implant);
+        Path tempJarFile = createTempJarFile(
+                findTestEnvironmentDir(ClassInjectorTests.class),
+                Path.of("org/example/implants/TestImplant.class")
+        );
+        Path tempOutputJar = Files.createTempFile("ClassInjectorTests-" + UUID.randomUUID(), ".jar");
+        TestImplantRunner runner = TestImplantRunner.getInstance();
+
+        injector.infect(tempJarFile, tempOutputJar);
+        runner.loadAllClassesFromJar(tempOutputJar);
+
+        // TODO Why is this failing and where the hell does it go wrong!? During inject?
+        String actualAtInit = runner.runMethod("org.example.implants.TestImplant", "init", String.class);
+        String actualPostInit = runner.runMethod("org.example.implants.TestImplant", "getConfigDump", String.class);
+
+        String expected = "CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;";
+        assertEquals("Modified values at time if init().", expected, actualAtInit);
+        assertEquals("Modified values after init().", expected, actualPostInit);
     }
 
     private static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {

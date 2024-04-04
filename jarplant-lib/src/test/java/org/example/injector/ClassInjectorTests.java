@@ -28,6 +28,8 @@ public class ClassInjectorTests {
         this.testImplant = readClassFile(aClassFile);
     }
 
+    // modifyClinit
+
     @Test
     public void testModifyClinit_ExistingClinit_ModifiedClinit() {
         // Arrange
@@ -61,6 +63,11 @@ public class ClassInjectorTests {
         assertTrue("There's added bytecode in the modified <clinit>.", amountOfBytecodeLeft > 0);
     }
 
+    @Test
+    @Ignore
+    public void testModifyClinit_NoClinit_AddedClinit() {
+    }
+
     /**
      * Test config override consistency.
      * This one is a bit special. It tests that the config values are the same both at time of init() and later.
@@ -92,6 +99,108 @@ public class ClassInjectorTests {
         assertEquals("Modified values at time if init().", expected, actualAtInit);
         assertEquals("Modified values after init().", expected, actualPostInit);
     }
+
+    // deepRenameClass
+
+    @Test
+    @Ignore
+    public void testDeepRenameClass_ValidClass_Renamed() {
+    }
+
+    @Test
+    @Ignore
+    public void testDeepRenameClass_SameName_Unmodified() {
+    }
+
+    @Test
+    @Ignore
+    public void testDeepRenameClass_NoDebuggingInfo_Unmodified() {
+    }
+
+    // infect
+
+    @Test
+    @Ignore
+    public void testInfect_NormalJar_SomeClassModified() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_NormalJar_AllClassesModified() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_NotAJar_Untouched() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_EmptyJar_Untouched() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_JarWithoutClasses_Untouched() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_JarWithoutManifest_Success() {
+        // Success or fail could be debatable
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_SpringJar_ClassesModifiedAsUsual() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_VersionedJar_AllVersionsModified() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_SignedClasses_SignedClassesUntouched() {
+    }
+
+    @Test
+    @Ignore
+    // Corresponds to the standard debugging info produce by javac (lines + source)
+    public void testInfect_StandardDebuggingInfo_Success() {
+    }
+
+    @Test
+    @Ignore
+    // Corresponds to javac -g:lines
+    public void testInfect_LinesDebuggingInfo_Success() {
+    }
+
+    @Test
+    @Ignore
+    // Corresponds to javac -g:vars
+    public void testInfect_VarsDebuggingInfo_Success() {
+    }
+
+    @Test
+    @Ignore
+    // Corresponds to javac -g:source
+    public void testInfect_CodeDebuggingInfo_Success() {
+    }
+
+    @Test
+    @Ignore
+    // Corresponds to javac -g:none
+    public void testInfect_NoDebuggingInfo_Success() {
+    }
+
+    @Test
+    @Ignore
+    public void testInfect_AlreadyInfectedJar_Untouched() {
+        // TODO Implement infection detection
+    }
+
 
     private static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {
         for (int i = 0; i <= bigArray.length - smallArray.length; i++) {

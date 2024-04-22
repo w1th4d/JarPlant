@@ -7,9 +7,13 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,12 +24,29 @@ import static org.junit.Assert.*;
 
 public class ClassInjectorTests {
     private ClassFile testImplant;
+    private String testImplantSourceFileName;
 
     @Before
-    public void getTestClassFile() throws IOException {
+    public void getTestImplantClassFile() throws IOException {
         Path testEnv = findTestEnvironmentDir(this.getClass());
-        Path aClassFile = testEnv.resolve("org/example/implants/TestImplant.class");
-        this.testImplant = readClassFile(aClassFile);
+        Path testImplantFile = testEnv.resolve("org/example/implants/TestImplant.class");
+        this.testImplant = readClassFile(testImplantFile);
+
+        List<String> originalNames = testImplant.getAttributes().stream()
+                .filter(attr -> attr instanceof SourceFileAttribute)
+                .map(attr -> (SourceFileAttribute) attr)
+                .map(SourceFileAttribute::getFileName)
+                .toList();
+        HashSet<String> distinctOriginalNames = new HashSet<>(originalNames);
+
+        // Pre-assert test-app
+        assertFalse("test-app has SourceFileAttributes", originalNames.isEmpty());
+        assertEquals("All SourceFileAttributes in test-app are the same", 1, distinctOriginalNames.size());
+        String originalFileName = distinctOriginalNames.stream()
+                .findAny()
+                .orElseThrow()
+                .replace(".java", "");
+        this.testImplantSourceFileName = originalFileName;
     }
 
     // modifyClinit
@@ -103,13 +124,47 @@ public class ClassInjectorTests {
     // deepRenameClass
 
     @Test
-    @Ignore
-    public void testDeepRenameClass_ValidClass_Renamed() {
+    public void testDeepRenameClass_ValidClass_Renamed() throws IOException {
+        // Assemble
+        List<String> originalNames = testImplant.getAttributes().stream()
+                .filter(attr -> attr instanceof SourceFileAttribute)
+                .map(attr -> (SourceFileAttribute) attr)
+                .map(SourceFileAttribute::getFileName)
+                .toList();
+
+        // Act
+        ClassInjector.deepRenameClass(testImplant, "local.target", "NewName");
+        List<String> changedNames = testImplant.getAttributes().stream()
+                .filter(attr -> attr instanceof SourceFileAttribute)
+                .map(attr -> (SourceFileAttribute) attr)
+                .map(SourceFileAttribute::getFileName)
+                .toList();
+
+        // Assert
+        assertEquals("No SourceFileAttributes were added or lost", originalNames.size(), changedNames.size());
+        for (String changedName : changedNames) {
+            assertEquals("SourceFileAttribute is renamed", "NewName.java", changedName);
+        }
     }
 
     @Test
-    @Ignore
-    public void testDeepRenameClass_SameName_Unmodified() {
+    public void testDeepRenameClass_SameName_Unmodified() throws IOException {
+        // Assemble
+        String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplant.getName());
+        byte[] classDataBefore = asBytes(testImplant);
+
+        // Act
+        ClassInjector.deepRenameClass(testImplant, originalFqcn, testImplantSourceFileName);
+
+        // Assert
+        byte[] classDataAfter = asBytes(testImplant);
+        assertArrayEquals("Class is not changed", classDataBefore, classDataAfter);
+    }
+
+    private static byte[] asBytes(ClassFile classFile) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        classFile.write(new DataOutputStream(buffer));
+        return buffer.toByteArray();
     }
 
     @Test

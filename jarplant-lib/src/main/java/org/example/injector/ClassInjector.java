@@ -110,10 +110,12 @@ public class ClassInjector {
         currentClinit.setCodeAttribute(newCodeAttribute);
     }
 
-    private static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
+    // TODO This code is getting gnarly. Consider just stripping away debug info (for the implant class).
+    static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
         String newFqcn = newPackageName + "." + newClassName;
         String newSourceFileName = newClassName + ".java";
 
+        boolean didChangeSomething = false;
         AttributeInfo sourceFileAttr = classFile.getAttribute(SourceFileAttribute.tag);
         if (sourceFileAttr != null) {
             ByteBuffer sourceFileInfo = ByteBuffer.wrap(sourceFileAttr.get());
@@ -127,6 +129,9 @@ public class ClassInjector {
             if (!fileName.startsWith(expectedName)) {
                 throw new RuntimeException("Unexpected SourceFileAttribute: Expected class to start with '" + expectedName + "'.");
             }
+            if (expectedName.equals(newClassName)) {
+                return; // Bad flow
+            }
             int newClassNameIndex = classFile.getConstPool().addUtf8Info(newSourceFileName);
             if (newClassNameIndex < 0 || newClassNameIndex > 65535) {
                 throw new RuntimeException("Unexpected index in ConstPool: " + newClassNameIndex);
@@ -134,9 +139,13 @@ public class ClassInjector {
             sourceFileInfo.flip();
             sourceFileInfo.putShort((short) newClassNameIndex);
             sourceFileAttr.set(sourceFileInfo.array());
+            didChangeSomething = true;
         }
 
         classFile.setName(newFqcn);
-        classFile.compact();
+        if (didChangeSomething) {
+            // compact() removes any "dead" items from the ConstPool. This modifies the class byte data quite a lot.
+            classFile.compact();
+        }
     }
 }

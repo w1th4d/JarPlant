@@ -42,7 +42,7 @@ public class JarFileFiddlerTests {
     @Before
     public void getTestJar() {
         Path testEnv = TestHelpers.findTestEnvironmentDir(this.getClass());
-        Path jarPath = testEnv.resolve("test.jar");
+        Path jarPath = testEnv.resolve("target-app-with-debug.jar");
         if (Files.notExists(jarPath)) {
             throw new RuntimeException("Cannot find test JAR: " + jarPath);
         }

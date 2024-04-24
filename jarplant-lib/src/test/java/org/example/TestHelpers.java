@@ -1,11 +1,18 @@
 package org.example;
 
+import org.example.injector.JarFileFiddler;
+
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.Map;
 import java.util.UUID;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -60,5 +67,28 @@ public class TestHelpers {
         }
 
         return tmpFile;
+    }
+
+    public static Map<String, String> hashAllJarContents(Path jarFile) throws IOException {
+        Map<String, String> hashes = new HashMap<>();
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Cannot find SHA-256 provider.", e);
+        }
+
+        try (JarFileFiddler jar = JarFileFiddler.open(jarFile)) {
+            for (JarFileFiddler.WrappedJarEntry entry : jar) {
+                String filename = entry.getName();
+                byte[] contentDigest = md.digest(entry.getContent().readAllBytes());
+                md.reset();
+                String hashString = HexFormat.of().formatHex(contentDigest);
+
+                hashes.put(filename, hashString);
+            }
+        }
+
+        return hashes;
     }
 }

@@ -254,11 +254,6 @@ public class ClassInjectorTests {
 
     @Test
     @Ignore
-    public void testInfect_NormalJar_AllClassesModified() {
-    }
-
-    @Test
-    @Ignore
     public void testInfect_NotAJar_Untouched() {
     }
 
@@ -347,24 +342,6 @@ public class ClassInjectorTests {
                 .map(SourceFileAttribute::getFileName)
                 .anyMatch(name -> name.contains("TestClassImplant"));
         assertFalse("Injected implant does not contain a SourceFileAttribute with the original name.", didFindOriginalName);
-    }
-
-    @Test
-    @Ignore
-    // Corresponds to javac -g:lines
-    public void testInfect_LinesDebuggingInfo_Success() {
-    }
-
-    @Test
-    @Ignore
-    // Corresponds to javac -g:vars
-    public void testInfect_VarsDebuggingInfo_Success() {
-    }
-
-    @Test
-    @Ignore
-    // Corresponds to javac -g:source
-    public void testInfect_CodeDebuggingInfo_Success() {
     }
 
     @Test

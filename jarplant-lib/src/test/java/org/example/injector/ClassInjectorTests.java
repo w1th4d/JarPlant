@@ -102,7 +102,7 @@ public class ClassInjectorTests {
         implant.setConfig("CONF_BOOLEAN", true);
         implant.setConfig("CONF_INT", 2);
         ClassInjector injector = new ClassInjector(implant);
-        Path tempJarFile = createTempJarFile(
+        Path tempJarFile = createTempJarFileWithClasses(
                 findTestEnvironmentDir(ClassInjectorTests.class),
                 Path.of("org/example/implants/TestImplant.class")
         );

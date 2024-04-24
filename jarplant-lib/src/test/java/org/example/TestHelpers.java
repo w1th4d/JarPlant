@@ -21,11 +21,11 @@ public class TestHelpers {
         return Path.of(testClassesDir.getPath());
     }
 
-    public static Path createTempJarFile(Path baseDir, Path... files) {
+    public static Path createTempJarFileWithClasses(Path baseDir, Path... files) {
         Path tmpFile = null;
 
         try {
-            tmpFile = Files.createTempFile("TestImplant-" + UUID.randomUUID(), ".jar");
+            tmpFile = Files.createTempFile("JarPlantTests-" + UUID.randomUUID(), ".jar");
             JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tmpFile.toFile()));
 
             String manifest = "Manifest-Version: 1.0\nBuild-Jdk-Spec: 17\n";

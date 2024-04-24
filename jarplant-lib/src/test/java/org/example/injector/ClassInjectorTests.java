@@ -136,8 +136,16 @@ public class ClassInjectorTests {
     }
 
     @Test
-    @Ignore
     public void testModifyClinit_NoClinit_AddedClinit() {
+        // Arrange
+        ClassFile testClass = new ClassFile(false, "TestClass", null);
+
+        // Act
+        ClassInjector.modifyClinit(testClass, testImplant);
+
+        // Assert
+        MethodInfo actual = testClass.getMethod(MethodInfo.nameClinit);
+        assertNotNull("Class initializer method exists.", actual);
     }
 
     /**

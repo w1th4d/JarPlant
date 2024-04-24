@@ -2,7 +2,7 @@ package org.example.injector;
 
 import javassist.bytecode.ClassFile;
 import org.example.TestImplantRunner;
-import org.example.implants.TestImplant;
+import org.example.implants.TestClassImplant;
 import org.junit.Test;
 
 import java.io.FileOutputStream;
@@ -28,24 +28,24 @@ public class ImplantHandlerTests {
         Path testEnv = findTestEnvironmentDir(this.getClass());
         Path classFile = testEnv.resolve("org/example/implants/TestImplant.class");
 
-        ImplantHandler implant = ImplantHandler.createFor(classFile);
+        ImplantHandler implant = ImplantHandlerImpl.createFor(classFile);
         runner.load(implant.loadFreshRawSpecimen());
     }
 
     @Test
     public void testFindAndCreateFor_Class_Success() throws IOException, ClassNotFoundException {
-        Class<?> clazz = TestImplant.class;
+        Class<?> clazz = TestClassImplant.class;
 
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(clazz);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(clazz);
         runner.load(implant.loadFreshRawSpecimen());
     }
 
     @Test
     public void testFindAndCreateFor_ClassNameAndPath_Success() throws IOException, ClassNotFoundException {
-        String className = TestImplant.class.getName();
+        String className = TestClassImplant.class.getName();
         Path classPath = findTestEnvironmentDir(this.getClass());
 
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(className, classPath);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(className, classPath);
         runner.load(implant.loadFreshRawSpecimen());
     }
 
@@ -70,7 +70,7 @@ public class ImplantHandlerTests {
             jarWriter.close();
 
             // Act + Assert
-            ImplantHandler.findAndCreateFor(TestImplant.class.getName(), tmpFile);
+            ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class.getName(), tmpFile);
         } catch (IOException e) {
             throw new IOException("Failed to stage a temporary JAR file for testing.", e);
         } finally {
@@ -83,7 +83,7 @@ public class ImplantHandlerTests {
 
     @Test
     public void testGetImplantClassName_FullClassName() throws IOException, ClassNotFoundException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         String name = implant.getImplantClassName();
 
@@ -92,24 +92,24 @@ public class ImplantHandlerTests {
 
     @Test
     public void testGetAvailableConfig_AfterLoaded_CorrectType() throws IOException, ClassNotFoundException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
-        Map<String, ImplantHandler.ConfDataType> availableConfig = implant.getAvailableConfig();
-        ImplantHandler.ConfDataType confString = availableConfig.get("CONF_STRING");
-        ImplantHandler.ConfDataType confBool = availableConfig.get("CONF_BOOLEAN");
-        ImplantHandler.ConfDataType confInt = availableConfig.get("CONF_INT");
+        Map<String, ImplantHandlerImpl.ConfDataType> availableConfig = implant.getAvailableConfig();
+        ImplantHandlerImpl.ConfDataType confString = availableConfig.get("CONF_STRING");
+        ImplantHandlerImpl.ConfDataType confBool = availableConfig.get("CONF_BOOLEAN");
+        ImplantHandlerImpl.ConfDataType confInt = availableConfig.get("CONF_INT");
 
         assertNotNull(confString);
         assertNotNull(confBool);
         assertNotNull(confInt);
-        assertEquals(ImplantHandler.ConfDataType.STRING, confString);
-        assertEquals(ImplantHandler.ConfDataType.BOOLEAN, confBool);
-        assertEquals(ImplantHandler.ConfDataType.INT, confInt);
+        assertEquals(ImplantHandlerImpl.ConfDataType.STRING, confString);
+        assertEquals(ImplantHandlerImpl.ConfDataType.BOOLEAN, confBool);
+        assertEquals(ImplantHandlerImpl.ConfDataType.INT, confInt);
     }
 
     @Test
     public void testSetConfig_CorrectProp_Success() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         implant.setConfig("CONF_STRING", "Modified");
         implant.setConfig("CONF_BOOLEAN", true);
@@ -123,7 +123,7 @@ public class ImplantHandlerTests {
 
     @Test
     public void testSetConfig_PartialOverride_OnlyChangeAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         implant.setConfig("CONF_BOOLEAN", true);
         ClassFile implantClass = implant.loadFreshConfiguredSpecimen();
@@ -135,7 +135,7 @@ public class ImplantHandlerTests {
 
     @Test
     public void testSetConfig_BulkConfigOverride_AddAllOverrides() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Map<String, Object> bulk = new HashMap<>();
         bulk.put("CONF_STRING", "Modified");
         bulk.put("CONF_BOOLEAN", true);
@@ -151,7 +151,7 @@ public class ImplantHandlerTests {
 
     @Test
     public void testSetConfig_PartialBulkConfOverride_AddOnlyAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Map<String, Object> bulk = new HashMap<>();
         bulk.put("CONF_BOOLEAN", true);
 
@@ -165,7 +165,7 @@ public class ImplantHandlerTests {
 
     @Test(expected = ImplantConfigException.class)
     public void testSetConfig_InvalidDataType_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         implant.setConfig("CONF_BOOLEAN", 2);
         implant.loadFreshConfiguredSpecimen();
@@ -173,7 +173,7 @@ public class ImplantHandlerTests {
 
     @Test
     public void testSetConfig_StringValues_ConvertFromString() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         implant.setConfig("CONF_BOOLEAN", "true");
         implant.setConfig("CONF_INT", "2");
@@ -186,7 +186,7 @@ public class ImplantHandlerTests {
 
     @Test(expected = ImplantConfigException.class)
     public void testSetConfig_InvalidBooleanString_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         implant.setConfig("CONF_BOOLEAN", "yes");
         implant.loadFreshConfiguredSpecimen();
@@ -194,7 +194,7 @@ public class ImplantHandlerTests {
 
     @Test(expected = ImplantConfigException.class)
     public void testSetConfig_InvalidIntString_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
         implant.setConfig("CONF_INT", "1.0");
         implant.loadFreshConfiguredSpecimen();

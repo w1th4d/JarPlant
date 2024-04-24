@@ -4,6 +4,7 @@ import javassist.CtClass;
 import javassist.bytecode.*;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Optional;
@@ -118,5 +119,20 @@ public class Helpers {
         }
 
         return Optional.of(index);
+    }
+
+    public static byte[] bufferFrom(Path classFilePath) throws IOException {
+        return Files.readAllBytes(classFilePath);
+    }
+
+    public static byte[] bufferFrom(DataInputStream in) throws IOException {
+        ByteArrayOutputStream allocator = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int bytesRead;
+        while ((bytesRead = in.read(chunk)) != -1) {
+            allocator.write(chunk, 0, bytesRead);
+        }
+
+        return allocator.toByteArray();
     }
 }

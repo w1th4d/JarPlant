@@ -1,6 +1,6 @@
 package org.example.implants;
 
-public class TestImplant {
+public class TestClassImplant {
     private static volatile String CONF_STRING = "Original";
     private static volatile boolean CONF_BOOLEAN = false;
     private static volatile int CONF_INT = 1;

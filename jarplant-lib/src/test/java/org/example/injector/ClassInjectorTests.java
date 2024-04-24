@@ -2,37 +2,43 @@ package org.example.injector;
 
 import javassist.bytecode.*;
 import org.example.TestImplantRunner;
-import org.example.implants.TestImplant;
+import org.example.implants.TestClassImplant;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 import static org.example.TestHelpers.*;
-import static org.example.injector.Helpers.readClassFile;
 import static org.junit.Assert.*;
 
 public class ClassInjectorTests {
     private ClassFile testImplant;
+    private ClassFile testImplantWithDebug;
+
     private String testImplantSourceFileName;
     private Path targetAppJarWithDebuggingInfo;
     private Path targetAppJarWithoutDebuggingInfo;
 
     @Before
-    public void getTestImplantClassFile() throws IOException {
-        Path testEnv = findTestEnvironmentDir(this.getClass());
-        Path testImplantFile = testEnv.resolve("org/example/implants/TestImplant.class");
-        ClassFile testImplantCf = readClassFile(testImplantFile);
+    public void getTestImplants() throws IOException {
+        Path jarPath = getJarFileFromResourceFolder("test-class-implant-without-debug.jar");
+        InputStream rawClass = getRawClassStreamFromJar(jarPath, "org/example/implants/TestClassImplant.class");
+        ClassFile testImplant = new ClassFile(new DataInputStream(rawClass));
 
-        List<String> originalNames = testImplantCf.getAttributes().stream()
+        Path jarPathDbg = getJarFileFromResourceFolder("test-class-implant-with-debug.jar");
+        InputStream rawClassDbg = getRawClassStreamFromJar(jarPathDbg, "org/example/implants/TestClassImplant.class");
+        ClassFile testImplantDbg = new ClassFile(new DataInputStream(rawClassDbg));
+
+        // There's only file names encoded into the class with debugging info
+        List<String> originalNames = testImplantDbg.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
                 .map(attr -> (SourceFileAttribute) attr)
                 .map(SourceFileAttribute::getFileName)
@@ -47,7 +53,8 @@ public class ClassInjectorTests {
                 .orElseThrow()
                 .replace(".java", "");
 
-        this.testImplant = testImplantCf;
+        this.testImplant = testImplant;
+        this.testImplantWithDebug = testImplantDbg;
         this.testImplantSourceFileName = originalFileName;
     }
 
@@ -70,6 +77,16 @@ public class ClassInjectorTests {
         }
 
         return jarFilePath;
+    }
+
+    private static InputStream getRawClassStreamFromJar(Path jarFilePath, String entryFullInternalPath) throws IOException {
+        JarFile jarFile = new JarFile(jarFilePath.toFile());
+        JarEntry classFileInJar = (JarEntry) jarFile.getEntry(entryFullInternalPath);
+        if (classFileInJar == null) {
+            throw new FileNotFoundException(entryFullInternalPath);
+        }
+
+        return jarFile.getInputStream(classFileInJar);
     }
 
     @Before
@@ -131,7 +148,7 @@ public class ClassInjectorTests {
     @Test
     @Ignore // TODO Fix the failing test
     public void testConfigOverride_DifferentTimeOfRead_SameValues() throws IOException, ClassNotFoundException, ImplantConfigException {
-        ImplantHandler implant = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         implant.setConfig("CONF_STRING", "Modified");
         implant.setConfig("CONF_BOOLEAN", true);
         implant.setConfig("CONF_INT", 2);
@@ -160,15 +177,15 @@ public class ClassInjectorTests {
     @Test
     public void testDeepRenameClass_ValidClass_Renamed() throws IOException {
         // Assemble
-        List<String> originalNames = testImplant.getAttributes().stream()
+        List<String> originalNames = testImplantWithDebug.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
                 .map(attr -> (SourceFileAttribute) attr)
                 .map(SourceFileAttribute::getFileName)
                 .toList();
 
         // Act
-        ClassInjector.deepRenameClass(testImplant, "local.target", "NewName");
-        List<String> changedNames = testImplant.getAttributes().stream()
+        ClassInjector.deepRenameClass(testImplantWithDebug, "local.target", "NewName");
+        List<String> changedNames = testImplantWithDebug.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
                 .map(attr -> (SourceFileAttribute) attr)
                 .map(SourceFileAttribute::getFileName)
@@ -184,14 +201,14 @@ public class ClassInjectorTests {
     @Test
     public void testDeepRenameClass_SameName_Unmodified() throws IOException {
         // Assemble
-        String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplant.getName());
-        byte[] classDataBefore = asBytes(testImplant);
+        String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplantWithDebug.getName());
+        byte[] classDataBefore = asBytes(testImplantWithDebug);
 
         // Act
-        ClassInjector.deepRenameClass(testImplant, originalFqcn, testImplantSourceFileName);
+        ClassInjector.deepRenameClass(testImplantWithDebug, originalFqcn, testImplantSourceFileName);
 
         // Assert
-        byte[] classDataAfter = asBytes(testImplant);
+        byte[] classDataAfter = asBytes(testImplantWithDebug);
         assertArrayEquals("Class is not changed", classDataBefore, classDataAfter);
     }
 
@@ -203,7 +220,17 @@ public class ClassInjectorTests {
 
     @Test
     @Ignore
-    public void testDeepRenameClass_NoDebuggingInfo_Unmodified() {
+    public void testDeepRenameClass_NoDebuggingInfo_Unmodified() throws IOException {
+        // Assemble
+        String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplant.getName());
+        byte[] classDataBefore = asBytes(testImplant);
+
+        // Act
+        ClassInjector.deepRenameClass(testImplant, originalFqcn, testImplantSourceFileName);
+
+        // Assert
+        byte[] classDataAfter = asBytes(testImplant);
+        assertArrayEquals("Class is not changed", classDataBefore, classDataAfter);
     }
 
     // infect
@@ -211,7 +238,7 @@ public class ClassInjectorTests {
     @Test
     public void testInfect_NormalJar_SomeClassModified() throws IOException, ClassNotFoundException {
         // Assemble
-        ImplantHandler handler = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler handler = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
         Map<String, String> hashesBeforeInfect = hashAllJarContents(targetAppJarWithDebuggingInfo);
 
@@ -268,9 +295,9 @@ public class ClassInjectorTests {
 
     @Test
     // Corresponds to the standard debugging info produce by javac (lines + source)
-    public void testInfect_StandardDebuggingInfo_Success() throws IOException, ClassNotFoundException {
+    public void testInfect_TargetHasStandardDebuggingInfo_Success() throws IOException {
         // Assemble
-        ImplantHandler handler = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
         Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
 
         // Act
@@ -288,6 +315,38 @@ public class ClassInjectorTests {
             }
         }
         assertTrue("Did find injected Init class in output JAR.", didFindInitClass);
+    }
+
+    @Test
+    public void testInfect_ImplantStandardDebuggingInfo_ObscuredImplantName() throws IOException {
+        // Assemble
+        ImplantHandler handler = new ImplantHandlerMock(testImplantWithDebug);
+        Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
+
+        // Act
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, outputJarPath);
+
+        // Assert
+        assertTrue("Did successfully inject.", didInfect);
+
+        InputStream initEntryContent = null;
+        JarFileFiddler searchTheOutputJar = JarFileFiddler.open(outputJarPath);
+        for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
+            if (entry.getName().endsWith("Init.class")) {
+                initEntryContent = entry.getContent();
+            }
+        }
+        if (initEntryContent == null) {
+            fail("Failed to find Init class in infected JAR.");
+        }
+        ClassFile classFile = new ClassFile(new DataInputStream(initEntryContent));
+        boolean didFindOriginalName = classFile.getAttributes().stream()
+                .filter(attr -> attr instanceof SourceFileAttribute)
+                .map(attr -> (SourceFileAttribute) attr)
+                .map(SourceFileAttribute::getFileName)
+                .anyMatch(name -> name.contains("TestClassImplant"));
+        assertFalse("Injected implant does not contain a SourceFileAttribute with the original name.", didFindOriginalName);
     }
 
     @Test
@@ -310,9 +369,9 @@ public class ClassInjectorTests {
 
     @Test
     // Corresponds to javac -g:none
-    public void testInfect_NoDebuggingInfo_Success() throws IOException, ClassNotFoundException {
+    public void testInfect_TargetHasNoDebuggingInfo_Success() throws IOException, ClassNotFoundException {
         // Assemble
-        ImplantHandler handler = ImplantHandler.findAndCreateFor(TestImplant.class);
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
         Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
 
         // Act

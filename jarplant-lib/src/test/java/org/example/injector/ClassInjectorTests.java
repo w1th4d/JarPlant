@@ -250,6 +250,9 @@ public class ClassInjectorTests {
         assertTrue("Did successfully inject.", didInfect);
         Map<String, String> hashesAfterInfect = hashAllJarContents(outputJarPath);
         assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
+
+        // Cleanup (a bit late)
+        Files.delete(outputJarPath);
     }
 
     @Test
@@ -310,6 +313,9 @@ public class ClassInjectorTests {
             }
         }
         assertTrue("Did find injected Init class in output JAR.", didFindInitClass);
+
+        // Cleanup (a bit late but whatever)
+        Files.delete(outputJarPath);
     }
 
     @Test

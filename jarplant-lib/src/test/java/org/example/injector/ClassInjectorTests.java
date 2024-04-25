@@ -13,8 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
+import java.util.jar.*;
+import java.util.zip.ZipFile;
 
 import static org.example.TestHelpers.*;
 import static org.junit.Assert.*;
@@ -321,9 +321,52 @@ public class ClassInjectorTests {
     public void testInfect_SpringJar_ClassesModifiedAsUsual() {
     }
 
+    /*
+     * This synthetically creates a multi-release JAR and makes sure that all versions are infected.
+     * Consider re-writing this test to use an actual multi-release JAR from Maven.
+     */
     @Test
-    @Ignore
-    public void testInfect_VersionedJar_AllVersionsModified() {
+    public void testInfect_VersionedJar_AllVersionsModified() throws IOException {
+        // Arrange
+        JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
+        Manifest manifest = new Manifest();
+        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        jarWriter.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+
+        // Standard version
+        JarEntry javaClassEntry = new JarEntry("org/example/Main.class");
+        ClassFile javaClass = new ClassFile(false, "Main.class", null);
+        jarWriter.putNextEntry(javaClassEntry);
+        jarWriter.write(asBytes(javaClass));
+
+        // Some other version (totally not actually another version but it does not matter for this test)
+        JarEntry java11ClassEntry = new JarEntry("META-INF/versions/11/org/example/Main.class");
+        ClassFile java11Class = new ClassFile(false, "Main.class", null);
+        jarWriter.putNextEntry(java11ClassEntry);
+        jarWriter.write(asBytes(java11Class));
+
+        jarWriter.close();
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        long originalDefClassCrc = new JarFile(tempInputFile.toFile(), false, ZipFile.OPEN_READ)
+                .getEntry("org/example/Main.class")
+                .getCrc();
+        long modifiedDefClassCrc = new JarFile(tempOutputFile.toFile(), false, ZipFile.OPEN_READ)
+                .getEntry("org/example/Main.class")
+                .getCrc();
+        long original11ClassCrc = new JarFile(tempInputFile.toFile(), false, ZipFile.OPEN_READ, Runtime.Version.parse("11"))
+                .getEntry("org/example/Main.class")
+                .getCrc();
+        long modified11ClassCrc = new JarFile(tempOutputFile.toFile(), false, ZipFile.OPEN_READ, Runtime.Version.parse("11"))
+                .getEntry("org/example/Main.class")
+                .getCrc();
+        assertNotEquals("File in the default version namespace is modified.", originalDefClassCrc, modifiedDefClassCrc);
+        assertNotEquals("File in the Java11 version namespace is modified.", original11ClassCrc, modified11ClassCrc);
     }
 
     @Test

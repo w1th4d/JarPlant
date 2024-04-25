@@ -9,6 +9,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -370,8 +371,32 @@ public class ClassInjectorTests {
     }
 
     @Test
-    @Ignore
-    public void testInfect_SignedClasses_SignedClassesUntouched() {
+    public void testInfect_SignedJar_Exception() throws IOException {
+        // Arrange
+        // This is a very rudimentary representation of a signed JAR. Consider generating a legit one somehow. Maven?
+        String manifest = "Manifest-Version: 1.0\r\n\r\nName: org/example/Main.class\r\nSHA-256-Digest: "
+                + Base64.getEncoder().encodeToString("somethingsomething".getBytes())
+                + "\r\n";
+        String signatureFile = "Signature-Version: 1.0\r\nSHA-256-Digest-Manifest: "
+                + Base64.getEncoder().encodeToString("somethingsomething".getBytes())
+                + "\r\n";
+        JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
+        jarWriter.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+        jarWriter.write(manifest.getBytes(StandardCharsets.UTF_8));
+        jarWriter.putNextEntry(new JarEntry("META-INF/SOMETHING.SF"));
+        jarWriter.write(signatureFile.getBytes(StandardCharsets.UTF_8));
+        jarWriter.close();
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect signed JAR.", didInfect);
+        assertArrayEquals("Output JAR is identical to input JAR.",
+                Files.readAllBytes(tempInputFile),
+                Files.readAllBytes(tempOutputFile));
     }
 
     @Test

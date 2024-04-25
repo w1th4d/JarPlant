@@ -452,8 +452,18 @@ public class ClassInjectorTests {
     }
 
     @Test
-    @Ignore
-    public void testInfect_AlreadyInfectedJar_Untouched() {
-        // TODO Implement infection detection
+    public void testInfect_AlreadyInfectedJar_Untouched() throws IOException {
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempInputFile);
+        boolean didInfectASecondTime = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertTrue("Did infect the first time.", didInfect);
+        assertFalse("Did not infect an already infected JAR.", didInfectASecondTime);
+        assertArrayEquals("Output JAR is the same as input JAR when it was already infected.",
+                Files.readAllBytes(tempInputFile),
+                Files.readAllBytes(tempOutputFile));
     }
 }

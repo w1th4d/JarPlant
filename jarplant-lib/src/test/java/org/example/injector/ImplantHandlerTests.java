@@ -7,14 +7,15 @@ import org.junit.Test;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 
 import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.junit.Assert.assertEquals;
@@ -57,10 +58,11 @@ public class ImplantHandlerTests {
             tmpFile = Files.createTempFile("TestImplant", UUID.randomUUID().toString());
             JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tmpFile.toFile()));
 
-            String manifest = "Manifest-Version: 1.0\n\rBuild-Jdk-Spec: 17\n\r";
             JarEntry manifestEntry = new JarEntry("META-INF/MANIFEST.MF");
+            Manifest manifest = new Manifest();
+            manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
             jarWriter.putNextEntry(manifestEntry);
-            jarWriter.write(manifest.getBytes(StandardCharsets.UTF_8));
+            manifest.write(jarWriter);
 
             Path classFile = findTestEnvironmentDir(this.getClass()).resolve("org/example/implants/TestImplant.class");
             JarEntry classEntry = new JarEntry("org/example/implants/TestImplant.class");

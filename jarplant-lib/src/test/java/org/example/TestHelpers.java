@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -18,9 +17,7 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.jar.JarOutputStream;
+import java.util.jar.*;
 
 public class TestHelpers {
     public static Path findTestEnvironmentDir(Class<?> testClass) {
@@ -36,10 +33,11 @@ public class TestHelpers {
     public static void populateJarEntriesIntoEmptyFile(Path existingJar, Path baseDir, Path... files) throws IOException {
         JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(existingJar.toFile()));
 
-        String manifest = "Manifest-Version: 1.0\nBuild-Jdk-Spec: 17\n";
         JarEntry manifestEntry = new JarEntry("META-INF/MANIFEST.MF");
+        Manifest manifest = new Manifest();
+        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
         jarWriter.putNextEntry(manifestEntry);
-        jarWriter.write(manifest.getBytes(StandardCharsets.UTF_8));
+        manifest.write(jarWriter);
 
         for (Path fileRelativePath : files) {
             Path fileFullPath = baseDir.resolve(fileRelativePath);

@@ -1,20 +1,22 @@
 package org.example;
 
+import org.example.injector.ClassInjectorTests;
 import org.example.injector.JarFileFiddler;
 
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
-import java.util.HexFormat;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 
 public class TestHelpers {
@@ -69,6 +71,37 @@ public class TestHelpers {
         return tmpFile;
     }
 
+    public static Path getJarFileFromResourceFolder(String jarFileName) throws IOException {
+        URL resource = ClassInjectorTests.class.getClassLoader().getResource(jarFileName);
+        if (resource == null) {
+            throw new FileNotFoundException("Cannot find '" + jarFileName + "' in resource folder. Have you run `mvn package` in the project root yet?");
+        }
+
+        Path jarFilePath;
+        try {
+            jarFilePath = Path.of(resource.toURI());
+        } catch (URISyntaxException e) {
+            throw new IOException("Cannot make sense of resource path: Invalid URI: " + resource, e);
+        }
+
+        // This should not be necessary but let's make sure
+        if (!Files.exists(jarFilePath)) {
+            throw new IOException("Cannot make sense of resource path: File does not exist: " + jarFilePath);
+        }
+
+        return jarFilePath;
+    }
+
+    public static InputStream getRawClassStreamFromJar(Path jarFilePath, String entryFullInternalPath) throws IOException {
+        JarFile jarFile = new JarFile(jarFilePath.toFile());
+        JarEntry classFileInJar = (JarEntry) jarFile.getEntry(entryFullInternalPath);
+        if (classFileInJar == null) {
+            throw new FileNotFoundException(entryFullInternalPath);
+        }
+
+        return jarFile.getInputStream(classFileInJar);
+    }
+
     public static Map<String, String> hashAllJarContents(Path jarFile) throws IOException {
         Map<String, String> hashes = new HashMap<>();
         MessageDigest md;
@@ -90,5 +123,22 @@ public class TestHelpers {
         }
 
         return hashes;
+    }
+
+    public static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {
+        for (int i = 0; i <= bigArray.length - smallArray.length; i++) {
+            boolean found = true;
+            for (int j = 0; j < smallArray.length; j++) {
+                if (bigArray[i + j] != smallArray[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) {
+                return Optional.of(i);
+            }
+        }
+
+        return Optional.empty();
     }
 }

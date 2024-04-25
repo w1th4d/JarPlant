@@ -3,29 +3,34 @@ package org.example.injector;
 import javassist.bytecode.*;
 import org.example.TestImplantRunner;
 import org.example.implants.TestClassImplant;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
 
 import static org.example.TestHelpers.*;
 import static org.junit.Assert.*;
 
 public class ClassInjectorTests {
+    // These are compiled classes of the TestClassImplant that were packaged in a proper JAR by the test-class-implant module
     private ClassFile testImplant;
     private ClassFile testImplantWithDebug;
-
     private String testImplantSourceFileName;
+
+    // These are target JARs coming from the target-app module
     private Path targetAppJarWithDebuggingInfo;
     private Path targetAppJarWithoutDebuggingInfo;
+
+    // These can be used for test that just needs an empty JAR to work with
+    private Path tempInputFile;
+    private Path tempOutputFile;
 
     @Before
     public void getTestImplants() throws IOException {
@@ -58,46 +63,27 @@ public class ClassInjectorTests {
         this.testImplantSourceFileName = originalFileName;
     }
 
-    private static Path getJarFileFromResourceFolder(String jarFileName) {
-        URL resource = ClassInjectorTests.class.getClassLoader().getResource(jarFileName);
-        if (resource == null) {
-            throw new RuntimeException("Cannot find target-app JAR in resource folder. Have you run `mvn package` in the project root yet?");
-        }
-
-        Path jarFilePath;
-        try {
-            jarFilePath = Path.of(resource.toURI());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException("Cannot make sense of resource path.", e);
-        }
-
-        // This should not be necessary but let's make sure
-        if (!Files.exists(jarFilePath)) {
-            throw new RuntimeException("Cannot make sense of resource path: File does not exist.");
-        }
-
-        return jarFilePath;
-    }
-
-    private static InputStream getRawClassStreamFromJar(Path jarFilePath, String entryFullInternalPath) throws IOException {
-        JarFile jarFile = new JarFile(jarFilePath.toFile());
-        JarEntry classFileInJar = (JarEntry) jarFile.getEntry(entryFullInternalPath);
-        if (classFileInJar == null) {
-            throw new FileNotFoundException(entryFullInternalPath);
-        }
-
-        return jarFile.getInputStream(classFileInJar);
-    }
-
     @Before
-    public void setTargetAppJarWithDebuggingInfo() {
+    public void setTargetAppJarWithDebuggingInfo() throws IOException {
         this.targetAppJarWithDebuggingInfo = getJarFileFromResourceFolder("target-app-with-debug.jar");
     }
 
 
     @Before
-    public void setTargetAppJarWithoutDebuggingInfo() {
+    public void setTargetAppJarWithoutDebuggingInfo() throws IOException {
         this.targetAppJarWithoutDebuggingInfo = getJarFileFromResourceFolder("target-app-without-debug.jar");
+    }
+
+    @Before
+    public void createMiscTestJars() throws IOException {
+        tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
+        tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
+    }
+
+    @After
+    public void removeMiscTestJars() throws IOException {
+        Files.delete(tempInputFile);
+        Files.delete(tempOutputFile);
     }
 
     // modifyClinit
@@ -165,11 +151,10 @@ public class ClassInjectorTests {
                 findTestEnvironmentDir(ClassInjectorTests.class),
                 Path.of("org/example/implants/TestImplant.class")
         );
-        Path tempOutputJar = Files.createTempFile("ClassInjectorTests-" + UUID.randomUUID(), ".jar");
         TestImplantRunner runner = TestImplantRunner.getInstance();
 
-        injector.infect(tempJarFile, tempOutputJar);
-        runner.loadAllClassesFromJar(tempOutputJar);
+        injector.infect(tempJarFile, tempOutputFile);
+        runner.loadAllClassesFromJar(tempOutputFile);
 
         // TODO Why is this failing and where the hell does it go wrong!? During inject?
         String actualAtInit = runner.runMethod("org.example.implants.TestImplant", "init", String.class);
@@ -247,20 +232,16 @@ public class ClassInjectorTests {
     public void testInfect_NormalJar_SomeClassModified() throws IOException, ClassNotFoundException {
         // Assemble
         ImplantHandler handler = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
-        Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
         Map<String, String> hashesBeforeInfect = hashAllJarContents(targetAppJarWithDebuggingInfo);
 
         // Act
         ClassInjector injector = new ClassInjector(handler);
-        boolean didInfect = injector.infect(targetAppJarWithDebuggingInfo, outputJarPath);
+        boolean didInfect = injector.infect(targetAppJarWithDebuggingInfo, tempOutputFile);
 
         // Assert
         assertTrue("Did successfully inject.", didInfect);
-        Map<String, String> hashesAfterInfect = hashAllJarContents(outputJarPath);
+        Map<String, String> hashesAfterInfect = hashAllJarContents(tempOutputFile);
         assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
-
-        // Cleanup (a bit late)
-        Files.delete(outputJarPath);
     }
 
     @Test
@@ -304,16 +285,15 @@ public class ClassInjectorTests {
     public void testInfect_TargetHasStandardDebuggingInfo_Success() throws IOException {
         // Assemble
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
 
         // Act
         ClassInjector injector = new ClassInjector(handler);
-        boolean didInfect = injector.infect(targetAppJarWithDebuggingInfo, outputJarPath);
+        boolean didInfect = injector.infect(targetAppJarWithDebuggingInfo, tempOutputFile);
 
         // Assert
         assertTrue("Did successfully inject.", didInfect);
         boolean didFindInitClass = false;
-        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(outputJarPath)) {
+        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile)) {
             for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
                 if (entry.getName().endsWith("Init.class")) {
                     didFindInitClass = true;
@@ -321,26 +301,22 @@ public class ClassInjectorTests {
             }
         }
         assertTrue("Did find injected Init class in output JAR.", didFindInitClass);
-
-        // Cleanup (a bit late but whatever)
-        Files.delete(outputJarPath);
     }
 
     @Test
     public void testInfect_ImplantStandardDebuggingInfo_ObscuredImplantName() throws IOException {
         // Assemble
         ImplantHandler handler = new ImplantHandlerMock(testImplantWithDebug);
-        Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
 
         // Act
         ClassInjector injector = new ClassInjector(handler);
-        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, outputJarPath);
+        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
 
         // Assert
         assertTrue("Did successfully inject.", didInfect);
 
         InputStream initEntryContent = null;
-        JarFileFiddler searchTheOutputJar = JarFileFiddler.open(outputJarPath);
+        JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile);
         for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
             if (entry.getName().endsWith("Init.class")) {
                 initEntryContent = entry.getContent();
@@ -363,21 +339,17 @@ public class ClassInjectorTests {
     public void testInfect_TargetHasNoDebuggingInfo_Success() throws IOException, ClassNotFoundException {
         // Assemble
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        Path outputJarPath = Files.createTempFile("OutputJar-", ".jar");
 
         // Act
         ClassInjector injector = new ClassInjector(handler);
-        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, outputJarPath);
+        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
         boolean didFindInitClass = false;
-        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(outputJarPath)) {
+        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile)) {
             for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
                 if (entry.getName().endsWith("Init.class")) {
                     didFindInitClass = true;
                 }
             }
-        } finally {
-            // Clean up in the temp folder
-            Files.delete(outputJarPath);
         }
 
         // Assert
@@ -389,43 +361,5 @@ public class ClassInjectorTests {
     @Ignore
     public void testInfect_AlreadyInfectedJar_Untouched() {
         // TODO Implement infection detection
-    }
-
-
-    private static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {
-        for (int i = 0; i <= bigArray.length - smallArray.length; i++) {
-            boolean found = true;
-            for (int j = 0; j < smallArray.length; j++) {
-                if (bigArray[i + j] != smallArray[j]) {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) {
-                return Optional.of(i);
-            }
-        }
-
-        return Optional.empty();
-    }
-
-    @Test
-    public void testFindSubArray() {
-        // This test is a bit meta testing...
-        assertEquals(Optional.of(1), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{2, 3, 4}));
-        assertEquals(Optional.of(0), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{1}));
-        assertEquals(Optional.of(1), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{2}));
-        assertEquals(Optional.of(4), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{5}));
-        assertEquals(Optional.of(0), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{1, 2}));
-        assertEquals(Optional.of(3), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{4, 5}));
-        assertEquals(Optional.of(0), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{1, 2, 3, 4, 5}));
-        assertEquals(Optional.of(1), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{2, 3, 4, 5}));
-        assertEquals(Optional.empty(), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{2, 3, 4, 5, 1}));
-        assertEquals(Optional.empty(), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{1, 2, 3, 4, 5, 5}));
-        assertEquals(Optional.empty(), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{1, 1, 2, 3, 4, 5}));
-        assertEquals(Optional.empty(), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{1, 1, 2, 3, 4}));
-        assertEquals(Optional.empty(), findSubArray(new byte[]{}, new byte[]{1, 1, 2, 3, 4}));
-        assertEquals(Optional.of(0), findSubArray(new byte[]{1, 2, 3, 4, 5}, new byte[]{}));
-        assertEquals(Optional.of(0), findSubArray(new byte[]{}, new byte[]{}));
     }
 }

@@ -171,7 +171,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testDeepRenameClass_ValidClass_Renamed() throws IOException {
-        // Assemble
+        // Arrange
         List<String> originalNames = testImplantWithDebug.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
                 .map(attr -> (SourceFileAttribute) attr)
@@ -195,7 +195,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testDeepRenameClass_SameName_Unmodified() throws IOException {
-        // Assemble
+        // Arrange
         String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplantWithDebug.getName());
         byte[] classDataBefore = asBytes(testImplantWithDebug);
 
@@ -215,7 +215,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testDeepRenameClass_NoDebuggingInfo_Unmodified() throws IOException {
-        // Assemble
+        // Arrange
         String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplant.getName());
         byte[] classDataBefore = asBytes(testImplant);
 
@@ -231,7 +231,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testInfect_NormalJar_SomeClassModified() throws IOException, ClassNotFoundException {
-        // Assemble
+        // Arrange
         ImplantHandler handler = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Map<String, String> hashesBeforeInfect = hashAllJarContents(targetAppJarWithDebuggingInfo);
 
@@ -247,7 +247,7 @@ public class ClassInjectorTests {
 
     @Test(expected = Exception.class)
     public void testInfect_NotAJar_Exception() throws IOException {
-        // Assemble
+        // Arrange
         Random rng = new Random(1);
         byte[] someRandomData = new byte[10];
         rng.nextBytes(someRandomData);
@@ -263,7 +263,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testInfect_EmptyJar_Untouched() throws IOException {
-        // Assemble
+        // Arrange
         JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         createJar.close();  // The point is to just leave the JAR empty
 
@@ -278,7 +278,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testInfect_EmptyJarWithManifest_Untouched() throws IOException {
-        // Assemble
+        // Arrange
         populateJarEntriesIntoEmptyFile(tempInputFile, null);
 
         // Act
@@ -299,7 +299,7 @@ public class ClassInjectorTests {
      */
     @Test
     public void testInfect_JarWithoutManifest_Success() throws IOException {
-        // Assemble
+        // Arrange
         Random rng = new Random(1);
         JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         jarWriter.putNextEntry(new JarEntry("org/example/Something.class"));
@@ -334,7 +334,7 @@ public class ClassInjectorTests {
     @Test
     // Corresponds to the standard debugging info produce by javac (lines + source)
     public void testInfect_TargetHasStandardDebuggingInfo_Success() throws IOException {
-        // Assemble
+        // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
 
         // Act
@@ -356,7 +356,7 @@ public class ClassInjectorTests {
 
     @Test
     public void testInfect_ImplantStandardDebuggingInfo_ObscuredImplantName() throws IOException {
-        // Assemble
+        // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplantWithDebug);
 
         // Act
@@ -388,7 +388,7 @@ public class ClassInjectorTests {
     @Test
     // Corresponds to javac -g:none
     public void testInfect_TargetHasNoDebuggingInfo_Success() throws IOException, ClassNotFoundException {
-        // Assemble
+        // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
 
         // Act

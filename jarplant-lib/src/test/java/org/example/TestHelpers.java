@@ -14,7 +14,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.Map;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
@@ -30,45 +33,23 @@ public class TestHelpers {
         return Path.of(testClassesDir.getPath());
     }
 
-    public static Path createTempJarFileWithClasses(Path baseDir, Path... files) {
-        Path tmpFile = null;
+    public static void populateJarEntriesIntoEmptyFile(Path existingJar, Path baseDir, Path... files) throws IOException {
+        JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(existingJar.toFile()));
 
-        try {
-            tmpFile = Files.createTempFile("JarPlantTests-" + UUID.randomUUID(), ".jar");
-            JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tmpFile.toFile()));
+        String manifest = "Manifest-Version: 1.0\nBuild-Jdk-Spec: 17\n";
+        JarEntry manifestEntry = new JarEntry("META-INF/MANIFEST.MF");
+        jarWriter.putNextEntry(manifestEntry);
+        jarWriter.write(manifest.getBytes(StandardCharsets.UTF_8));
 
-            String manifest = "Manifest-Version: 1.0\nBuild-Jdk-Spec: 17\n";
-            JarEntry manifestEntry = new JarEntry("META-INF/MANIFEST.MF");
-            jarWriter.putNextEntry(manifestEntry);
-            jarWriter.write(manifest.getBytes(StandardCharsets.UTF_8));
-
-            for (Path fileRelativePath : files) {
-                Path fileFullPath = baseDir.resolve(fileRelativePath);
-                JarEntry classEntry = new JarEntry(fileRelativePath.toString());
-                jarWriter.putNextEntry(classEntry);
-                jarWriter.write(Files.readAllBytes(fileFullPath));
-                jarWriter.closeEntry();
-            }
-
-            jarWriter.close();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to stage a temporary JAR file for testing.", e);
-        } finally {
-            // Here's a dirty trick: Register a shutdown hook to delete this temp file at JVM exit
-            Path finalTmpFile = tmpFile;
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (finalTmpFile != null && Files.exists(finalTmpFile)) {
-                    try {
-                        Files.delete(finalTmpFile);
-                    } catch (IOException ignore) {
-                        // Worst case: There will be a file littering the temp folder (which is fine for tests)
-                    }
-                }
-            }));
-
+        for (Path fileRelativePath : files) {
+            Path fileFullPath = baseDir.resolve(fileRelativePath);
+            JarEntry classEntry = new JarEntry(fileRelativePath.toString());
+            jarWriter.putNextEntry(classEntry);
+            jarWriter.write(Files.readAllBytes(fileFullPath));
+            jarWriter.closeEntry();
         }
 
-        return tmpFile;
+        jarWriter.close();
     }
 
     public static Path getJarFileFromResourceFolder(String jarFileName) throws IOException {

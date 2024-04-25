@@ -147,13 +147,14 @@ public class ClassInjectorTests {
         implant.setConfig("CONF_BOOLEAN", true);
         implant.setConfig("CONF_INT", 2);
         ClassInjector injector = new ClassInjector(implant);
-        Path tempJarFile = createTempJarFileWithClasses(
+        populateJarEntriesIntoEmptyFile(
+                tempInputFile,
                 findTestEnvironmentDir(ClassInjectorTests.class),
                 Path.of("org/example/implants/TestImplant.class")
         );
         TestImplantRunner runner = TestImplantRunner.getInstance();
 
-        injector.infect(tempJarFile, tempOutputFile);
+        injector.infect(tempInputFile, tempOutputFile);
         runner.loadAllClassesFromJar(tempOutputFile);
 
         // TODO Why is this failing and where the hell does it go wrong!? During inject?

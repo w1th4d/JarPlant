@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
 import static org.example.TestHelpers.*;
@@ -213,7 +214,6 @@ public class ClassInjectorTests {
     }
 
     @Test
-    @Ignore
     public void testDeepRenameClass_NoDebuggingInfo_Unmodified() throws IOException {
         // Assemble
         String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplant.getName());
@@ -245,25 +245,75 @@ public class ClassInjectorTests {
         assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
     }
 
-    @Test
-    @Ignore
-    public void testInfect_NotAJar_Untouched() {
+    @Test(expected = Exception.class)
+    public void testInfect_NotAJar_Exception() throws IOException {
+        // Assemble
+        Random rng = new Random(1);
+        byte[] someRandomData = new byte[10];
+        rng.nextBytes(someRandomData);
+        Files.write(tempInputFile, someRandomData, StandardOpenOption.WRITE);
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Expect exception
     }
 
     @Test
-    @Ignore
-    public void testInfect_EmptyJar_Untouched() {
+    public void testInfect_EmptyJar_Untouched() throws IOException {
+        // Assemble
+        JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
+        createJar.close();  // The point is to just leave the JAR empty
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect anything in an empty JAR.", didInfect);
     }
 
     @Test
-    @Ignore
-    public void testInfect_JarWithoutClasses_Untouched() {
+    public void testInfect_EmptyJarWithManifest_Untouched() throws IOException {
+        // Assemble
+        populateJarEntriesIntoEmptyFile(tempInputFile, null);
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect anything in an empty JAR.", didInfect);
     }
 
+    /*
+     * It's debatable if this is a good behaviour or not. What distinguishes a JAR from any regular ZIP file is the
+     * fact that there's a manifest (META-INF/MANIFEST.MF) and a certain structure to the archive.
+     * As of current behaviour, JarPlant would happily infect any random ZIP file that just so happens to contain
+     * a .class file.
+     * Future versions may do more stringent validations of the target JAR before infection.
+     */
     @Test
-    @Ignore
-    public void testInfect_JarWithoutManifest_Success() {
-        // Success or fail could be debatable
+    public void testInfect_JarWithoutManifest_Success() throws IOException {
+        // Assemble
+        Random rng = new Random(1);
+        JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
+        jarWriter.putNextEntry(new JarEntry("org/example/Something.class"));
+        ClassFile emptyClass = new ClassFile(false, "Something.class", null);
+        jarWriter.write(asBytes(emptyClass));
+        jarWriter.close();
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertTrue("Did not infect anything in an empty JAR.", didInfect);
     }
 
     @Test

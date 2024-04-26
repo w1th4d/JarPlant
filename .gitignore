@@ -43,4 +43,5 @@ jarplant-lib/src/test/resources/target-app-with-debug.jar
 jarplant-lib/src/test/resources/target-app-without-debug.jar
 jarplant-lib/src/test/resources/test-class-implant-with-debug.jar
 jarplant-lib/src/test/resources/test-class-implant-without-debug.jar
+jarplant-lib/src/test/resources/target-app-spring-boot.jar
 

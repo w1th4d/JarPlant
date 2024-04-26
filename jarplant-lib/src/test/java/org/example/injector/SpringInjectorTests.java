@@ -7,20 +7,29 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Base64;
 import java.util.Map;
+import java.util.Random;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 
-import static org.example.TestHelpers.getJarFileFromResourceFolder;
-import static org.example.TestHelpers.hashAllJarContents;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.example.TestHelpers.*;
+import static org.junit.Assert.*;
 
 public class SpringInjectorTests {
     // Test implant originating from the test-spring-implant module
     private ImplantHandler testConfigImplantHandler;
     private ImplantHandler testBeanImplantHandler;
+
+    private SpringInjector injector;
 
     // Path to an actual JAR packaged by the target-app-spring-boot module
     private Path targetSpringBootApp;
@@ -41,6 +50,11 @@ public class SpringInjectorTests {
     }
 
     @Before
+    public void setupSpringInjector() {
+        this.injector = new SpringInjector(testConfigImplantHandler, testBeanImplantHandler);
+    }
+
+    @Before
     public void createMiscTestJars() throws IOException {
         tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
         tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
@@ -55,44 +69,98 @@ public class SpringInjectorTests {
     // infect
 
     @Test
-    @Ignore
-    public void testInfect_SpringJar_Success() {
+    public void testInfect_SpringJar_Success() throws IOException {
+        // Arrange
+        Map<String, String> hashesBeforeInfect = hashAllJarContents(targetSpringBootApp);
+
+        // Act
+        boolean didInfect = injector.infect(targetSpringBootApp, tempOutputFile);
+
+        // Assert
+        assertTrue("Did successfully inject.", didInfect);
+        Map<String, String> hashesAfterInfect = hashAllJarContents(tempOutputFile);
+        assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
+    }
+
+    @Test(expected = Exception.class)
+    public void testInfect_NotAJar_Exception() throws IOException {
+        // Arrange
+        Random rng = new Random(1);
+        byte[] someRandomData = new byte[10];
+        rng.nextBytes(someRandomData);
+        Files.write(tempInputFile, someRandomData, StandardOpenOption.WRITE);
+
+        // Act
+        injector.infect(tempInputFile, tempOutputFile);
+
+        // Expect exception
     }
 
     @Test
-    @Ignore
-    public void testInfect_SpringBootJar_Success() {
+    public void testInfect_EmptyJar_Untouched() throws IOException {
+        // Arrange
+        JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
+        createJar.close();  // The point is to just leave the JAR empty
+
+        // Act
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect anything in an empty JAR.", didInfect);
     }
 
     @Test
-    @Ignore
-    public void testInfect_NotAJar_Untouched() {
+    public void testInfect_EmptyJarWithManifest_Untouched() throws IOException {
+        // Arrange
+        populateJarEntriesIntoEmptyFile(tempInputFile, null);
+
+        // Act
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect anything in an empty JAR.", didInfect);
     }
 
     @Test
-    @Ignore
-    public void testInfect_EmptyJar_Untouched() {
-    }
+    public void testInfect_SignedJar_Untouched() throws IOException {
+        // Arrange
+        // This is a rather fake way of simulating a signed JAR. Consider the real deal by Maven.
+        String manifestAmendment = "\r\n"
+                + "Name: com/example/restservice/RestServiceApplication.class\r\n"
+                + "SHA-256-Digest: "
+                + Base64.getEncoder().encodeToString("somethingsomething".getBytes())
+                + "\r\n";
+        String signatureFile = "Signature-Version: 1.0\r\nSHA-256-Digest-Manifest: "
+                + Base64.getEncoder().encodeToString("somethingsomething".getBytes())
+                + "\r\n";
 
-    @Test
-    @Ignore
-    public void testInfect_JarWithoutClasses_Untouched() {
-    }
+        // Add a .SF file
+        JarFileFiddler fiddler = JarFileFiddler.open(targetSpringBootApp, tempInputFile);
+        DataOutputStream newEntryStream = fiddler.addNewEntry(new JarEntry("META-INF/SOMETHING.SF"));
+        newEntryStream.write(signatureFile.getBytes(StandardCharsets.UTF_8));
 
-    @Test
-    @Ignore
-    public void testInfect_JarWithoutManifest_Success() {
-        // Success or fail could be debatable
-    }
+        // Append entries to MANIFEST.MF and copy all other entries
+        for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
+            if (entry.getName().equals("META-INF/MANIFEST.MF")) {
+                InputStream manifestStream = entry.getContent();
+                DataOutputStream manifestManipulation = entry.replaceContentByStream();
+                manifestManipulation.write(manifestStream.readAllBytes());
+                manifestManipulation.write(manifestAmendment.getBytes());
+            } else {
+                entry.forward();
+            }
+        }
 
-    @Test
-    @Ignore
-    public void testInfect_VersionedJar_AllVersionsModified() {
-    }
+        fiddler.close();
 
-    @Test
-    @Ignore
-    public void testInfect_SignedClasses_SignedClassesUntouched() {
+        // Act
+        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect signed JAR.", didInfect);
+        assertArrayEquals("Output JAR is identical to input JAR.",
+                Files.readAllBytes(tempInputFile),
+                Files.readAllBytes(tempOutputFile));
     }
 
     @Test

@@ -8,7 +8,10 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -216,12 +219,6 @@ public class ClassInjectorTests {
         assertArrayEquals("Class is not changed", classDataBefore, classDataAfter);
     }
 
-    private static byte[] asBytes(ClassFile classFile) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        classFile.write(new DataOutputStream(buffer));
-        return buffer.toByteArray();
-    }
-
     @Test
     public void testDeepRenameClass_NoDebuggingInfo_Unmodified() throws IOException {
         // Arrange
@@ -309,7 +306,6 @@ public class ClassInjectorTests {
     @Test
     public void testInfect_JarWithoutManifest_Success() throws IOException {
         // Arrange
-        Random rng = new Random(1);
         JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         jarWriter.putNextEntry(new JarEntry("org/example/Something.class"));
         ClassFile emptyClass = new ClassFile(false, "Something.class", null);
@@ -322,7 +318,7 @@ public class ClassInjectorTests {
         boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
 
         // Assert
-        assertTrue("Did not infect anything in an empty JAR.", didInfect);
+        assertTrue("Infected JAR without a manifest.", didInfect);
     }
 
     @Test
@@ -390,7 +386,7 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInfect_SignedJar_Exception() throws IOException {
+    public void testInfect_SignedJar_Untouched() throws IOException {
         // Arrange
         // This is a very rudimentary representation of a signed JAR. Consider generating a legit one somehow. Maven?
         String manifest = "Manifest-Version: 1.0\r\n\r\nName: org/example/Main.class\r\nSHA-256-Digest: "

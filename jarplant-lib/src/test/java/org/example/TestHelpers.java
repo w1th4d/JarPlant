@@ -1,12 +1,10 @@
 package org.example;
 
+import javassist.bytecode.ClassFile;
 import org.example.injector.ClassInjectorTests;
 import org.example.injector.JarFileFiddler;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -79,6 +77,12 @@ public class TestHelpers {
         }
 
         return jarFile.getInputStream(classFileInJar);
+    }
+
+    public static byte[] asBytes(ClassFile classFile) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        classFile.write(new DataOutputStream(buffer));
+        return buffer.toByteArray();
     }
 
     public static Map<String, String> hashAllJarContents(Path jarFile) throws IOException {

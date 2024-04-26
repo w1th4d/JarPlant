@@ -30,6 +30,9 @@ public class ClassInjectorTests {
     private Path targetAppJarWithDebuggingInfo;
     private Path targetAppJarWithoutDebuggingInfo;
 
+    // Also use the Spring app for some tests
+    private Path targetSpringBootApp;
+
     // These can be used for test that just needs an empty JAR to work with
     private Path tempInputFile;
     private Path tempOutputFile;
@@ -74,6 +77,11 @@ public class ClassInjectorTests {
     @Before
     public void setTargetAppJarWithoutDebuggingInfo() throws IOException {
         this.targetAppJarWithoutDebuggingInfo = getJarFileFromResourceFolder("target-app-without-debug.jar");
+    }
+
+    @Before
+    public void getTargetSpringBootApp() throws IOException {
+        this.targetSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
     }
 
     @Before
@@ -318,8 +326,19 @@ public class ClassInjectorTests {
     }
 
     @Test
-    @Ignore
-    public void testInfect_SpringJar_ClassesModifiedAsUsual() {
+    public void testInfect_SpringJar_ClassesModifiedAsUsual() throws IOException {
+        // Arrange
+        Map<String, String> hashesBeforeInfect = hashAllJarContents(targetSpringBootApp);
+
+        // Act
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        boolean didInfect = injector.infect(targetSpringBootApp, tempOutputFile);
+
+        // Assert
+        assertTrue("Did successfully inject.", didInfect);
+        Map<String, String> hashesAfterInfect = hashAllJarContents(tempOutputFile);
+        assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
     }
 
     /*

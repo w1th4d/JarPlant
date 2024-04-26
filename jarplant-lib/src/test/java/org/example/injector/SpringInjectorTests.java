@@ -1,9 +1,56 @@
 package org.example.injector;
 
+import org.example.implants.TestSpringBeanImplant;
+import org.example.implants.TestSpringConfigImplant;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+
+import static org.example.TestHelpers.getJarFileFromResourceFolder;
+import static org.example.TestHelpers.hashAllJarContents;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+
 public class SpringInjectorTests {
+    // Test implant originating from the test-spring-implant module
+    private ImplantHandler testConfigImplantHandler;
+    private ImplantHandler testBeanImplantHandler;
+
+    // Path to an actual JAR packaged by the target-app-spring-boot module
+    private Path targetSpringBootApp;
+
+    // Temporary files to work with
+    private Path tempInputFile;
+    private Path tempOutputFile;
+
+    @Before
+    public void loadTestImplants() throws IOException, ClassNotFoundException {
+        this.testConfigImplantHandler = ImplantHandlerMock.findAndCreateFor(TestSpringConfigImplant.class);
+        this.testBeanImplantHandler = ImplantHandlerMock.findAndCreateFor(TestSpringBeanImplant.class);
+    }
+
+    @Before
+    public void loadTargetApp() throws IOException {
+        this.targetSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
+    }
+
+    @Before
+    public void createMiscTestJars() throws IOException {
+        tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
+        tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
+    }
+
+    @After
+    public void removeMiscTestJars() throws IOException {
+        Files.delete(tempInputFile);
+        Files.delete(tempOutputFile);
+    }
 
     // infect
 

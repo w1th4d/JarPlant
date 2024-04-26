@@ -16,6 +16,7 @@
         <module>target-app</module>
         <module>target-app-spring-boot</module>
         <module>test-class-implant</module>
+        <module>test-spring-implant</module>
     </modules>
 
     <properties>

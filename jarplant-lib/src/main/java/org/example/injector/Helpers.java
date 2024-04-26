@@ -135,4 +135,19 @@ public class Helpers {
 
         return allocator.toByteArray();
     }
+
+    public static boolean jarLooksSigned(Path jarFilePath) throws IOException {
+        Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
+
+        try (JarFileFiddler jar = JarFileFiddler.open(jarFilePath)) {
+            for (JarFileFiddler.WrappedJarEntry entry : jar) {
+                Matcher matcher = regex.matcher(entry.getName());
+                if (matcher.matches()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

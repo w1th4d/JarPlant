@@ -10,8 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.jar.JarEntry;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
@@ -28,7 +26,7 @@ public class ClassInjector {
         ClassFile implantedClass = null;
 
         if (jarLooksSigned(targetJarFilePath)) {
-            System.out.println("[-] JAR is signed. This is not yet implemented. Aborting.");
+            System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
             // Just copy the input JAR to the output JAR to keep up with expected behaviour
             Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
             return false;
@@ -155,20 +153,5 @@ public class ClassInjector {
             // compact() removes any "dead" items from the ConstPool. This modifies the class byte data quite a lot.
             classFile.compact();
         }
-    }
-
-    private boolean jarLooksSigned(Path jarFilePath) throws IOException {
-        Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
-
-        try (JarFileFiddler jar = JarFileFiddler.open(jarFilePath)) {
-            for (JarFileFiddler.WrappedJarEntry entry : jar) {
-                Matcher matcher = regex.matcher(entry.getName());
-                if (matcher.matches()) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 }

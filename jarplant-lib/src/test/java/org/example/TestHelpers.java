@@ -150,6 +150,12 @@ public class TestHelpers {
         return classesModified;
     }
 
+    public static <T> Set<T> setIntersection(Set<T> a, Set<T> b) {
+        Set<T> copy = new HashSet<>(a);
+        copy.retainAll(b);
+        return copy;
+    }
+
     public static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {
         for (int i = 0; i <= bigArray.length - smallArray.length; i++) {
             boolean found = true;

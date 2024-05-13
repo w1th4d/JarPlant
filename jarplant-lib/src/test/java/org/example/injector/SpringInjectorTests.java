@@ -183,7 +183,7 @@ public class SpringInjectorTests {
     }
 
     @Test
-    public void testInfect_SeveralSpringConfigs_AnyInfected() throws IOException {
+    public void testInfect_SeveralSpringConfigsNoComponentScanning_AnyInfected() throws IOException {
         // Arrange
         Set<String> knownConfigClasses = Set.of(
                 "BOOT-INF/classes/com/example/complex/ComplexApplication.class",
@@ -199,14 +199,13 @@ public class SpringInjectorTests {
         // Assert
         Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
         Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter);
-        Set<String> modifiedConfigClasses = new HashSet<>(classesModified);
-        modifiedConfigClasses.retainAll(knownConfigClasses);
-        assertFalse("Any of the configuration classes were modified.", modifiedConfigClasses.isEmpty());
+        assertFalse("Any of the configuration classes were modified.",
+                setIntersection(classesModified, knownConfigClasses).isEmpty());
     }
 
     @Test
     @Ignore
-    public void testInfect_SeveralSpringConfigs_AllInfected() throws IOException {
+    public void testInfect_SeveralSpringConfigsNoComponentScanning_AllInfected() throws IOException {
         // Arrange
         Set<String> knownConfigClasses = Set.of(
                 "BOOT-INF/classes/com/example/complex/ComplexApplication.class",
@@ -234,19 +233,43 @@ public class SpringInjectorTests {
          */
     }
 
+    /**
+     * Makes sure that an app that has component scanning (a Spring auto-magic thing) enabled does not need its
+     * configuration classes modified.
+     * As of now, there's an admitted flaw in the test suite: The basic Spring Boot test app may use either
+     * `@SpringBootApplication` or `@ComponentScan` and this test will be able to test both.
+     */
     @Test
-    @Ignore
-    public void testInfect_ComponentScanningEnabled_ConfigUntouched() {
+    public void testInfect_ComponentScanningEnabled_ConfigUntouched() throws IOException {
+        // Arrange
+        Set<String> knownConfigClasses = Set.of(
+                "BOOT-INF/classes/com/example/simple/SimpleApplication.class"
+        );
+        Map<String, String> hashesBefore = hashAllJarContents(simpleSpringBootApp);
+
+        // Act
+        injector.infect(simpleSpringBootApp, tempOutputFile);
+
+        // Assert
+        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Set<String> modifiedFiles = getDiffingEntries(hashesBefore, hashesAfter);
+        assertTrue("No Spring configurations were modified because the app uses component scanning.",
+                setIntersection(modifiedFiles, knownConfigClasses).isEmpty());
     }
 
     @Test
-    @Ignore
-    public void testInfect_ComponentScanningDisabled_ConfigModified() {
-    }
+    public void testInfect_ValidJar_AddedSpringComponent() throws IOException {
+        // Arrange
+        Map<String, String> hashesBefore = hashAllJarContents(simpleSpringBootApp);
 
-    @Test
-    @Ignore
-    public void testInfect_ValidJar_AddedSpringComponent() {
+        // Act
+        injector.infect(simpleSpringBootApp, tempOutputFile);
+
+        // Assert
+        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Set<String> addedClasses = new HashSet<>(hashesAfter.keySet());
+        addedClasses.removeAll(hashesBefore.keySet());
+        assertFalse("Some class was added.", addedClasses.isEmpty());
     }
 
     @Test

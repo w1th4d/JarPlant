@@ -15,6 +15,7 @@
         <module>jarplant-lib</module>
         <module>target-app</module>
         <module>target-app-spring-boot</module>
+        <module>target-app-spring-boot-complex</module>
         <module>test-class-implant</module>
         <module>test-spring-implant</module>
     </modules>

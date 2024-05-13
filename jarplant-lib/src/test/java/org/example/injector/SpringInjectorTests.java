@@ -31,8 +31,12 @@ public class SpringInjectorTests {
 
     private SpringInjector injector;
 
-    // Path to an actual JAR packaged by the target-app-spring-boot module
+    // Path to actual JARs packaged by the target-app-spring-boot{-complex} modules
     private Path targetSpringBootApp;
+    private Path targetComplexSpringBootApp;
+
+    // Borrow the regular JAR from test-app
+    private Path regularApp;
 
     // Temporary files to work with
     private Path tempInputFile;
@@ -45,8 +49,14 @@ public class SpringInjectorTests {
     }
 
     @Before
-    public void loadTargetApp() throws IOException {
+    public void loadTargetApps() throws IOException {
         this.targetSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
+        this.targetComplexSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot-complex.jar");
+    }
+
+    @Before
+    public void loadRegularApp() throws IOException {
+        this.regularApp = getJarFileFromResourceFolder("target-app-without-debug.jar");
     }
 
     @Before

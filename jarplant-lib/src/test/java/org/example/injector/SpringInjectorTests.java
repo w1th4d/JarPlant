@@ -30,8 +30,8 @@ public class SpringInjectorTests {
     private SpringInjector injector;
 
     // Path to actual JARs packaged by the target-app-spring-boot{-complex} modules
-    private Path targetSpringBootApp;
-    private Path targetComplexSpringBootApp;
+    private Path simpleSpringBootApp;
+    private Path complexSpringBootApp;
 
     // Borrow the regular JAR from test-app
     private Path regularApp;
@@ -48,8 +48,8 @@ public class SpringInjectorTests {
 
     @Before
     public void loadTargetApps() throws IOException {
-        this.targetSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
-        this.targetComplexSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot-complex.jar");
+        this.simpleSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
+        this.complexSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot-complex.jar");
     }
 
     @Before
@@ -79,10 +79,10 @@ public class SpringInjectorTests {
     @Test
     public void testInfect_SpringJar_Success() throws IOException {
         // Arrange
-        Map<String, String> hashesBeforeInfect = hashAllJarContents(targetSpringBootApp);
+        Map<String, String> hashesBeforeInfect = hashAllJarContents(simpleSpringBootApp);
 
         // Act
-        boolean didInfect = injector.infect(targetSpringBootApp, tempOutputFile);
+        boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
 
         // Assert
         assertTrue("Did successfully inject.", didInfect);
@@ -143,7 +143,7 @@ public class SpringInjectorTests {
                 + "\r\n";
 
         // Add a .SF file
-        JarFileFiddler fiddler = JarFileFiddler.open(targetSpringBootApp, tempInputFile);
+        JarFileFiddler fiddler = JarFileFiddler.open(simpleSpringBootApp, tempInputFile);
         DataOutputStream newEntryStream = fiddler.addNewEntry(new JarEntry("META-INF/SOMETHING.SF"));
         newEntryStream.write(signatureFile.getBytes(StandardCharsets.UTF_8));
 
@@ -191,10 +191,10 @@ public class SpringInjectorTests {
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(targetComplexSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(complexSpringBootApp);
 
         // Act
-        injector.infect(targetComplexSpringBootApp, tempOutputFile);
+        injector.infect(complexSpringBootApp, tempOutputFile);
 
         // Assert
         Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
@@ -214,10 +214,10 @@ public class SpringInjectorTests {
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(targetComplexSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(complexSpringBootApp);
 
         // Act
-        injector.infect(targetComplexSpringBootApp, tempOutputFile);
+        injector.infect(complexSpringBootApp, tempOutputFile);
 
         // Assert
         Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);

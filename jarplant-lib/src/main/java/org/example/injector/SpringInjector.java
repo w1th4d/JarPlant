@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.JarEntry;
+import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
@@ -66,7 +67,14 @@ public class SpringInjector {
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
                     JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
-                    implantComponent.write(fiddler.addNewEntry(newJarEntry));
+                    try {
+                        implantComponent.write(fiddler.addNewEntry(newJarEntry));
+                    } catch (ZipException e) {
+                        // QUICKFIX: The entry most likely already exist in the ZIP file
+                        System.out.println("[-] Component already exist in JAR: '" + newJarEntry + "' (skipping).");
+                        continue;
+                        // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
+                    }
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
 
                     if (!hasComponentScanEnabled(currentlyProcessing)) {

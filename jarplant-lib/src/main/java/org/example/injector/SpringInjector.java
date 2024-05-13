@@ -223,12 +223,17 @@ public class SpringInjector {
     }
 
     private static boolean hasComponentScanEnabled(final ClassFile springContextClassFile) {
+        Set<String> annotationsThatActivatesComponentScanning = Set.of(
+                "org.springframework.context.annotation.ComponentScan",
+                "org.springframework.context.annotation.SpringBootApplication"
+        );
+
         List<Annotation> componentScanAnnotations = springContextClassFile.getAttributes().stream()
                 .filter(attribute -> attribute instanceof AnnotationsAttribute)
                 .map(attribute -> (AnnotationsAttribute) attribute)
                 .filter(annotationAttribute -> annotationAttribute.getName().equals("RuntimeVisibleAnnotations"))
                 .flatMap(runtimeAnnotationAttribute -> Arrays.stream(runtimeAnnotationAttribute.getAnnotations())
-                        .filter(annotation -> annotation.getTypeName().equals("org.springframework.context.annotation.ComponentScan"))
+                        .filter(annotation -> annotationsThatActivatesComponentScanning.contains(annotation.getTypeName()))
                 )
                 .toList();
         return !componentScanAnnotations.isEmpty();

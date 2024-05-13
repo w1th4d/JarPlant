@@ -1,5 +1,8 @@
 package org.example.injector;
 
+import javassist.bytecode.AttributeInfo;
+import javassist.bytecode.ClassFile;
+import javassist.bytecode.MethodInfo;
 import org.example.implants.TestSpringBeanImplant;
 import org.example.implants.TestSpringConfigImplant;
 import org.junit.After;
@@ -293,23 +296,58 @@ public class SpringInjectorTests {
     // addBeanToSpringConfig
 
     @Test
-    @Ignore
-    public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() {
+    public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() throws Exception {
+        // Arrange
+        ClassFile existingConfigClass = createSpringConfWithBean("com.example.target.ExistingConfiguration", "ExistingBean");
+        ClassFile injectConfigClass = createSpringConfWithBean("com.example.implant.ImplantConfiguration", "ImplantBean");
+        ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
+
+        // Act
+        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+
+        // Assert
+        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertNotNull("Config implant exists.", injectedBean);
+        AttributeInfo annotationsAttr = injectedBean.getAttribute("RuntimeVisibleAnnotations");
+        assertNotNull("Config implant has annotations.", annotationsAttr);
+        assertTrue("Config implant has annotations.", annotationsAttr.length() > 0);
     }
 
     @Test
-    @Ignore
-    public void testAddBeanToSpringConfig_ExistingConfigWithoutBeans_AddedBean() {
+    public void testAddBeanToSpringConfig_ExistingConfigWithoutBeans_AddedBean() throws ClassNotFoundException {
+        // Arrange
+        ClassFile existingConfigClass = new ClassFile(false, "com.example.ExistingConfiguration", null);    // <---
+        ClassFile injectConfigClass = createSpringConfWithBean("com.example.implant.ImplantConfiguration", "ImplantBean");
+        ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
+
+        // Act
+        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+
+        // Assert
+        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertNotNull("Config implant exists.", injectedBean);
+
+        AttributeInfo annotationsAttr = injectedBean.getAttribute("RuntimeVisibleAnnotations");
+        assertNotNull("Config implant has annotations.", annotationsAttr);
+        assertTrue("Config implant has annotations.", annotationsAttr.length() > 0);
+
+        AttributeInfo codeAttr = injectedBean.getCodeAttribute();
+        assertNotNull("Config implant has a code attribute.", codeAttr);
     }
 
     @Test
-    @Ignore
-    public void testAddBeanToSpringConfig_ImplantConfigWithBeans_AddedBean() {
-    }
+    public void testAddBeanToSpringConfig_ImplantConfigWithoutBeans_Untouched() throws ClassNotFoundException {
+        // Arrange
+        ClassFile existingConfigClass = createSpringConfWithBean("com.example.target.ExistingConfiguration", "ExistingBean");
+        ClassFile injectConfigClass = new ClassFile(false, "com.example.implants.EmptyConfiguration", null);    // <---
+        ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
-    @Test
-    @Ignore
-    public void testAddBeanToSpringConfig_ImplantConfigWithoutBeans_Untouched() {
+        // Act
+        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+
+        // Assert
+        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertNull("There was no config to implant, so nothing was implanted into existing config.", injectedBean);
     }
 
     // copyAllMethodAnnotations

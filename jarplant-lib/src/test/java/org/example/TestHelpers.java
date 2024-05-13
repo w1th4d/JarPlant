@@ -1,6 +1,7 @@
 package org.example;
 
-import javassist.bytecode.ClassFile;
+import javassist.bytecode.*;
+import javassist.bytecode.annotation.Annotation;
 import org.example.injector.ClassInjectorTests;
 import org.example.injector.JarFileFiddler;
 
@@ -171,5 +172,29 @@ public class TestHelpers {
         }
 
         return Optional.empty();
+    }
+
+    public static ClassFile createSpringConfWithBean(String className, String beanName) {
+        ClassFile configClass = new ClassFile(false, className, null);
+        MethodInfo beanMethod = new MethodInfo(configClass.getConstPool(), beanName, "L" + beanName + "()");
+
+        // Bake method annotations
+        AnnotationsAttribute annotationsAttr = new AnnotationsAttribute(configClass.getConstPool(), "RuntimeVisibleAnnotations");
+        annotationsAttr.addAnnotation(new Annotation("org/springframework/context/annotation/Bean", configClass.getConstPool()));
+        beanMethod.addAttribute(annotationsAttr);
+
+        // Bake method code
+        byte[] dummyCode = {Opcode.NOP, Opcode.NOP, Opcode.NOP};
+        ExceptionTable etable = new ExceptionTable(configClass.getConstPool());
+        CodeAttribute componentCode = new CodeAttribute(configClass.getConstPool(), 0, 0, dummyCode, etable);
+        beanMethod.addAttribute(componentCode);
+
+        try {
+            configClass.addMethod(beanMethod);
+        } catch (DuplicateMemberException e) {
+            throw new RuntimeException(e);
+        }
+
+        return configClass;
     }
 }

@@ -11,10 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
-import java.util.HexFormat;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.jar.*;
 
 public class TestHelpers {
@@ -106,6 +103,51 @@ public class TestHelpers {
         }
 
         return hashes;
+    }
+
+    public static Set<String> getDiffingEntries(Map<String, String> hashesBefore, Map<String, String> hashesAfter, Set<String> keysOfInterest) {
+        Set<String> classesModified = new HashSet<>();
+
+        for (Map.Entry<String, String> entry : hashesAfter.entrySet()) {
+            String classFileInJar = entry.getKey();
+            if (keysOfInterest.contains(classFileInJar)) {
+                String beforeValue = hashesBefore.get(entry.getKey());
+                String afterValue = entry.getValue();
+                if (!afterValue.equals(beforeValue)) {
+                    classesModified.add(entry.getKey());
+                }
+            }
+        }
+
+        return classesModified;
+    }
+
+    /**
+     * Compare the values of two maps and return the keys that has differing values.
+     *
+     * @param hashesBefore A map with values before an operation
+     * @param hashesAfter  A map with values after an operation
+     * @return The set of keys that exists in both maps and has a value that differs between the maps
+     */
+    public static Set<String> getDiffingEntries(Map<String, String> hashesBefore, Map<String, String> hashesAfter) {
+        Set<String> classesModified = new HashSet<>();
+
+        // Use hashesAfter as a source of truth
+        for (Map.Entry<String, String> afterEntry : hashesAfter.entrySet()) {
+            String beforeValue = hashesBefore.get(afterEntry.getKey());
+            if (beforeValue == null) {
+                // Entry has been added. Disregard this as a diff.
+                continue;
+            }
+            String afterValue = afterEntry.getValue();
+            if (!afterValue.equals(beforeValue)) {
+                classesModified.add(afterEntry.getKey());
+            }
+        }
+
+        // Note: Any entries added or removed will not be accounted for
+
+        return classesModified;
     }
 
     public static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {

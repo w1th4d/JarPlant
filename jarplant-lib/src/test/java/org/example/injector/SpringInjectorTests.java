@@ -15,9 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Base64;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
@@ -174,13 +172,66 @@ public class SpringInjectorTests {
     }
 
     @Test
-    @Ignore
-    public void testInfect_NoSpringConfig_Untouched() {
+    public void testInfect_NoSpringConfig_Untouched() throws IOException {
+        // Arrange
+
+        // Act
+        boolean didInfect = injector.infect(regularApp, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect JAR without a Spring config (like a regular app JAR).", didInfect);
+    }
+
+    @Test
+    public void testInfect_SeveralSpringConfigs_AnyInfected() throws IOException {
+        // Arrange
+        Set<String> knownConfigClasses = Set.of(
+                "BOOT-INF/classes/com/example/complex/ComplexApplication.class",
+                "BOOT-INF/classes/com/example/complex/subpackage/SomeConfiguration.class",
+                "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
+                "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
+        );
+        Map<String, String> hashesBefore = hashAllJarContents(targetComplexSpringBootApp);
+
+        // Act
+        injector.infect(targetComplexSpringBootApp, tempOutputFile);
+
+        // Assert
+        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter);
+        Set<String> modifiedConfigClasses = new HashSet<>(classesModified);
+        modifiedConfigClasses.retainAll(knownConfigClasses);
+        assertFalse("Any of the configuration classes were modified.", modifiedConfigClasses.isEmpty());
     }
 
     @Test
     @Ignore
-    public void testInfect_SeveralSpringConfigs_AllInfected() {
+    public void testInfect_SeveralSpringConfigs_AllInfected() throws IOException {
+        // Arrange
+        Set<String> knownConfigClasses = Set.of(
+                "BOOT-INF/classes/com/example/complex/ComplexApplication.class",
+                "BOOT-INF/classes/com/example/complex/subpackage/SomeConfiguration.class",
+                "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
+                "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
+        );
+        Map<String, String> hashesBefore = hashAllJarContents(targetComplexSpringBootApp);
+
+        // Act
+        injector.infect(targetComplexSpringBootApp, tempOutputFile);
+
+        // Assert
+        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter, knownConfigClasses);
+        assertEquals("All Spring Configuration/Application classes were modified.", knownConfigClasses, classesModified);
+        /*
+         * The problem is that SpringInjector needs to name each implant uniquely when there are several Spring
+         * configurations classes in the same Java package. Alternatively, only pick one of them and hope for
+         * the best.
+         * It would most likely be sufficient to inject an implant into one of the configurations. Unless there's
+         * a complex routing of REST calls like internal/external exposure of endpoints through Spring Security,
+         * an API gateway or WAF.
+         * For now, this test will fail. Maybe that's fine.
+         */
     }
 
     @Test

@@ -280,24 +280,6 @@ public class SpringInjectorTests {
 
     @Test
     @Ignore
-    // Corresponds to javac -g:lines
-    public void testInfect_LinesDebuggingInfo_Success() {
-    }
-
-    @Test
-    @Ignore
-    // Corresponds to javac -g:vars
-    public void testInfect_VarsDebuggingInfo_Success() {
-    }
-
-    @Test
-    @Ignore
-    // Corresponds to javac -g:source
-    public void testInfect_CodeDebuggingInfo_Success() {
-    }
-
-    @Test
-    @Ignore
     // Corresponds to javac -g:none
     public void testInfect_NoDebuggingInfo_Success() {
     }

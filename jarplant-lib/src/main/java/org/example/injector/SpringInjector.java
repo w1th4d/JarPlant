@@ -72,6 +72,7 @@ public class SpringInjector {
                     } catch (ZipException e) {
                         // QUICKFIX: The entry most likely already exist in the ZIP file
                         System.out.println("[-] Component already exist in JAR: '" + newJarEntry + "' (skipping).");
+                        entry.forward();
                         continue;
                         // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
                     }

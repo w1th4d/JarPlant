@@ -154,7 +154,7 @@ public class SpringInjector {
     }
 
     // Copy all annotations from implant method to target method. Notice the const pools!
-    private static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
+    static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
         AttributeInfo sourceAttr = source.getAttribute("RuntimeVisibleAnnotations");
         if (sourceAttr == null) {
             // The source method does not have any annotations. Is this fine?

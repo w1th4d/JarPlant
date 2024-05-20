@@ -1,8 +1,7 @@
 package org.example.injector;
 
-import javassist.bytecode.AttributeInfo;
-import javassist.bytecode.ClassFile;
-import javassist.bytecode.MethodInfo;
+import javassist.bytecode.*;
+import javassist.bytecode.annotation.Annotation;
 import org.example.implants.TestSpringBeanImplant;
 import org.example.implants.TestSpringConfigImplant;
 import org.junit.After;
@@ -353,17 +352,84 @@ public class SpringInjectorTests {
     // copyAllMethodAnnotations
 
     @Test
-    @Ignore
-    public void testCopyAllMethodAnnotations_OnlyBeanAnnotation_Copied() {
-    }
-
-    @Test
-    @Ignore
     public void testCopyAllMethodAnnotations_SeveralAnnotations_AllCopied() {
+        // Arrange
+        MethodInfo sourceMethod = new MethodInfo(new ConstPool("SourceClass"), "sourceMethod", "V()");
+        AnnotationsAttribute sourceAnnotations = new AnnotationsAttribute(sourceMethod.getConstPool(), "RuntimeVisibleAnnotations");
+        sourceAnnotations.addAnnotation(new Annotation("com.example.SomeAnnotation", sourceMethod.getConstPool()));
+        sourceAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.Bean", sourceMethod.getConstPool()));
+        sourceAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.SomethingElse", sourceMethod.getConstPool()));
+        AnnotationsAttribute sourceAnnotationsCopy = (AnnotationsAttribute) sourceAnnotations.copy(sourceMethod.getConstPool(), null);
+        sourceMethod.addAttribute(sourceAnnotations);
+
+        MethodInfo targetMethod = new MethodInfo(new ConstPool("TargetClass"), "targetMethod", "V()");
+
+        // Act
+        SpringInjector.copyAllMethodAnnotations(targetMethod, sourceMethod);
+
+        // Assert
+        AnnotationsAttribute sourceAnnotationAttr = (AnnotationsAttribute) sourceMethod.getAttribute("RuntimeVisibleAnnotations");
+        AnnotationsAttribute targetAnnotationAttr = (AnnotationsAttribute) targetMethod.getAttribute("RuntimeVisibleAnnotations");
+        assertNotNull("Target method now has an annotations attribute.", targetAnnotationAttr);
+        assertArrayEquals("All annotations are copied.",
+                sourceAnnotationAttr.getAnnotations(),
+                targetAnnotationAttr.getAnnotations());
+        assertArrayEquals("Source method still has its original annotations.",
+                sourceAnnotationsCopy.getAnnotations(),
+                ((AnnotationsAttribute) sourceMethod.getAttribute("RuntimeVisibleAnnotations")).getAnnotations()
+        );
     }
 
     @Test
-    @Ignore
-    public void testCopyAllMethodAnnotations_NoAnnotations_Fine() {
+    public void testCopyAllMethodAnnotations_AlreadyExistingAnnotations_ExistingRemainsPlusCopied() {
+        // Arrange
+        MethodInfo sourceMethod = new MethodInfo(new ConstPool("SourceClass"), "sourceMethod", "V()");
+        AnnotationsAttribute sourceAnnotations = new AnnotationsAttribute(sourceMethod.getConstPool(), "RuntimeVisibleAnnotations");
+        sourceAnnotations.addAnnotation(new Annotation("com.example.AlreadyExistingAnnotation", sourceMethod.getConstPool()));
+        sourceAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.Bean", sourceMethod.getConstPool()));
+        sourceAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.SomethingElse", sourceMethod.getConstPool()));
+        sourceMethod.addAttribute(sourceAnnotations);
+
+        MethodInfo targetMethod = new MethodInfo(new ConstPool("TargetClass"), "targetMethod", "V()");
+        AnnotationsAttribute targetAnnotations = new AnnotationsAttribute(targetMethod.getConstPool(), "RuntimeVisibleAnnotations");
+        targetAnnotations.addAnnotation(new Annotation("com.example.AlreadyExistingAnnotation", targetMethod.getConstPool()));
+        targetAnnotations.addAnnotation(new Annotation("org.springframework.context.annotation.Bean", targetMethod.getConstPool()));
+        targetAnnotations.addAnnotation(new Annotation("com.example.AnnotationOnlyInTarget", targetMethod.getConstPool()));
+        targetMethod.addAttribute(targetAnnotations);
+
+        Set<Annotation> expectedAnnotations = Set.of(
+                new Annotation("com.example.AlreadyExistingAnnotation", sourceMethod.getConstPool()),
+                new Annotation("org.springframework.context.annotation.Bean", sourceMethod.getConstPool()),
+                new Annotation("org.springframework.context.annotation.SomethingElse", sourceMethod.getConstPool()),
+                new Annotation("com.example.AnnotationOnlyInTarget", sourceMethod.getConstPool())
+        );
+
+        // Act
+        SpringInjector.copyAllMethodAnnotations(targetMethod, sourceMethod);
+
+        // Assert
+        AnnotationsAttribute targetAnnotationAttr = (AnnotationsAttribute) targetMethod.getAttribute("RuntimeVisibleAnnotations");
+        Set<Annotation> actualTargetAnnotations = Set.of(targetAnnotationAttr.getAnnotations());
+        assertEquals("Target method still has no annotations.",
+                expectedAnnotations,
+                actualTargetAnnotations);
+    }
+
+    @Test
+    public void testCopyAllMethodAnnotations_NoSourceAnnotations_Untouched() {
+        // Arrange
+        MethodInfo sourceMethod = new MethodInfo(new ConstPool("SourceClass"), "sourceMethod", "V()");
+        MethodInfo targetMethod = new MethodInfo(new ConstPool("TargetClass"), "targetMethod", "V()");
+        MethodInfo targetMethodClone = new MethodInfo(new ConstPool("TargetClass"), "targetMethod", "V()");
+
+        // Act
+        SpringInjector.copyAllMethodAnnotations(targetMethod, sourceMethod);
+
+        // Assert
+        assertEquals("Target method still has no annotations.",
+                targetMethodClone.getAttribute("RuntimeVisibleAnnotations"),
+                targetMethod.getAttribute("RuntimeVisibleAnnotations"));
+        assertNull("Source method still has no annotations.",
+                sourceMethod.getAttribute("RuntimeVisibleAnnotations"));
     }
 }

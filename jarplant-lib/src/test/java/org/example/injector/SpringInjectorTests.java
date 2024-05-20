@@ -288,8 +288,16 @@ public class SpringInjectorTests {
 
     @Test
     @Ignore
-    public void testInfect_AlreadyInfectedJar_Untouched() {
-        // TODO Implement infection detection
+    public void testInfect_AlreadyInfectedJar_Untouched() throws IOException {
+        // Act
+        boolean didInfectFirst = injector.infect(simpleSpringBootApp, tempInputFile);
+        boolean didInfectSecond = injector.infect(tempInputFile, tempOutputFile);
+
+        assertTrue("Did infect the first time.", didInfectFirst);
+        assertFalse("Did not infect the second time.", didInfectSecond);
+        assertArrayEquals("Second file is not modified.",
+                Files.readAllBytes(tempInputFile),
+                Files.readAllBytes(tempOutputFile));
     }
 
     // addBeanToSpringConfig

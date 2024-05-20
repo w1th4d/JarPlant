@@ -287,7 +287,6 @@ public class SpringInjectorTests {
     }
 
     @Test
-    @Ignore
     public void testInfect_AlreadyInfectedJar_Untouched() throws IOException {
         // Act
         boolean didInfectFirst = injector.infect(simpleSpringBootApp, tempInputFile);

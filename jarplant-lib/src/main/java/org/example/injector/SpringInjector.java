@@ -165,6 +165,17 @@ public class SpringInjector {
         }
 
         AnnotationsAttribute targetAnnotationsAttr = new AnnotationsAttribute(target.getConstPool(), "RuntimeVisibleAnnotations");
+
+        // Retain any annotations that are already at the target method
+        AttributeInfo alreadyExistingAnnotationsAttr = target.getAttribute("RuntimeVisibleAnnotations");
+        if (alreadyExistingAnnotationsAttr != null) {
+            Annotation[] existingAnnotations = ((AnnotationsAttribute) alreadyExistingAnnotationsAttr).getAnnotations();
+            for (Annotation existingAnnotation : existingAnnotations) {
+                targetAnnotationsAttr.addAnnotation(existingAnnotation);
+            }
+        }
+
+        // Add the new annotations from the source method
         for (Annotation annotation : sourceAnnotationsAttr.getAnnotations()) {
             Annotation copiedAnnotation = new Annotation(annotation.getTypeName(), target.getConstPool());
             if (annotation.getMemberNames() != null) {

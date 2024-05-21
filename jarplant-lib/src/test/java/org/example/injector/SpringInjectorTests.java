@@ -275,18 +275,6 @@ public class SpringInjectorTests {
     }
 
     @Test
-    @Ignore
-    // Corresponds to the standard debugging info produce by javac (lines + source)
-    public void testInfect_StandardDebuggingInfo_Success() {
-    }
-
-    @Test
-    @Ignore
-    // Corresponds to javac -g:none
-    public void testInfect_NoDebuggingInfo_Success() {
-    }
-
-    @Test
     public void testInfect_AlreadyInfectedJar_Untouched() throws IOException {
         // Act
         boolean didInfectFirst = injector.infect(simpleSpringBootApp, tempInputFile);

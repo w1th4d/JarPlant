@@ -237,7 +237,7 @@ public class SpringInjector {
     private static boolean hasComponentScanEnabled(final ClassFile springContextClassFile) {
         Set<String> annotationsThatActivatesComponentScanning = Set.of(
                 "org.springframework.context.annotation.ComponentScan",
-                "org.springframework.context.annotation.SpringBootApplication"
+                "org.springframework.boot.autoconfigure.SpringBootApplication"
         );
 
         List<Annotation> componentScanAnnotations = springContextClassFile.getAttributes().stream()

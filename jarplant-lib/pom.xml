@@ -66,6 +66,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>target-app-spring-boot-complex</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.example</groupId>
             <artifactId>test-spring-implant</artifactId>
             <version>${project.parent.version}</version>

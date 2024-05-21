@@ -292,9 +292,13 @@ public class SpringInjectorTests {
         boolean didInfectFirst = injector.infect(simpleSpringBootApp, tempInputFile);
         boolean didInfectSecond = injector.infect(tempInputFile, tempOutputFile);
 
+        // Assert
         assertTrue("Did infect the first time.", didInfectFirst);
         assertFalse("Did not infect the second time.", didInfectSecond);
-        assertArrayEquals("Second file is not modified.",
+        assertEquals("The JAR contents are the same.",
+                hashAllJarContents(tempInputFile),
+                hashAllJarContents(tempOutputFile));
+        assertArrayEquals("The JAR files are completely the same.",
                 Files.readAllBytes(tempInputFile),
                 Files.readAllBytes(tempOutputFile));
     }

@@ -163,7 +163,7 @@ public class ClassInjectorTests {
         populateJarEntriesIntoEmptyFile(
                 tempInputFile,
                 findTestEnvironmentDir(ClassInjectorTests.class),
-                Path.of("org/example/implants/TestImplant.class")
+                Path.of("org/example/implants/DummyTestClassImplant.class")
         );
         TestImplantRunner runner = TestImplantRunner.getInstance();
 
@@ -171,8 +171,8 @@ public class ClassInjectorTests {
         runner.loadAllClassesFromJar(tempOutputFile);
 
         // TODO Why is this failing and where the hell does it go wrong!? During inject?
-        String actualAtInit = runner.runMethod("org.example.implants.TestImplant", "init", String.class);
-        String actualPostInit = runner.runMethod("org.example.implants.TestImplant", "getConfigDump", String.class);
+        String actualAtInit = runner.runMethod("org.example.implants.DummyTestClassImplant", "init", String.class);
+        String actualPostInit = runner.runMethod("org.example.implants.DummyTestClassImplant", "getConfigDump", String.class);
 
         String expected = "CONF_STRING=\"Modified\";CONF_BOOLEAN=true;CONF_INT=2;";
         assertEquals("Modified values at time if init().", expected, actualAtInit);

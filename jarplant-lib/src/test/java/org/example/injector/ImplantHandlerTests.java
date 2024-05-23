@@ -2,6 +2,7 @@ package org.example.injector;
 
 import javassist.bytecode.ClassFile;
 import org.example.TestImplantRunner;
+import org.example.implants.DummyTestClassImplant;
 import org.example.implants.TestClassImplant;
 import org.junit.Test;
 
@@ -27,7 +28,7 @@ public class ImplantHandlerTests {
     @Test
     public void testCreateFor_ClassFile_Success() throws IOException {
         Path testEnv = findTestEnvironmentDir(this.getClass());
-        Path classFile = testEnv.resolve("org/example/implants/TestImplant.class");
+        Path classFile = testEnv.resolve("org/example/implants/DummyTestClassImplant.class");
 
         ImplantHandler implant = ImplantHandlerImpl.createFor(classFile);
         runner.load(implant.loadFreshRawSpecimen());
@@ -43,7 +44,7 @@ public class ImplantHandlerTests {
 
     @Test
     public void testFindAndCreateFor_ClassNameAndPath_Success() throws IOException, ClassNotFoundException {
-        String className = TestClassImplant.class.getName();
+        String className = DummyTestClassImplant.class.getName();
         Path classPath = findTestEnvironmentDir(this.getClass());
 
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(className, classPath);
@@ -64,15 +65,15 @@ public class ImplantHandlerTests {
             jarWriter.putNextEntry(manifestEntry);
             manifest.write(jarWriter);
 
-            Path classFile = findTestEnvironmentDir(this.getClass()).resolve("org/example/implants/TestImplant.class");
-            JarEntry classEntry = new JarEntry("org/example/implants/TestImplant.class");
+            Path classFile = findTestEnvironmentDir(this.getClass()).resolve("org/example/implants/DummyTestClassImplant.class");
+            JarEntry classEntry = new JarEntry("org/example/implants/DummyTestClassImplant.class");
             jarWriter.putNextEntry(classEntry);
             jarWriter.write(Files.readAllBytes(classFile));
 
             jarWriter.close();
 
             // Act + Assert
-            ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class.getName(), tmpFile);
+            ImplantHandlerImpl.findAndCreateFor(DummyTestClassImplant.class.getName(), tmpFile);
         } catch (IOException e) {
             throw new IOException("Failed to stage a temporary JAR file for testing.", e);
         } finally {
@@ -85,11 +86,11 @@ public class ImplantHandlerTests {
 
     @Test
     public void testGetImplantClassName_FullClassName() throws IOException, ClassNotFoundException {
-        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(DummyTestClassImplant.class);
 
         String name = implant.getImplantClassName();
 
-        assertEquals("org.example.implants.TestImplant", name);
+        assertEquals("org.example.implants.DummyTestClassImplant", name);
     }
 
     @Test

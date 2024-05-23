@@ -103,8 +103,6 @@ public class ClassInjectorTests {
         Files.delete(tempOutputFile);
     }
 
-    // modifyClinit
-
     @Test
     public void testModifyClinit_ExistingClinit_ModifiedClinit() {
         // Arrange
@@ -183,8 +181,6 @@ public class ClassInjectorTests {
         assertEquals("Modified values after init().", expected, actualPostInit);
     }
 
-    // deepRenameClass
-
     @Test
     public void testDeepRenameClass_ValidClass_Renamed() throws IOException {
         // Arrange
@@ -203,9 +199,9 @@ public class ClassInjectorTests {
                 .toList();
 
         // Assert
-        assertEquals("No SourceFileAttributes were added or lost", originalNames.size(), changedNames.size());
+        assertEquals("No SourceFileAttributes were added or lost.", originalNames.size(), changedNames.size());
         for (String changedName : changedNames) {
-            assertEquals("SourceFileAttribute is renamed", "NewName.java", changedName);
+            assertEquals("SourceFileAttribute is renamed.", "NewName.java", changedName);
         }
     }
 
@@ -220,7 +216,7 @@ public class ClassInjectorTests {
 
         // Assert
         byte[] classDataAfter = asBytes(testImplantWithDebug);
-        assertArrayEquals("Class is not changed", classDataBefore, classDataAfter);
+        assertArrayEquals("Class is not changed.", classDataBefore, classDataAfter);
     }
 
     @Test
@@ -234,10 +230,8 @@ public class ClassInjectorTests {
 
         // Assert
         byte[] classDataAfter = asBytes(testImplant);
-        assertArrayEquals("Class is not changed", classDataBefore, classDataAfter);
+        assertArrayEquals("Class is not changed.", classDataBefore, classDataAfter);
     }
-
-    // infect
 
     @Test
     public void testInfect_NormalJar_SomeClassModified() throws IOException, ClassNotFoundException {
@@ -263,12 +257,10 @@ public class ClassInjectorTests {
         rng.nextBytes(someRandomData);
         Files.write(tempInputFile, someRandomData, StandardOpenOption.WRITE);
 
-        // Act
+        // Act + Assert
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
         ClassInjector injector = new ClassInjector(handler);
-        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
-
-        // Expect exception
+        injector.infect(tempInputFile, tempOutputFile); // Should fail
     }
 
     @Test
@@ -418,8 +410,8 @@ public class ClassInjectorTests {
                 Files.readAllBytes(tempOutputFile));
     }
 
-    @Test
     // Corresponds to the standard debugging info produce by javac (lines + source)
+    @Test
     public void testInfect_TargetHasStandardDebuggingInfo_Success() throws IOException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
@@ -472,8 +464,8 @@ public class ClassInjectorTests {
         assertFalse("Injected implant does not contain a SourceFileAttribute with the original name.", didFindOriginalName);
     }
 
-    @Test
     // Corresponds to javac -g:none
+    @Test
     public void testInfect_TargetHasNoDebuggingInfo_Success() throws IOException, ClassNotFoundException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);

@@ -2,13 +2,14 @@ package org.example.injector;
 
 import javassist.bytecode.ClassFile;
 
-import java.io.DataInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 public class ImplantHandlerMock implements ImplantHandler {
     private final ClassFile specimen;
@@ -40,6 +41,27 @@ public class ImplantHandlerMock implements ImplantHandler {
 
         ClassFile cf = new ClassFile(new DataInputStream(new FileInputStream(sourceFullPath.toFile())));
         return new ImplantHandlerMock(cf);
+    }
+
+    public static ImplantHandler findInJar(Path pathToJar, String className) throws IOException {
+        Map<String, byte[]> foundMatchingEntries = new HashMap<>();
+
+        JarInputStream in = new JarInputStream(new FileInputStream(pathToJar.toFile()));
+        for (JarEntry entry = in.getNextJarEntry(); entry != null; entry = in.getNextJarEntry()) {
+            if (entry.getName().endsWith(className) || entry.getName().endsWith(className + ".class")) {
+                foundMatchingEntries.put(entry.getName(), in.readAllBytes());
+            }
+        }
+
+        if (foundMatchingEntries.isEmpty()) {
+            throw new FileNotFoundException("Did not find class '" + className + "' in JAR " + pathToJar);
+        } else if (foundMatchingEntries.size() > 1) {
+            throw new RuntimeException("Found more than one class matching '" + className + "' in JAR " + pathToJar);
+        }
+
+        byte[] classData = foundMatchingEntries.values().stream().findAny().orElseThrow();
+
+        return new ImplantHandlerMock(new ClassFile(new DataInputStream(new ByteArrayInputStream(classData))));
     }
 
     @Override

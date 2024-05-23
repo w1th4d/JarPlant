@@ -2,8 +2,6 @@ package org.example.injector;
 
 import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
-import org.example.implants.TestSpringBeanImplant;
-import org.example.implants.TestSpringConfigImplant;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -43,9 +41,10 @@ public class SpringInjectorTests {
     private Path tempOutputFile;
 
     @Before
-    public void loadTestImplants() throws IOException, ClassNotFoundException {
-        this.testConfigImplantHandler = ImplantHandlerMock.findAndCreateFor(TestSpringConfigImplant.class);
-        this.testBeanImplantHandler = ImplantHandlerMock.findAndCreateFor(TestSpringBeanImplant.class);
+    public void loadTestImplants() throws IOException {
+        Path testSpringImplantPath = getJarFileFromResourceFolder("test-spring-implant.jar");
+        this.testConfigImplantHandler = ImplantHandlerMock.findInJar(testSpringImplantPath, "TestSpringConfigImplant");
+        this.testBeanImplantHandler = ImplantHandlerMock.findInJar(testSpringImplantPath, "TestSpringBeanImplant");
     }
 
     @Before

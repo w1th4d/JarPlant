@@ -4,6 +4,7 @@ import javassist.bytecode.ClassFile;
 import org.example.TestImplantRunner;
 import org.example.implants.DummyTestClassImplant;
 import org.example.implants.TestClassImplant;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.FileOutputStream;
@@ -23,7 +24,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 public class ImplantHandlerTests {
-    private final TestImplantRunner runner = TestImplantRunner.getInstance();
+    private TestImplantRunner runner;
+
+    @Before
+    public void getImplantRunner() {
+        this.runner = new TestImplantRunner();
+    }
 
     @Test
     public void testCreateFor_ClassFile_Success() throws IOException {

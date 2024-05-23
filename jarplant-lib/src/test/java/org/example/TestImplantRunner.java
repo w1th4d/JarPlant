@@ -14,19 +14,10 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class TestImplantRunner extends ClassLoader {
-    private static TestImplantRunner instance;
     private final Map<String, Class<?>> loadedClasses = new HashMap<>();
 
-    TestImplantRunner() {
+    public TestImplantRunner() {
         super();
-    }
-
-    public static TestImplantRunner getInstance() {
-        if (instance == null) {
-            instance = new TestImplantRunner();
-        }
-
-        return instance;
     }
 
     public Set<Class<?>> loadAllClassesFromJar(Path jarPath) throws IOException {

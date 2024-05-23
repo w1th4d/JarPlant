@@ -20,6 +20,6 @@ public class TestClassImplant {
 
     public static String getConfigDump() {
         Thread.dumpStack();
-        return "CONF_STRING=\"modified\";CONF_BOOLEAN=true;CONF_INT=2;";
+        return "CONF_STRING=\"" + CONF_STRING + "\";CONF_BOOLEAN=" + CONF_BOOLEAN + ";CONF_INT=" + CONF_INT + ";";
     }
 }

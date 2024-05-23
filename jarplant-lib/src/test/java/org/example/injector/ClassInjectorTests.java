@@ -165,7 +165,7 @@ public class ClassInjectorTests {
                 findTestEnvironmentDir(ClassInjectorTests.class),
                 Path.of("org/example/implants/DummyTestClassImplant.class")
         );
-        TestImplantRunner runner = TestImplantRunner.getInstance();
+        TestImplantRunner runner = new TestImplantRunner();
 
         injector.infect(tempInputFile, tempOutputFile);
         runner.loadAllClassesFromJar(tempOutputFile);

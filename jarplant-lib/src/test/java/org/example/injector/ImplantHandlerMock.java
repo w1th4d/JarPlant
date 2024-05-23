@@ -1,6 +1,7 @@
 package org.example.injector;
 
 import javassist.bytecode.ClassFile;
+import org.example.TestHelpers;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -101,13 +102,16 @@ public class ImplantHandlerMock implements ImplantHandler {
 
     @Override
     public ClassFile loadFreshConfiguredSpecimen() throws IOException {
-        // WARNING: Returning mutable reference
-        return specimen;
+        return copy(specimen);
     }
 
     @Override
     public ClassFile loadFreshRawSpecimen() throws IOException {
-        // WARNING: Returning mutable reference
-        return specimen;
+        return copy(specimen);
+    }
+
+    private static ClassFile copy(ClassFile original) throws IOException {
+        byte[] bytecode = TestHelpers.asBytes(original);
+        return new ClassFile(new DataInputStream(new ByteArrayInputStream(bytecode)));
     }
 }

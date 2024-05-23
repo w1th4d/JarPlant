@@ -11,6 +11,12 @@ import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
+/**
+ * Mock for the ImplantHandler.
+ * This mock can be used to hold a ClassFile instance that corresponds to a test implant. It greatly reduces the
+ * functionality of a proper ImplantHandler (like handling of config) and can thus only be used for forwarding a
+ * specified implant specimen as-is.
+ */
 public class ImplantHandlerMock implements ImplantHandler {
     private final ClassFile specimen;
 
@@ -43,6 +49,15 @@ public class ImplantHandlerMock implements ImplantHandler {
         return new ImplantHandlerMock(cf);
     }
 
+    /**
+     * Open a JAR and read a specified class within it.
+     * Used to load a test implant from a properly Maven-baked JAR.
+     *
+     * @param pathToJar path to an existing JAR file
+     * @param className name of the class to read
+     * @return ImplantHandlerMock loaded with the specified implant class
+     * @throws IOException if anything could not be read
+     */
     public static ImplantHandler findInJar(Path pathToJar, String className) throws IOException {
         Map<String, byte[]> foundMatchingEntries = new HashMap<>();
 

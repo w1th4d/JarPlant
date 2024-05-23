@@ -1,5 +1,10 @@
 package org.example;
 
+/**
+ * A test class containing some fields and methods.
+ * Implicitly used by HelpersTests (by dynamically parsing this class file at runtime).
+ * This class may show up as "unused" in IDEs, but it's not.
+ */
 @SuppressWarnings("unused")
 public class TestClass {
     // Maintenance note: Don't initialize these as it will create a <clinit> for this class (we need it to not have one)

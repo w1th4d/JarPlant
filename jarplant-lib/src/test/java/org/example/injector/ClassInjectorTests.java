@@ -94,8 +94,12 @@ public class ClassInjectorTests {
     }
 
     @After
-    public void removeMiscTestJars() throws IOException {
+    public void removeTempInputFile() throws IOException {
         Files.delete(tempInputFile);
+    }
+
+    @After
+    public void removeTempOutputFile() throws IOException {
         Files.delete(tempOutputFile);
     }
 

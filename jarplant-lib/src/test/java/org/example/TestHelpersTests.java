@@ -11,7 +11,11 @@ import static org.example.TestHelpers.findSubArray;
 import static org.example.TestHelpers.getDiffingEntries;
 import static org.junit.Assert.*;
 
-// Yeah, this is very meta, I know...
+/**
+ * Contains tests for the test helpers.
+ * This may be a bit of meta testing (testing the tests). Not all methods from TestHelpers may warrant tests.
+ * Add tests to this class whenever a TestHelper method gets a bit complicated and/or may need some debugging.
+ */
 public class TestHelpersTests {
     @Test
     public void testGetDiffingEntries() {

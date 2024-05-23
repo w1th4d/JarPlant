@@ -70,12 +70,14 @@ public class SpringInjectorTests {
     }
 
     @After
-    public void removeMiscTestJars() throws IOException {
+    public void removeTempInputFile() throws IOException {
         Files.delete(tempInputFile);
-        Files.delete(tempOutputFile);
     }
 
-    // infect
+    @After
+    public void removeTempOutputFile() throws IOException {
+        Files.delete(tempOutputFile);
+    }
 
     @Test
     public void testInfect_SpringJar_Success() throws IOException {
@@ -99,17 +101,15 @@ public class SpringInjectorTests {
         rng.nextBytes(someRandomData);
         Files.write(tempInputFile, someRandomData, StandardOpenOption.WRITE);
 
-        // Act
+        // Act + Assert
         injector.infect(tempInputFile, tempOutputFile);
-
-        // Expect exception
     }
 
     @Test
     public void testInfect_EmptyJar_Untouched() throws IOException {
-        // Arrange
+        // Arrange: Create an empty JAR
         JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
-        createJar.close();  // The point is to just leave the JAR empty
+        createJar.close();
 
         // Act
         boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
@@ -120,7 +120,7 @@ public class SpringInjectorTests {
 
     @Test
     public void testInfect_EmptyJarWithManifest_Untouched() throws IOException {
-        // Arrange
+        // Arrange: Create a JAR with only a manifest but no classes
         populateJarEntriesIntoEmptyFile(tempInputFile, null);
 
         // Act
@@ -174,8 +174,6 @@ public class SpringInjectorTests {
 
     @Test
     public void testInfect_NoSpringConfig_Untouched() throws IOException {
-        // Arrange
-
         // Act
         boolean didInfect = injector.infect(regularApp, tempOutputFile);
 
@@ -205,7 +203,7 @@ public class SpringInjectorTests {
     }
 
     @Test
-    @Ignore
+    @Ignore // TODO Fix failing test. See comment block.
     public void testInfect_SeveralSpringConfigsNoComponentScanning_AllInfected() throws IOException {
         // Arrange
         Set<String> knownConfigClasses = Set.of(
@@ -290,8 +288,6 @@ public class SpringInjectorTests {
                 Files.readAllBytes(tempOutputFile));
     }
 
-    // addBeanToSpringConfig
-
     @Test
     public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() throws Exception {
         // Arrange
@@ -346,8 +342,6 @@ public class SpringInjectorTests {
         MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
         assertNull("There was no config to implant, so nothing was implanted into existing config.", injectedBean);
     }
-
-    // copyAllMethodAnnotations
 
     @Test
     public void testCopyAllMethodAnnotations_SeveralAnnotations_AllCopied() {

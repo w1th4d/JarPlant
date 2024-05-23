@@ -15,9 +15,23 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.jar.*;
 
+/**
+ * Contains methods that tests may have in common.
+ * The purpose of having these methods in their own class is to reduce code duplication and add clarity to tests
+ * where it makes sense.
+ * Feel free to add arbitrary static methods to this class as the test suite evolves.
+ */
 public class TestHelpers {
+    /**
+     * Finds the directory where the compiled test classes are.
+     * This perhaps naively exploits the fact that the root resource path will be the <code>target/test-classes</code>
+     * directory.
+     *
+     * @param testClass a class to use as basis
+     * @return path to a directory with compiled classes (and sub dirs) for the project
+     * @throws RuntimeException if anything doesn't make sense with the resource folder
+     */
     public static Path findTestEnvironmentDir(Class<?> testClass) {
-        // This perhaps naively exploits the fact that the root resource path will be the `target/test-classes` dir.
         URL testClassesDir = testClass.getClassLoader().getResource("");
         if (testClassesDir == null) {
             throw new RuntimeException("Failed to find resource directory for testing environment.");
@@ -26,6 +40,15 @@ public class TestHelpers {
         return Path.of(testClassesDir.getPath());
     }
 
+    /**
+     * Add some files into a JAR.
+     * Used for adding test classes into a temporary file. The JAR will typically be an empty file.
+     *
+     * @param existingJar an existing JAR or empty file
+     * @param baseDir     base directory where <code>files</code> are expected to be
+     * @param files       all files inside <code>baseDir</code> that should be added
+     * @throws IOException f anything went wrong
+     */
     public static void populateJarEntriesIntoEmptyFile(Path existingJar, Path baseDir, Path... files) throws IOException {
         JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(existingJar.toFile()));
 
@@ -46,6 +69,15 @@ public class TestHelpers {
         jarWriter.close();
     }
 
+    /**
+     * Find a JAR file located in the resource folder of this project.
+     * This can be used to find compiled JAR artifacts used for testing (such as target apps and test implants).
+     * See pom files for the `target-*` and `test-*` submodules.
+     *
+     * @param jarFileName filename, like <code>target-app.jar</code>
+     * @return oath to existing JAR file
+     * @throws IOException if anything went wrong or doesn't make sense
+     */
     public static Path getJarFileFromResourceFolder(String jarFileName) throws IOException {
         URL resource = ClassInjectorTests.class.getClassLoader().getResource(jarFileName);
         if (resource == null) {
@@ -67,6 +99,14 @@ public class TestHelpers {
         return jarFilePath;
     }
 
+    /**
+     * Open up a JAR, search for the specified file and open a stream towards that file.
+     *
+     * @param jarFilePath           path to JAR
+     * @param entryFullInternalPath filename inside the JAR, like <code>com/example/Thing.class</code>
+     * @return an open <code>InputStream</code> for reading the specified file in the JAR
+     * @throws IOException if something could not be read
+     */
     public static InputStream getRawClassStreamFromJar(Path jarFilePath, String entryFullInternalPath) throws IOException {
         JarFile jarFile = new JarFile(jarFilePath.toFile());
         JarEntry classFileInJar = (JarEntry) jarFile.getEntry(entryFullInternalPath);
@@ -77,12 +117,26 @@ public class TestHelpers {
         return jarFile.getInputStream(classFileInJar);
     }
 
+    /**
+     * Serialize a ClassFile instance as Java bytecode.
+     *
+     * @param classFile Javassist ClassFile instance
+     * @return bytes suitable for writing to a class file
+     * @throws IOException if something went wrong
+     */
     public static byte[] asBytes(ClassFile classFile) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         classFile.write(new DataOutputStream(buffer));
         return buffer.toByteArray();
     }
 
+    /**
+     * Read and hash all entries in a JAR file.
+     *
+     * @param jarFile path to JAR
+     * @return a map keyed on internal filename with the message digest (aka hash) as the value
+     * @throws IOException if JAR could not be read
+     */
     public static Map<String, String> hashAllJarContents(Path jarFile) throws IOException {
         Map<String, String> hashes = new HashMap<>();
         MessageDigest md;
@@ -106,6 +160,16 @@ public class TestHelpers {
         return hashes;
     }
 
+    /**
+     * Compares two outputs from <code>hashAllJarContents</code>.
+     * Note that entries that may be added or removed will not be accounted for. In other words: If <i>hashesAfter</i>
+     * has a key that does not exist in <i>hashesBefore</i>, then this will <i>not</i> be considered a diff.
+     *
+     * @param hashesBefore   map of filenames and hashes before an operation
+     * @param hashesAfter    map of filenames and hashes after an operation
+     * @param keysOfInterest only look for these filenames in the JAR (ignore the rest)
+     * @return filenames that have a different hash
+     */
     public static Set<String> getDiffingEntries(Map<String, String> hashesBefore, Map<String, String> hashesAfter, Set<String> keysOfInterest) {
         Set<String> classesModified = new HashSet<>();
 
@@ -124,11 +188,13 @@ public class TestHelpers {
     }
 
     /**
-     * Compare the values of two maps and return the keys that has differing values.
+     * Compares two outputs from <code>hashAllJarContents</code>.
+     * Note that entries that may be added or removed will not be accounted for. In other words: If <i>hashesAfter</i>
+     * has a key that does not exist in <i>hashesBefore</i>, then this will <i>not</i> be considered a diff.
      *
-     * @param hashesBefore A map with values before an operation
-     * @param hashesAfter  A map with values after an operation
-     * @return The set of keys that exists in both maps and has a value that differs between the maps
+     * @param hashesBefore map of filenames and hashes before an operation
+     * @param hashesAfter  map of filenames and hashes after an operation
+     * @return filenames that has a different hash
      */
     public static Set<String> getDiffingEntries(Map<String, String> hashesBefore, Map<String, String> hashesAfter) {
         Set<String> classesModified = new HashSet<>();
@@ -151,12 +217,28 @@ public class TestHelpers {
         return classesModified;
     }
 
+    /**
+     * Get the entries that two sets have in common.
+     *
+     * @param a   first set
+     * @param b   second set
+     * @param <T> any type
+     * @return entries that exist in both sets
+     */
     public static <T> Set<T> setIntersection(Set<T> a, Set<T> b) {
         Set<T> copy = new HashSet<>(a);
         copy.retainAll(b);
         return copy;
     }
 
+    /**
+     * Figure out if a given array exists in a bigger array.
+     * Example: <code>[b, c]</code> is a subset of <code>[a, b, c, d]</code>.
+     *
+     * @param bigArray   array to search within
+     * @param smallArray array to search for
+     * @return index where the match begins, if any
+     */
     public static Optional<Integer> findSubArray(byte[] bigArray, byte[] smallArray) {
         for (int i = 0; i <= bigArray.length - smallArray.length; i++) {
             boolean found = true;
@@ -174,6 +256,14 @@ public class TestHelpers {
         return Optional.empty();
     }
 
+    /**
+     * Generate bytecode that looks like a Spring configuration class.
+     * The generated configuration class will contain a <code>@Bean</code> annotated method denoting a Spring component.
+     *
+     * @param className what to name the Spring configuration class
+     * @param beanName  what to name the Spring component
+     * @return a Javassist ClassFile instance
+     */
     public static ClassFile createSpringConfWithBean(String className, String beanName) {
         ClassFile configClass = new ClassFile(false, className, null);
         MethodInfo beanMethod = new MethodInfo(configClass.getConstPool(), beanName, "L" + beanName + "()");

@@ -16,7 +16,10 @@ import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.example.injector.Helpers.readClassFile;
 import static org.junit.Assert.*;
 
-// testMethodName_Input_ExpectedOutcome
+/**
+ * Tests for the helper methods in the actual JarPlant library.
+ * Not to be confused with TestHelpers and TestHelpersTests.
+ */
 public class HelpersTests {
     private ClassFile testClass;
 
@@ -29,11 +32,13 @@ public class HelpersTests {
 
     @Test
     public void testReadClassFile_FileOnDisk_ClassFileInstance() {
-        assertNotNull(testClass);
+        // Assert
+        assertNotNull("Class file was read and parsed.", testClass);
     }
 
     @Test
     public void testIsStaticFlagSet_KnownStaticField_True() {
+        // Arrange
         Optional<FieldInfo> knownStaticField = testClass.getFields().stream()
                 .filter(field -> field.getName().equals("staticField"))
                 .findAny();
@@ -41,13 +46,16 @@ public class HelpersTests {
             throw new RuntimeException("Missing field in TestClass. Update test case?");
         }
 
+        // Act
         boolean staticFlagSet = Helpers.isStaticFlagSet(knownStaticField.get());
 
-        assertTrue(staticFlagSet);
+        // Assert
+        assertTrue("Static field was properly identified.", staticFlagSet);
     }
 
     @Test
     public void testIsVolatileFlagSet_KnownVolatileField_True() {
+        // Arrange
         Optional<FieldInfo> knownVolatileField = testClass.getFields().stream()
                 .filter(field -> field.getName().startsWith("volatileField"))
                 .findAny();
@@ -55,13 +63,16 @@ public class HelpersTests {
             throw new RuntimeException("Missing field in TestClass. Update test case?");
         }
 
+        // Act
         boolean volatileFlagSet = Helpers.isVolatileFlagSet(knownVolatileField.get());
 
-        assertTrue(volatileFlagSet);
+        // Assert
+        assertTrue("Volatile field was properly identified.", volatileFlagSet);
     }
 
     @Test
     public void testSetStaticFlagForMethod_KnownRegularMethod_True() {
+        // Arrange
         Optional<MethodInfo> knownRegularMethod = testClass.getMethods().stream()
                 .filter(method -> method.getName().equals("regularMethod"))
                 .findAny();
@@ -69,99 +80,119 @@ public class HelpersTests {
             throw new RuntimeException("Missing method in TestClass. Update test case?");
         }
 
+        // Act
         Helpers.setStaticFlagForMethod(knownRegularMethod.get());
 
+        // Assert
         int isStaticNow = knownRegularMethod.get().getAccessFlags() & AccessFlag.STATIC;
-        assertTrue(isStaticNow != 0);
+        assertTrue("Static flag was set for a regular method.", isStaticNow != 0);
     }
 
-    // parsePackageNameFromFcqn()
     @Test
     public void testParsePackageNameFromFcqn_ValidFcqn_CorrectPackageName() {
+        // Act
         String packageName = Helpers.parsePackageNameFromFqcn("org.example.TestClass");
 
-        assertEquals("org.example", packageName);
+        // Assert
+        assertEquals("Parsed package name.", "org.example", packageName);
     }
 
     @Test(expected = RuntimeException.class)
     public void testParsePackageNameFromFcqn_PlainString_RuntimeException() {
+        // Act + Assert
         Helpers.parsePackageNameFromFqcn("orgexampleTestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParsePackageNameFromFcqn_ClassFileStyle_RuntimeException() {
+        // Act + Assert
         Helpers.parsePackageNameFromFqcn("org/example/TestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParsePackageNameFromFcqn_OnlyClassName_RuntimeException() {
+        // Act + Assert
         Helpers.parsePackageNameFromFqcn("TestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParsePackageNameFromFcqn_OnlyDots_RuntimeException() {
+        // Act + Assert
         Helpers.parsePackageNameFromFqcn("...");
     }
 
-    // parseClassNameFromFcqn()
     @Test
     public void testParseClassNameFromFcqn_ValidFcqn_CorrectClassName() {
+        // Act
         String className = Helpers.parseClassNameFromFqcn("org.example.TestClass");
 
-        assertEquals("TestClass", className);
+        // Assert
+        assertEquals("Class name was parsed.", "TestClass", className);
     }
 
     @Test(expected = RuntimeException.class)
     public void testParseClassNameFromFcqn_PlainString_RuntimeException() {
+        // Act + Assert
         Helpers.parseClassNameFromFqcn("orgexampleTestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParseClassNameFromFcqn_ClassFileStyle_RuntimeException() {
+        // Act + Assert
         Helpers.parseClassNameFromFqcn("org/example/TestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParseClassNameFromFcqn_OnlyClassName_RuntimeException() {
+        // Act + Assert
         Helpers.parseClassNameFromFqcn("TestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParseClassNameFromFcqn_OnlyDots_RuntimeException() {
+        // Act + Assert
         Helpers.parseClassNameFromFqcn("...");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParseClassNameFromFcqn_WithFileExt_RuntimeException() {
+        // Act + Assert
         Helpers.parseClassNameFromFqcn("org.example.TestClass.class");
     }
 
     @Test(expected = RuntimeException.class)
     public void testParseClassNameFromFcqn_WithFileExtOnly_RuntimeException() {
+        // Act + Assert
         Helpers.parseClassNameFromFqcn("TestClass.class");
     }
 
-    // convertToClassFormatFcqn()
     @Test
     public void testConvertToClassFormatFcqn_ValidFcqn_CorrectFormat() {
+        // Act
         String classFcqn = Helpers.convertToClassFormatFqcn("org.example.TestClass");
 
-        assertEquals("org/example/TestClass", classFcqn);
+        // Assert
+        assertEquals("Binary name was converted to fully qualified class name used in the ConstPool.",
+                "org/example/TestClass", classFcqn);
     }
 
     @Test(expected = RuntimeException.class)
     public void testConvertToClassFormatFcqn_AlreadyClassFcqn_RuntimeException() {
+        // Act + Assert
         Helpers.convertToClassFormatFqcn("org/example/TestClass");
     }
 
     @Test(expected = RuntimeException.class)
     public void testConvertToClassFormatFcqn_PlainString_RuntimeException() {
+        // Act + Assert
         Helpers.convertToClassFormatFqcn("orgexampleTestClass");
     }
 
     @Test
-    public void testConvertToClassFormatFcqn_ValidJarEntryPath_BinaryClassName() {
-        assertEquals(Helpers.convertToBinaryClassNameFromPath("org/example/TestClass.class"),
+    public void convertToBinaryClassNameFromPath_ValidJarEntryPath_BinaryClassName() {
+        // Act + Assert
+        assertEquals("",
+                Helpers.convertToBinaryClassNameFromPath("org/example/TestClass.class"),
                 "org.example.TestClass");
         assertEquals(Helpers.convertToBinaryClassNameFromPath("/org/example/TestClass.class"),
                 "org.example.TestClass");
@@ -172,7 +203,8 @@ public class HelpersTests {
     }
 
     @Test
-    public void testConvertToClassFormatFcqn_InvalidJarEntryPath_Exception() {
+    public void convertToBinaryClassNameFromPath_InvalidJarEntryPath_Exception() {
+        // Arrange
         String[] invalidInputs = new String[]{
                 "org/example/TestClass",
                 "org/example/TestClass/",
@@ -194,9 +226,11 @@ public class HelpersTests {
 
     @Test
     public void testConvertToJarEntry_ValidClassFile_EndsWithPath() {
+        // Act
         JarEntry jarEntry = Helpers.convertToJarEntry(testClass);
 
-        assertTrue("Jar entry ends with the class name path.",
+        // Assert
+        assertTrue("JAR entry ends with the class name path.",
                 jarEntry.getName().endsWith("org/example/TestClass.class"));
     }
 
@@ -221,14 +255,17 @@ public class HelpersTests {
 
     @Test
     public void testSearchForEndOfMethodIndex_ValidCode_LastIndexOfBytecode() throws IOException {
+        // Arrange
         MethodInfo method = testClass.getMethod("methodWithSomeCode");
         if (method == null) {
             throw new RuntimeException("Missing method in TestClass. Update test case?");
         }
         CodeAttribute codeAttr = method.getCodeAttribute();
 
+        // Act
         Optional<Integer> index = Helpers.searchForEndOfMethodIndex(codeAttr, codeAttr.iterator());
 
+        // Assert
         assertTrue("Did find the final return opcode.",
                 index.isPresent());
         assertEquals("Index points to the last opcode in bytecode.",

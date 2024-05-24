@@ -13,8 +13,11 @@
         <module>jarplant-cli</module>
         <module>jarplant-implants</module>
         <module>jarplant-lib</module>
-        <module>target-app</module>
-        <module>target-app-spring-boot</module>
+        <module>test-app-pojo</module>
+        <module>test-app-spring-simple</module>
+        <module>test-app-spring-complex</module>
+        <module>test-implant-class</module>
+        <module>test-implant-spring</module>
     </modules>
 
     <properties>

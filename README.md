@@ -90,7 +90,48 @@ This project is divided into a set of Maven modules:
   implants as appropriate.
 * **jarplant-lib** is where the main functionality is. This module is designed to contain only the essential
   functionality for portability.
-* **target-app** is a very minimal Java app that can be used for test the implants.
-* **target-app-spring-boot** is a Spring Boot application for testing implants. This one is particularly handy for
-  testing the Spring implant(s).
+* **test-app-pojo** is a very minimal plain Java app that can be used for test the class implants.
+* **test-app-spring-simple** is a simple Spring Boot application for testing the Spring implants.
+  It's just a `@SpringBootApplication` with one configuration and controller.
+* **test-app-spring-complex** tries to simulate a more intricate Spring app with several `@Configuration` classes in
+  different sub-packages. It includes configurations without component scanning enabled, several configurations in
+  the same package and other exotic cases worth testing for.
 
+## Test suite
+
+Testing JAR and bytecode manipulation can be a bit tricky. Please try to include any bug or corner case into its own
+Junit test. Don't be afraid of adding to the test apps and test implants, just don't break any other tests in the
+process. Add a new submodule with a test app/implant that narrows in on the test case if necessary. *Don't* check in
+a blob like a JAR file or anything. Any test apps needs to be provided by source and pom. Try to keep it to the point.
+
+### Test automation
+
+Most tests reside in `jarplant-lib/src/test` that houses a mix of unit tests and end-to-end tests.
+The tests use a combination of dummy classes and "live samples" from the other Maven submodules.
+These submodules are set up to build a proper JAR file and then copy it into the resource folder of the tests.
+See their `pom.xml` files for details. It's a bit out of the ordinary and may generate some warnings in Maven.  
+Just make sure to run `mvn package` in the project root before running any tests in isolation.
+
+The tests in `jarplant-lib` are a mix of unit tests and end-to-end tests.
+
+### Manual testing and troubleshooting
+
+When developing JarPlant or its implants, it's been very useful to use the `javap` tool provided with the JVM.
+
+Example:
+
+```
+mkdir /tmp/jarplant-debug
+cd /tmp/jarplant-debug
+unzip ../path/to/jarfile/my-app.jar
+
+javap -c -v org/example/target/Main.class | less
+```
+
+Replace directories and paths as appropriate. The key here is the `javap` command. It's great for disassembling and
+peaking into the JVM bytecode. Do this before and after a JarPlant run and investigate the diffs.
+
+Consider to use the manual testing procedure as a tool to narrow down on a bug and then express that bug as a Junit
+test. That way, it's easy for someone to fix the bug by satisfying the test. Alternatively, just fix the bug and create
+a PL. You can always just create a GitHub Issue to explain the problem if you're unable to express it as a test or fix
+it yourself. A reported Issue is better than nothing.

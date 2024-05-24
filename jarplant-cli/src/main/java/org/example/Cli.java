@@ -7,10 +7,7 @@ import org.example.implants.ClassImplant;
 import org.example.implants.ImplantInfo;
 import org.example.implants.SpringImplantConfiguration;
 import org.example.implants.SpringImplantController;
-import org.example.injector.ClassInjector;
-import org.example.injector.ImplantConfigException;
-import org.example.injector.ImplantHandler;
-import org.example.injector.SpringInjector;
+import org.example.injector.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -142,7 +139,7 @@ public class Cli {
         if (implantClassName.equals("ClassImplant")) {
             ImplantHandler implantHandler;
             try {
-                implantHandler = ImplantHandler.findAndCreateFor(ClassImplant.class);
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
@@ -174,8 +171,8 @@ public class Cli {
         System.out.println();
 
         System.out.println("[+] Reading available implant config properties...");
-        Map<String, ImplantHandler.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
-        for (Map.Entry<String, ImplantHandler.ConfDataType> entry : availableConfig.entrySet()) {
+        Map<String, ImplantHandlerImpl.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
+        for (Map.Entry<String, ImplantHandlerImpl.ConfDataType> entry : availableConfig.entrySet()) {
             System.out.println("[i] " + entry.getKey() + " (" + entry.getValue() + ")");
         }
 
@@ -205,8 +202,8 @@ public class Cli {
             ImplantHandler componentHandler;
             ImplantHandler springConfigHandler;
             try {
-                componentHandler = ImplantHandler.findAndCreateFor(SpringImplantController.class);
-                springConfigHandler = ImplantHandler.findAndCreateFor(SpringImplantConfiguration.class);
+                componentHandler = ImplantHandlerImpl.findAndCreateFor(SpringImplantController.class);
+                springConfigHandler = ImplantHandlerImpl.findAndCreateFor(SpringImplantConfiguration.class);
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
@@ -298,7 +295,7 @@ public class Cli {
             ImplantHandler implantHandler;
             try {
                 ImplantInfo bundled = ImplantInfo.valueOf(implant);
-                implantHandler = ImplantHandler.findAndCreateFor(bundled.clazz);
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(bundled.clazz);
                 System.out.println("[i] Bundled implant '" + implant + "':");
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Failed to read bundled implant: " + e.getMessage());
@@ -312,7 +309,7 @@ public class Cli {
                         System.out.println();
                         continue;
                     }
-                    implantHandler = ImplantHandler.createFor(classFilePath);
+                    implantHandler = ImplantHandlerImpl.createFor(classFilePath);
                     System.out.println("[i] File '" + implant + "':");
                 } catch (IOException e2) {
                     System.out.println("[!] Failed to read class file: " + e2.getMessage());
@@ -323,7 +320,7 @@ public class Cli {
 
             System.out.println("[i]   Class: " + implantHandler.getImplantClassName());
             System.out.println("[i]   Available configuration properties:");
-            for (Map.Entry<String, ImplantHandler.ConfDataType> entry : implantHandler.getAvailableConfig().entrySet()) {
+            for (Map.Entry<String, ImplantHandlerImpl.ConfDataType> entry : implantHandler.getAvailableConfig().entrySet()) {
                 System.out.println("[i]     " + entry.getKey() + " (" + entry.getValue() + ")");
             }
             System.out.println();

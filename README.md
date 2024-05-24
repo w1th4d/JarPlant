@@ -106,12 +106,11 @@ a blob like a JAR file or anything. Any test apps needs to be provided by source
 
 ### Test automation
 
-Most tests reside in `jarplant-lib/src/test` that uses a combination of dummy classes and "live samples" from the other
-Maven submodules. These submodules are set up to build a proper JAR file and then copy it into the resource folder of
-the tests. See their `pom.xml` files. It's a bit out of the ordinary and may generate some warnings in Maven. Just make
-sure to run `mvn package`
-in the project root before running any tests in isolation. If you change anything in the test apps or test implants,
-then make sure to run `mvn clean` before `mvn package` (or just `mvn clean package` in one go).
+Most tests reside in `jarplant-lib/src/test` that houses a mix of unit tests and end-to-end tests.
+The tests use a combination of dummy classes and "live samples" from the other Maven submodules.
+These submodules are set up to build a proper JAR file and then copy it into the resource folder of the tests.
+See their `pom.xml` files for details. It's a bit out of the ordinary and may generate some warnings in Maven.  
+Just make sure to run `mvn package` in the project root before running any tests in isolation.
 
 The tests in `jarplant-lib` are a mix of unit tests and end-to-end tests.
 

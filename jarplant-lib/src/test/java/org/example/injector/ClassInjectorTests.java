@@ -182,7 +182,7 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testDeepRenameClass_ValidClass_Renamed() throws IOException {
+    public void testDeepRenameClass_ValidClass_Renamed() {
         // Arrange
         List<String> originalNames = testImplantWithDebug.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
@@ -466,7 +466,7 @@ public class ClassInjectorTests {
 
     // Corresponds to javac -g:none
     @Test
-    public void testInfect_TargetHasNoDebuggingInfo_Success() throws IOException, ClassNotFoundException {
+    public void testInfect_TargetHasNoDebuggingInfo_Success() throws IOException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
 

@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+@SuppressWarnings("unused")
 @RestController
 public class SecondController {
     private static final String template = "Hello, %s!";

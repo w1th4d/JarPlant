@@ -74,7 +74,7 @@ public class TestHelpers {
      * This can be used to find compiled JAR artifacts used for testing (such as target apps and test implants).
      * See pom files for the `target-*` and `test-*` submodules.
      *
-     * @param jarFileName filename, like <code>target-app.jar</code>
+     * @param jarFileName filename, like <code>test-app-pojo.jar</code>
      * @return oath to existing JAR file
      * @throws IOException if anything went wrong or doesn't make sense
      */

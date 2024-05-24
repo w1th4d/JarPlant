@@ -32,17 +32,17 @@ public class JarFileFiddlerTests {
             "org/example/target/",
             "META-INF/maven/",
             "META-INF/maven/org.example/",
-            "META-INF/maven/org.example/target-app/",
+            "META-INF/maven/org.example/test-app-pojo/",
             "org/example/target/Main.class",
             "org/example/target/Lib.class",
-            "META-INF/maven/org.example/target-app/pom.xml",
-            "META-INF/maven/org.example/target-app/pom.properties"
+            "META-INF/maven/org.example/test-app-pojo/pom.xml",
+            "META-INF/maven/org.example/test-app-pojo/pom.properties"
     );
 
     @Before
     public void getTestJar() {
         Path testEnv = TestHelpers.findTestEnvironmentDir(this.getClass());
-        Path jarPath = testEnv.resolve("target-app-with-debug.jar");
+        Path jarPath = testEnv.resolve("test-app-pojo-with-debug.jar");
         if (Files.notExists(jarPath)) {
             throw new RuntimeException("Cannot find test JAR: " + jarPath);
         }

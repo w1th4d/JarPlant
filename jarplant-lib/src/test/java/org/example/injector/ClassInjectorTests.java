@@ -24,12 +24,12 @@ import static org.example.TestHelpers.*;
 import static org.junit.Assert.*;
 
 public class ClassInjectorTests {
-    // These are compiled classes of the TestClassImplant that were packaged in a proper JAR by the test-class-implant module
+    // These are compiled classes of the TestClassImplant that were packaged in a proper JAR by the test-implant-class module
     private ClassFile testImplant;
     private ClassFile testImplantWithDebug;
     private String testImplantSourceFileName;
 
-    // These are target JARs coming from the target-app module
+    // These are target JARs coming from the test-app-pojo module
     private Path targetAppJarWithDebuggingInfo;
     private Path targetAppJarWithoutDebuggingInfo;
 
@@ -42,11 +42,11 @@ public class ClassInjectorTests {
 
     @Before
     public void getTestImplants() throws IOException {
-        Path jarPath = getJarFileFromResourceFolder("test-class-implant-without-debug.jar");
+        Path jarPath = getJarFileFromResourceFolder("test-implant-class-without-debug.jar");
         InputStream rawClass = getRawClassStreamFromJar(jarPath, "org/example/implants/TestClassImplant.class");
         ClassFile testImplant = new ClassFile(new DataInputStream(rawClass));
 
-        Path jarPathDbg = getJarFileFromResourceFolder("test-class-implant-with-debug.jar");
+        Path jarPathDbg = getJarFileFromResourceFolder("test-implant-class-with-debug.jar");
         InputStream rawClassDbg = getRawClassStreamFromJar(jarPathDbg, "org/example/implants/TestClassImplant.class");
         ClassFile testImplantDbg = new ClassFile(new DataInputStream(rawClassDbg));
 
@@ -73,18 +73,18 @@ public class ClassInjectorTests {
 
     @Before
     public void setTargetAppJarWithDebuggingInfo() throws IOException {
-        this.targetAppJarWithDebuggingInfo = getJarFileFromResourceFolder("target-app-with-debug.jar");
+        this.targetAppJarWithDebuggingInfo = getJarFileFromResourceFolder("test-app-pojo-with-debug.jar");
     }
 
 
     @Before
     public void setTargetAppJarWithoutDebuggingInfo() throws IOException {
-        this.targetAppJarWithoutDebuggingInfo = getJarFileFromResourceFolder("target-app-without-debug.jar");
+        this.targetAppJarWithoutDebuggingInfo = getJarFileFromResourceFolder("test-app-pojo-without-debug.jar");
     }
 
     @Before
     public void getTargetSpringBootApp() throws IOException {
-        this.targetSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
+        this.targetSpringBootApp = getJarFileFromResourceFolder("test-app-spring-simple.jar");
     }
 
     @Before

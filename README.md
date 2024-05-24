@@ -90,7 +90,7 @@ This project is divided into a set of Maven modules:
   implants as appropriate.
 * **jarplant-lib** is where the main functionality is. This module is designed to contain only the essential
   functionality for portability.
-* **target-app** is a very minimal Java app that can be used for test the implants.
-* **target-app-spring-boot** is a Spring Boot application for testing implants. This one is particularly handy for
+* **test-app-pojo** is a very minimal Java app that can be used for test the implants.
+* **test-app-spring-simple** is a Spring Boot application for testing implants. This one is particularly handy for
   testing the Spring implant(s).
 

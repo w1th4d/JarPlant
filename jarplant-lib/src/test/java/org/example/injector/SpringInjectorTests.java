@@ -23,13 +23,13 @@ import static org.example.TestHelpers.*;
 import static org.junit.Assert.*;
 
 public class SpringInjectorTests {
-    // Test implant originating from the test-spring-implant module
+    // Test implant originating from the test-implant-spring module
     private ImplantHandler testConfigImplantHandler;
     private ImplantHandler testBeanImplantHandler;
 
     private SpringInjector injector;
 
-    // Path to actual JARs packaged by the target-app-spring-boot{-complex} modules
+    // Path to actual JARs packaged by the test-app-spring-{simple,complex} modules
     private Path simpleSpringBootApp;
     private Path complexSpringBootApp;
 
@@ -42,20 +42,20 @@ public class SpringInjectorTests {
 
     @Before
     public void loadTestImplants() throws IOException {
-        Path testSpringImplantPath = getJarFileFromResourceFolder("test-spring-implant.jar");
+        Path testSpringImplantPath = getJarFileFromResourceFolder("test-implant-spring.jar");
         this.testConfigImplantHandler = ImplantHandlerMock.findInJar(testSpringImplantPath, "TestSpringConfigImplant");
         this.testBeanImplantHandler = ImplantHandlerMock.findInJar(testSpringImplantPath, "TestSpringBeanImplant");
     }
 
     @Before
     public void loadTargetApps() throws IOException {
-        this.simpleSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot.jar");
-        this.complexSpringBootApp = getJarFileFromResourceFolder("target-app-spring-boot-complex.jar");
+        this.simpleSpringBootApp = getJarFileFromResourceFolder("test-app-spring-simple.jar");
+        this.complexSpringBootApp = getJarFileFromResourceFolder("test-app-spring-complex.jar");
     }
 
     @Before
     public void loadRegularApp() throws IOException {
-        this.regularApp = getJarFileFromResourceFolder("target-app-without-debug.jar");
+        this.regularApp = getJarFileFromResourceFolder("test-app-pojo-without-debug.jar");
     }
 
     @Before

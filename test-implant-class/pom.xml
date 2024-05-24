@@ -9,7 +9,7 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>test-class-implant</artifactId>
+    <artifactId>test-implant-class</artifactId>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -80,7 +80,7 @@
                                     <artifactItems>
                                         <artifactItem>
                                             <groupId>org.example</groupId>
-                                            <artifactId>test-class-implant</artifactId>
+                                            <artifactId>test-implant-class</artifactId>
                                             <version>${project.version}</version>
                                             <type>jar</type>
                                             <classifier>with-debug</classifier>
@@ -158,7 +158,7 @@
                                     <artifactItems>
                                         <artifactItem>
                                             <groupId>org.example</groupId>
-                                            <artifactId>test-class-implant</artifactId>
+                                            <artifactId>test-implant-class</artifactId>
                                             <version>${project.version}</version>
                                             <type>jar</type>
                                             <classifier>without-debug</classifier>

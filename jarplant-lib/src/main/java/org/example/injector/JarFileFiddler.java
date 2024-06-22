@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -31,8 +32,10 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
     }
 
     public static JarFileFiddler open(final Path jarFilePath, final Path outputJarFilePath) throws IllegalArgumentException, IOException {
-        if (outputJarFilePath.toRealPath().equals(jarFilePath.toRealPath())) {
-            throw new IllegalArgumentException("Output JAR is the same as input JAR. This is not yet supported.");
+        if (Files.exists(outputJarFilePath)) {
+            if (outputJarFilePath.toRealPath().equals(jarFilePath.toRealPath())) {
+                throw new IllegalArgumentException("Output JAR is the same as input JAR. This is not yet supported.");
+            }
         }
 
         return new JarFileFiddler(

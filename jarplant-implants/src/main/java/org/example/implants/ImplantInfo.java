@@ -23,7 +23,11 @@ public enum ImplantInfo {
             "Template for a Spring REST controller."),
     SpringImplantConfiguration(
             org.example.implants.SpringImplantConfiguration.class,
-            "Template for adding your Spring implant component to a Spring configuration class.");
+            "Template for adding your Spring implant component to a Spring configuration class."),
+    ReconExfil(
+            org.example.implants.ReconExfil.class,
+            "Exfiltrate host environment information useful for reconnaissance." +
+                    " Good for proving impact during assessments or casting very wide phishing nets for research purposes.");
 
     public final Class<?> clazz;
     public final String summary;

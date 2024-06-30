@@ -30,6 +30,12 @@ public enum ImplantInfo {
                     " Make sure to set the CONF_DOMAIN property to a DNS server under your control (like an Interactsh instance)." +
                     " Example: 'abdcef12345.oast.fun'." +
                     " There's a decoder available for the captured DNS queries."
+    ),
+    StealerExfil(
+            org.example.implants.ReconExfil.class,
+            "Exfiltrate host environment information and access tokens."
+                    + " This does what ReconExfil does but also looks for interesting environment variables that may contain various cloud tokens and secrets."
+                    + " It encodes all exfil data using a custom compression/encoding scheme optimized for token data and splits it ut into sub-requests as necessary."
     );
 
     public final Class<?> clazz;

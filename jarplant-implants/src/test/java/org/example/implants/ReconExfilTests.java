@@ -15,8 +15,9 @@ public class ReconExfilTests {
     private Properties javaProps;
 
     @Before
-    public void setTestExfilDns() {
+    public void setImplantConfig() {
         ReconExfil.CONF_EXFIL_DNS = "abc123.test.local";
+        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 63;
     }
 
     @Before
@@ -75,6 +76,48 @@ public class ReconExfilTests {
         assertEquals("Got unknown username.", decodeHex(components[1]), "unknown");
         assertEquals("Got unknown OS info.", decodeHex(components[2]), "unknown unknown");
         assertEquals("Got unknown runtime info.", decodeHex(components[3]), "unknown");
+    }
+
+    @Test
+    public void testEncode_tooLongEvenMaxLen_truncated() {
+        // Arrange
+        String input = "abcdefghIJKL";
+        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 8;
+
+        // Act
+        String encoded = ReconExfil.encode(input);
+
+        // Assert
+        assertEquals("Output is truncated.", encoded.length(), 8);
+        assertEquals("Output is correct.", decodeHex(encoded), "abcd");
+    }
+
+    @Test
+    public void testEncode_tooLongOddMaxLen_truncated() {
+        // Arrange
+        String input = "abcdEFGH";
+        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 9;
+
+        // Act
+        String encoded = ReconExfil.encode(input);
+
+        // Assert
+        assertEquals("Output is truncated.", encoded.length(), 8);
+        assertEquals("Output is correct.", decodeHex(encoded), "abcd");
+    }
+
+    @Test
+    public void testEncode_exactlyMaxLen_fine() {
+        // Arrange
+        String input = "abcd";
+        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 8;
+
+        // Act
+        String encoded = ReconExfil.encode(input);
+
+        // Assert
+        assertEquals("Output is not truncated.", encoded.length(), 8);
+        assertEquals("Output is correct.", decodeHex(encoded), "abcd");
     }
 
     private static String decodeHex(String hex) {

@@ -22,9 +22,11 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
     /**
      * Maximum number of characters for each subdomain.
-     * DNS specifies a maximum number of 63 characters. However, if there are any concerns around some DNS servers
-     * capping this off even more, or if you with to just cap it even lower, then set this value appropriately.
-     * Note: This simple implant will just cut any excess hex digits (resulting in a data loss).
+     * DNS specifies a maximum number of 63 characters.
+     * A custom value may be set if there are concerns that upstream DNS servers may dislike a large number of
+     * subdomains.
+     * Note: This simple implant will just exclude any excess hex digits from an over-sized field (resulting in data
+     * loss).
      */
     static volatile int CONF_SUBDOMAIN_MAX_LEN = 63;
 

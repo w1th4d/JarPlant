@@ -56,4 +56,31 @@ public class ReconExfilDecoder {
 
         return Optional.of(new String(bytes, StandardCharsets.UTF_8));
     }
+
+    // Keep this module simple and (compile) dependency-free for now
+    public static String toJson(Map<String, String> kv) {
+        StringBuilder json = new StringBuilder("{");
+        boolean isFirstEntry = true;
+        for (Map.Entry<String, String> entry : kv.entrySet()) {
+            if (!isFirstEntry) {
+                json.append(", ");
+            } else {
+                isFirstEntry = false;
+            }
+
+            json.append("\"");
+            json.append(entry.getKey().replace("\"", "\\\""));
+            json.append("\": \"");
+            json.append(entry.getValue().replace("\"", "\\\""));
+            json.append("\"");
+        }
+        json.append("}");
+
+        return json.toString();
+    }
+
+//    public static String toJson(Map<String, String> kv) throws JsonProcessingException {
+//        ObjectMapper jackson = new ObjectMapper();
+//        return jackson.writeValueAsString(kv);
+//    }
 }

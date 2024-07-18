@@ -403,32 +403,10 @@ public class Cli {
                     System.err.println("[-] Could not parse: " + input);
                 }
             } else {
-                String json = toJson(decoded.get());
+                String json = ReconExfilDecoder.toJson(decoded.get());
                 System.out.println(json);
             }
         }
-    }
-
-    // Keep it simple and dependency-free for now
-    private static String toJson(Map<String, String> kv) {
-        StringBuilder json = new StringBuilder("{");
-        boolean isFirstEntry = true;
-        for (Map.Entry<String, String> entry : kv.entrySet()) {
-            if (!isFirstEntry) {
-                json.append(", ");
-            } else {
-                isFirstEntry = false;
-            }
-
-            json.append("\"");
-            json.append(entry.getKey().replace("\"", "\\\""));
-            json.append("\": \"");
-            json.append(entry.getValue().replace("\"", "\\\""));
-            json.append("\"");
-        }
-        json.append("}");
-
-        return json.toString();
     }
 
     private static void assertNotSameFile(Path target, Path output) {

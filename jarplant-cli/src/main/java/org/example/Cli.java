@@ -365,45 +365,46 @@ public class Cli {
         boolean verbose = namespace.getBoolean("verbose");
         String topDomain = namespace.getString("top_domain");
 
+        List<String> inputs = new ArrayList<>();
+
+        // Add all inputs from file
         String inputFile = namespace.getString("input_file");
         if (inputFile != null) {
-            List<String> inputs;
-            try {
-                inputs = Files.readAllLines(Path.of(inputFile));
-                if (verbose) {
-                    System.out.println("[+] Using input file: " + inputFile);
+            if (inputFile.equals("-")) {
+                // Read from stdin instead
+                Scanner stdin = new Scanner(System.in);
+                while (stdin.hasNextLine()) {
+                    String stdinInput = stdin.nextLine();
+                    inputs.add(stdinInput);
                 }
-            } catch (IOException e) {
-                System.out.println("[!] Failed to read input file: " + inputFile);
-                System.exit(1);
-                return;
-            }
-            for (String input : inputs) {
-                Optional<Map<String, String>> decoded = ReconExfilDecoder.decode(input, topDomain);
-                if (decoded.isEmpty()) {
+            } else {
+                // Add inputs from a regular text file
+                try {
+                    inputs.addAll(Files.readAllLines(Path.of(inputFile)));
                     if (verbose) {
-                        System.out.println("[-] Could not parse: " + input);
+                        System.err.println("[+] Using input file: " + inputFile);
                     }
-                } else {
-                    Map<String, String> fields = decoded.get();
-                    String json = toJson(fields);
-                    System.out.println(json);
+                } catch (IOException e) {
+                    System.err.println("[!] Failed to read input file: " + inputFile);
                 }
             }
         }
 
-        ArrayList<String> rawInputs = namespace.get("input");
-        if (rawInputs != null) {
-            for (String rawInput : rawInputs) {
-                Optional<Map<String, String>> decoded = ReconExfilDecoder.decode(rawInput, topDomain);
-                if (decoded.isEmpty()) {
-                    if (verbose) {
-                        System.out.println("[-] Could not parse: " + rawInput);
-                    }
-                } else {
-                    String json = toJson(decoded.get());
-                    System.out.println(json);
+        // Add any inputs specified on the command-line
+        ArrayList<String> cliInputs = namespace.get("input");
+        if (cliInputs != null) {
+            inputs.addAll(cliInputs);
+        }
+
+        for (String input : inputs) {
+            Optional<Map<String, String>> decoded = ReconExfilDecoder.decode(input, topDomain);
+            if (decoded.isEmpty()) {
+                if (verbose) {
+                    System.err.println("[-] Could not parse: " + input);
                 }
+            } else {
+                String json = toJson(decoded.get());
+                System.out.println(json);
             }
         }
     }

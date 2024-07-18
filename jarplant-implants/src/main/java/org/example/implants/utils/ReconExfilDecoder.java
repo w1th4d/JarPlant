@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class ReconExfilDecoder {
+    // These field names are just implicitly assumed based on the order of the subdomains/fields
     private final static String[] FIELD_NAMES = {"HOSTNAME", "USERNAME", "OS_INFO", "JVM_INFO"};
 
     public static Optional<Map<String, String>> decode(String fqdn, String topDomain) {

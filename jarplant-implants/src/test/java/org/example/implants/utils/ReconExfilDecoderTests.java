@@ -1,7 +1,10 @@
 package org.example.implants.utils;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -93,5 +96,39 @@ public class ReconExfilDecoderTests {
 
         // Assert
         assertTrue("Failed.", output.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testToJson_normalData_success() throws JsonProcessingException {
+        // Arrange
+        Map<String, String> input = new HashMap<>();
+        input.put("UNIQUE_ID", "12345");
+        input.put("HOSTNAME", "some-host");
+        input.put("USERNAME", "user");
+
+        // Act
+        String json = ReconExfilDecoder.toJson(input);
+
+        // Assert
+        ObjectMapper jsonParser = new ObjectMapper();
+        Map<String, String> accordingToJackson = jsonParser.readValue(json, HashMap.class);
+        assertEquals("Properly formatted JSON.", input, accordingToJackson);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testToJson_dataWithJsonChars_success() throws JsonProcessingException {
+        // Arrange
+        Map<String, String> input = new HashMap<>();
+        input.put("OS_INFO", "TestOS \"quoted\", comma: colon; } curly");
+
+        // Act
+        String json = ReconExfilDecoder.toJson(input);
+
+        // Assert
+        ObjectMapper jsonParser = new ObjectMapper();
+        Map<String, String> accordingToJackson = jsonParser.readValue(json, HashMap.class);
+        assertEquals("Properly formatted JSON.", input, accordingToJackson);
     }
 }

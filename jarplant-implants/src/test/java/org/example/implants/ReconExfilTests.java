@@ -134,7 +134,7 @@ public class ReconExfilTests {
         String[] components = exfilDomain.split("\\.");
         assertEquals("Amount of subdomains.", 8, components.length);
         assertNotNull("Got some hostname.", decodeHex(components[0]));
-        assertEquals("Got username right.", decodeHex(components[1]), "user");
+        assertEquals("Got username right.", decodeHex(components[1]), "serviceuser");
         assertEquals("Got OS info right.", decodeHex(components[2]), "TestOS 1.2.3-alpha4");
         assertEquals("Got runtime info right.", decodeHex(components[3]), "3.2.1-custom42");
     }

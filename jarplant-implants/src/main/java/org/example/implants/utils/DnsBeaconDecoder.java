@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-public class ReconExfilDecoder {
+public class DnsBeaconDecoder {
     // These field names are just implicitly assumed based on the order of the subdomains/fields
     private final static String[] FIELD_NAMES = {"HOSTNAME", "USERNAME", "OS_INFO", "JVM_INFO"};
 

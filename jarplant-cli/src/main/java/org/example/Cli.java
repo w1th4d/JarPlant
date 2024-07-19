@@ -4,7 +4,7 @@ import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.*;
 import org.example.implants.*;
-import org.example.implants.utils.ReconExfilDecoder;
+import org.example.implants.utils.DnsBeaconDecoder;
 import org.example.injector.*;
 
 import java.io.IOException;
@@ -61,7 +61,7 @@ public class Cli {
                 .required(true);
         classInjectorParser.addArgument("--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
-                .choices("ClassImplant", "ReconExfil")
+                .choices("ClassImplant", "DnsBeaconImplant")
                 .setDefault("ClassImplant");
         classInjectorParser.addArgument("--config")
                 .help("Override one or more configuration properties inside the implant.")
@@ -165,9 +165,9 @@ public class Cli {
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
-        } else if (implantClassName.equals("ReconExfil")) {
+        } else if (implantClassName.equals("DnsBeaconImplant")) {
             try {
-                implantHandler = ImplantHandlerImpl.findAndCreateFor(ReconExfil.class);
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(DnsBeaconImplant.class);
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
@@ -391,13 +391,13 @@ public class Cli {
         }
 
         for (String input : inputs) {
-            Optional<Map<String, String>> decoded = ReconExfilDecoder.decode(input);
+            Optional<Map<String, String>> decoded = DnsBeaconDecoder.decode(input);
             if (decoded.isEmpty()) {
                 if (verbose) {
                     System.err.println("[-] Could not parse: " + input);
                 }
             } else {
-                String json = ReconExfilDecoder.toJson(decoded.get());
+                String json = DnsBeaconDecoder.toJson(decoded.get());
                 System.out.println(json);
             }
         }

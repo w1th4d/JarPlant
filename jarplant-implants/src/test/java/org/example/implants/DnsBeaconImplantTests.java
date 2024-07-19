@@ -10,7 +10,7 @@ import java.util.Properties;
 
 import static org.junit.Assert.*;
 
-public class ReconExfilTests {
+public class DnsBeaconImplantTests {
     private Map<String, String> envVars;
     private Properties javaProps;
     private static final Map<String, String> emptyEnvVars = new HashMap<>();
@@ -18,9 +18,9 @@ public class ReconExfilTests {
 
     @Before
     public void setImplantConfig() {
-        ReconExfil.CONF_EXFIL_DNS = "abc123.test.local";
-        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 63;
-        ReconExfil.CONF_DOMAIN_MAX_LEN = 253;
+        DnsBeaconImplant.CONF_DOMAIN = "abc123.test.local";
+        DnsBeaconImplant.CONF_SUBDOMAIN_MAX_LEN = 63;
+        DnsBeaconImplant.CONF_FQDN_MAX_LEN = 253;
     }
 
     @Before
@@ -41,7 +41,7 @@ public class ReconExfilTests {
     @Test
     public void testGetUsername_validProps_gotUsernameFromProps() {
         // Act
-        String username = ReconExfil.getUsername(envVars, javaProps);
+        String username = DnsBeaconImplant.getUsername(envVars, javaProps);
 
         // Assert
         assertEquals("Got username from props.", "user_from_props", username);
@@ -50,7 +50,7 @@ public class ReconExfilTests {
     @Test
     public void testGetUsername_noProps_gotUsernameFromEnv() {
         // Act
-        String username = ReconExfil.getUsername(envVars, emptyJavaProps);
+        String username = DnsBeaconImplant.getUsername(envVars, emptyJavaProps);
 
         // Assert
         assertEquals("Got username from env.", "user_from_env", username);
@@ -59,7 +59,7 @@ public class ReconExfilTests {
     @Test
     public void testGetUsername_nothing_unknown() {
         // Act
-        String username = ReconExfil.getUsername(emptyEnvVars, emptyJavaProps);
+        String username = DnsBeaconImplant.getUsername(emptyEnvVars, emptyJavaProps);
 
         // Assert
         assertEquals("Got unknown username.", "unknown", username);
@@ -68,7 +68,7 @@ public class ReconExfilTests {
     @Test
     public void testGetOsInfo_validProps_success() {
         // Act
-        String osInfo = ReconExfil.getOsInfo(javaProps);
+        String osInfo = DnsBeaconImplant.getOsInfo(javaProps);
 
         // Assert
         assertEquals("Got OS info.", "TestOS 1.2.3-alpha4", osInfo);
@@ -77,7 +77,7 @@ public class ReconExfilTests {
     @Test
     public void testGetOsInfo_noProp_unknown() {
         // Act
-        String osInfo = ReconExfil.getOsInfo(emptyJavaProps);
+        String osInfo = DnsBeaconImplant.getOsInfo(emptyJavaProps);
 
         // Assert
         assertEquals("Got unknown OS info.", "unknown unknown", osInfo);
@@ -86,7 +86,7 @@ public class ReconExfilTests {
     @Test
     public void testGetRuntimeInfo_validProps_success() {
         // Act
-        String runtimeInfo = ReconExfil.getRuntimeInfo(javaProps);
+        String runtimeInfo = DnsBeaconImplant.getRuntimeInfo(javaProps);
 
         // Assert
         assertEquals("Got runtime info.", "3.2.1-custom42", runtimeInfo);
@@ -95,7 +95,7 @@ public class ReconExfilTests {
     @Test
     public void testGetRuntimeInfo_noProp_unknown() {
         // Act
-        String runtimeInfo = ReconExfil.getRuntimeInfo(emptyJavaProps);
+        String runtimeInfo = DnsBeaconImplant.getRuntimeInfo(emptyJavaProps);
 
         // Assert
         assertEquals("Got unknown runtime info.", "unknown", runtimeInfo);
@@ -104,7 +104,7 @@ public class ReconExfilTests {
     @Test
     public void testGenerateEncodedDomainName_any_usesExfilDomain() {
         // Act
-        ReconExfil subject = new ReconExfil();
+        DnsBeaconImplant subject = new DnsBeaconImplant();
         String result = subject.generateEncodedDomainName("whatever", "whatever");
 
         // Assert
@@ -114,9 +114,9 @@ public class ReconExfilTests {
     @Test
     public void testGenerateCacheBusterValue_consecutiveCalling_differentValues() {
         // Act
-        String id1 = ReconExfil.generateCacheBusterValue();
-        String id2 = ReconExfil.generateCacheBusterValue();
-        String id3 = ReconExfil.generateCacheBusterValue();
+        String id1 = DnsBeaconImplant.generateCacheBusterValue();
+        String id2 = DnsBeaconImplant.generateCacheBusterValue();
+        String id3 = DnsBeaconImplant.generateCacheBusterValue();
 
         // Assert
         assertNotEquals("Different IDs.", id1, id2);
@@ -127,7 +127,7 @@ public class ReconExfilTests {
     @Test
     public void testGenerateEncodedDomainName_validProps_encodedDomainName() {
         // Act
-        ReconExfil subject = new ReconExfil();
+        DnsBeaconImplant subject = new DnsBeaconImplant();
         String exfilDomain = subject.generateEncodedDomainName("test-host-01", "serviceuser", "TestOS 1.2.3-alpha4", "3.2.1-custom42");
 
         // Assert
@@ -143,10 +143,10 @@ public class ReconExfilTests {
     public void testGenerateEncodedDomainName_tooLong_skippedValue() {
         // Arrange
         final int uniqueIdLen = ("" + Integer.MAX_VALUE).length();
-        ReconExfil.CONF_DOMAIN_MAX_LEN = 30 + uniqueIdLen + "abd123.test.local".length();
+        DnsBeaconImplant.CONF_FQDN_MAX_LEN = 30 + uniqueIdLen + "abd123.test.local".length();
 
         // Act
-        ReconExfil subject = new ReconExfil();
+        DnsBeaconImplant subject = new DnsBeaconImplant();
         String exfilDomain = subject.generateEncodedDomainName("test-host-01", "some-quite-long-value-that-will-be-skipped");
 
         // Assert
@@ -157,10 +157,10 @@ public class ReconExfilTests {
     @Test
     public void testGenerateEncodedDomainName_veryShortDomainMaxLen_noValues() {
         // Arrange
-        ReconExfil.CONF_DOMAIN_MAX_LEN = 0;
+        DnsBeaconImplant.CONF_FQDN_MAX_LEN = 0;
 
         // Act
-        ReconExfil subject = new ReconExfil();
+        DnsBeaconImplant subject = new DnsBeaconImplant();
         String exfilDomain = subject.generateEncodedDomainName("test-host-01");
 
         // Assert
@@ -172,10 +172,10 @@ public class ReconExfilTests {
     public void testEncode_tooLongEvenMaxLen_truncated() {
         // Arrange
         String input = "abcdefghIJKL";
-        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 8;
+        DnsBeaconImplant.CONF_SUBDOMAIN_MAX_LEN = 8;
 
         // Act
-        String encoded = ReconExfil.encode(input);
+        String encoded = DnsBeaconImplant.encode(input);
 
         // Assert
         assertEquals("Output is truncated.", encoded.length(), 8);
@@ -186,10 +186,10 @@ public class ReconExfilTests {
     public void testEncode_tooLongOddMaxLen_truncated() {
         // Arrange
         String input = "abcdEFGH";
-        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 9;
+        DnsBeaconImplant.CONF_SUBDOMAIN_MAX_LEN = 9;
 
         // Act
-        String encoded = ReconExfil.encode(input);
+        String encoded = DnsBeaconImplant.encode(input);
 
         // Assert
         assertEquals("Output is truncated.", encoded.length(), 8);
@@ -200,10 +200,10 @@ public class ReconExfilTests {
     public void testEncode_exactlyMaxLen_fine() {
         // Arrange
         String input = "abcd";
-        ReconExfil.CONF_SUBDOMAIN_MAX_LEN = 8;
+        DnsBeaconImplant.CONF_SUBDOMAIN_MAX_LEN = 8;
 
         // Act
-        String encoded = ReconExfil.encode(input);
+        String encoded = DnsBeaconImplant.encode(input);
 
         // Assert
         assertEquals("Output is not truncated.", encoded.length(), 8);

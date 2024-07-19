@@ -10,14 +10,14 @@ import java.util.Optional;
 
 import static org.junit.Assert.*;
 
-public class ReconExfilDecoderTests {
+public class DnsBeaconImplantTests {
     @Test
     public void testDecode_allFields_allValues() {
         // Arrange
         String fqdn = "746573742d686f73742d3031.7365727669636575736572.546573744f532076312e322e332d756c747261.4a564d20496e666f20312e322e332d6f6d67.3939083327.1756721185.test.local";
 
         // Act
-        Optional<Map<String, String>> output = ReconExfilDecoder.decode(fqdn);
+        Optional<Map<String, String>> output = DnsBeaconDecoder.decode(fqdn);
 
         // Assert
         assertTrue("Succeeded.", output.isPresent());
@@ -33,7 +33,7 @@ public class ReconExfilDecoderTests {
         String fqdn = "746573742d686f73742d3031.7365727669636575736572.546573744f532076312e322e332d756c747261.3742447023.1756721185.test.local";
 
         // Act
-        Optional<Map<String, String>> output = ReconExfilDecoder.decode(fqdn);
+        Optional<Map<String, String>> output = DnsBeaconDecoder.decode(fqdn);
 
         // Assert
         assertTrue("Succeeded.", output.isPresent());
@@ -49,7 +49,7 @@ public class ReconExfilDecoderTests {
         String fqdn = "746573742d686f73742d3031.7365727669zZzZzZzZ636575736572.546573744f532076312e322e332d756c747261.4a564d20496e666f20312e322e332d6f6d67.3683540284.1756721185.test.local";
 
         // Act
-        Optional<Map<String, String>> output = ReconExfilDecoder.decode(fqdn);
+        Optional<Map<String, String>> output = DnsBeaconDecoder.decode(fqdn);
 
         // Assert
         assertTrue("Succeeded.", output.isPresent());
@@ -65,7 +65,7 @@ public class ReconExfilDecoderTests {
         String fqdn = "0.test.local";
 
         // Act
-        Optional<Map<String, String>> output = ReconExfilDecoder.decode(fqdn);
+        Optional<Map<String, String>> output = DnsBeaconDecoder.decode(fqdn);
 
         // Assert
         assertTrue("Fine.", output.isPresent());
@@ -77,7 +77,7 @@ public class ReconExfilDecoderTests {
         String fqdn = "746573742d686f73742d3031.7365727669636575736572.546573744f532076312e322e332d756c747261.4a564d20496e666f20312e322e332d6f6d67.1756721185.test.local";
 
         // Act
-        Optional<Map<String, String>> output = ReconExfilDecoder.decode(fqdn);
+        Optional<Map<String, String>> output = DnsBeaconDecoder.decode(fqdn);
 
         // Assert
         assertTrue("Failed.", output.isEmpty());
@@ -89,7 +89,7 @@ public class ReconExfilDecoderTests {
         String fqdn = "746573742d686f73742d3031.7365727669636575736572.546573744f532076312e322e332d756c747261.4a564d20496e666f20312e322e332d6f6d67.546573744f532076312e322e332d756c747261.883519573.1756721185.test.local";
 
         // Act
-        Optional<Map<String, String>> output = ReconExfilDecoder.decode(fqdn);
+        Optional<Map<String, String>> output = DnsBeaconDecoder.decode(fqdn);
 
         // Assert
         assertTrue("Succeeded.", output.isPresent());
@@ -109,7 +109,7 @@ public class ReconExfilDecoderTests {
         input.put("USERNAME", "user");
 
         // Act
-        String json = ReconExfilDecoder.toJson(input);
+        String json = DnsBeaconDecoder.toJson(input);
 
         // Assert
         ObjectMapper jsonParser = new ObjectMapper();
@@ -125,7 +125,7 @@ public class ReconExfilDecoderTests {
         input.put("OS_INFO", "TestOS \"quoted\", comma: colon; } curly");
 
         // Act
-        String json = ReconExfilDecoder.toJson(input);
+        String json = DnsBeaconDecoder.toJson(input);
 
         // Assert
         ObjectMapper jsonParser = new ObjectMapper();
@@ -136,7 +136,7 @@ public class ReconExfilDecoderTests {
     @Test
     public void testDecodeHex_something_correct() {
         // Act
-        Optional<String> decoded = ReconExfilDecoder.decodeHex("54657374202d5f2b");
+        Optional<String> decoded = DnsBeaconDecoder.decodeHex("54657374202d5f2b");
 
         // Assert
         assertTrue("Success.", decoded.isPresent());
@@ -146,7 +146,7 @@ public class ReconExfilDecoderTests {
     @Test
     public void testDecodeHex_mixedCase_success() {
         // Act
-        Optional<String> decoded = ReconExfilDecoder.decodeHex("5f5F");
+        Optional<String> decoded = DnsBeaconDecoder.decodeHex("5f5F");
 
         // Assert
         assertTrue("Success.", decoded.isPresent());

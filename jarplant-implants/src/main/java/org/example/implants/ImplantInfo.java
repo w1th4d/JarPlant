@@ -24,10 +24,13 @@ public enum ImplantInfo {
     SpringImplantConfiguration(
             org.example.implants.SpringImplantConfiguration.class,
             "Template for adding your Spring implant component to a Spring configuration class."),
-    ReconExfil(
-            org.example.implants.ReconExfil.class,
-            "Exfiltrate host environment information useful for reconnaissance." +
-                    " Good for proving impact during assessments or casting very wide phishing nets for research purposes.");
+    DnsBeaconImplant(
+            DnsBeaconImplant.class,
+            "Implant that gathers some basic details of a host and encodes it into a DNS query." +
+                    " Make sure to set the CONF_DOMAIN property to a DNS server under your control (like an Interactsh instance)." +
+                    " Example: 'abdcef12345.oast.fun'." +
+                    " There's a decoder available for the captured DNS queries."
+    );
 
     public final Class<?> clazz;
     public final String summary;

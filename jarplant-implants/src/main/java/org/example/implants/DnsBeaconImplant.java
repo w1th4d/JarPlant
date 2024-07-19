@@ -18,7 +18,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     /**
      * Top domain to use for data exfiltration.
      * Data will be encoded and included as a subdomain to this top domain.
-     * Set this to a Burp Collaborator / Interactsh (or equivalent) hostname that's under your control.
+     * Set this to a Burp Collaborator / Interactsh (or equivalent) DNS server under your control.
      */
     static volatile String CONF_EXFIL_DNS;
 

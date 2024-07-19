@@ -132,4 +132,24 @@ public class ReconExfilDecoderTests {
         Map<String, String> accordingToJackson = jsonParser.readValue(json, HashMap.class);
         assertEquals("Properly formatted JSON.", input, accordingToJackson);
     }
+
+    @Test
+    public void testDecodeHex_something_correct() {
+        // Act
+        Optional<String> decoded = ReconExfilDecoder.decodeHex("54657374202d5f2b");
+
+        // Assert
+        assertTrue("Success.", decoded.isPresent());
+        assertEquals("Got right output.", "Test -_+", decoded.get());
+    }
+
+    @Test
+    public void testDecodeHex_mixedCase_success() {
+        // Act
+        Optional<String> decoded = ReconExfilDecoder.decodeHex("5f5F");
+
+        // Assert
+        assertTrue("Success.", decoded.isPresent());
+        assertEquals("Got right output.", "__", decoded.get());
+    }
 }

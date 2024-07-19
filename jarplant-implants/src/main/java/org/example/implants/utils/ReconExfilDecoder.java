@@ -63,7 +63,7 @@ public class ReconExfilDecoder {
     }
 
     // Creds: ChatGPT
-    private static Optional<String> decodeHex(String hex) {
+    static Optional<String> decodeHex(String hex) {
         if (hex.length() % 2 != 0) {
             return Optional.empty();
         }

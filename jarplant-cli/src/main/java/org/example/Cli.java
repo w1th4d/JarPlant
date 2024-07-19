@@ -122,11 +122,6 @@ public class Cli {
                 .metavar("FILE")
                 .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
                 .required(false);
-        decoderParser.addArgument("--top-domain", "-d")
-                .help("Your top domain used in CONFIG_EXFIL_DNS.")
-                .metavar("DOMAIN")
-                .type(String.class)
-                .required(true);
         decoderParser.addArgument("input")
                 .help("Raw input data.")
                 .metavar("INPUT")
@@ -363,7 +358,6 @@ public class Cli {
 
     private static void decodeStuff(Namespace namespace) {
         boolean verbose = namespace.getBoolean("verbose");
-        String topDomain = namespace.getString("top_domain");
 
         List<String> inputs = new ArrayList<>();
 
@@ -397,7 +391,7 @@ public class Cli {
         }
 
         for (String input : inputs) {
-            Optional<Map<String, String>> decoded = ReconExfilDecoder.decode(input, topDomain);
+            Optional<Map<String, String>> decoded = ReconExfilDecoder.decode(input);
             if (decoded.isEmpty()) {
                 if (verbose) {
                     System.err.println("[-] Could not parse: " + input);

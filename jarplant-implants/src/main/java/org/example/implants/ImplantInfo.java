@@ -23,7 +23,14 @@ public enum ImplantInfo {
             "Template for a Spring REST controller."),
     SpringImplantConfiguration(
             org.example.implants.SpringImplantConfiguration.class,
-            "Template for adding your Spring implant component to a Spring configuration class.");
+            "Template for adding your Spring implant component to a Spring configuration class."),
+    DnsBeaconImplant(
+            DnsBeaconImplant.class,
+            "Implant that gathers some basic details of a host and encodes it into a DNS query." +
+                    " Make sure to set the CONF_DOMAIN property to a DNS server under your control (like an Interactsh instance)." +
+                    " Example: 'abdcef12345.oast.fun'." +
+                    " There's a decoder available for the captured DNS queries."
+    );
 
     public final Class<?> clazz;
     public final String summary;

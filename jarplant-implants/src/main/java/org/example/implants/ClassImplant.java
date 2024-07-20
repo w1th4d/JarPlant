@@ -77,7 +77,26 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
             }
         }
 
-        // ---------- BEGIN PAYLOAD CODE HERE ----------
+        payload();
+    }
+
+    /**
+     * Handler for any uncaught exceptions.
+     * This stops the JVM from spewing errors to stderr when something goes wrong in the thread.
+     *
+     * @param thread    the thread that had an exception
+     * @param throwable the uncaught exception
+     */
+    @Override
+    public void uncaughtException(Thread thread, Throwable throwable) {
+        // Silently ignore (don't throw up error messages on stderr)
+    }
+
+    /**
+     * This is the actual payload.
+     * Feel free to rename this method. Remember that method names will show up in the compiled class file.
+     */
+    private void payload() {
         System.out.println("BOOM!");
         System.out.println();
 
@@ -89,11 +108,5 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
         System.out.println("   CONF_BLOCK_JVM_SHUTDOWN: " + CONF_BLOCK_JVM_SHUTDOWN);
         System.out.println("   CONF_DELAY_MS: " + CONF_DELAY_MS);
         System.out.println();
-
-    }
-
-    @Override
-    public void uncaughtException(Thread thread, Throwable throwable) {
-        // Silently ignore (don't throw up error messages on stderr)
     }
 }

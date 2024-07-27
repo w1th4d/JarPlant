@@ -40,26 +40,6 @@ public class ImplantHandlerImpl implements ImplantHandler {
         return new ImplantHandlerImpl(bytes, className, availableConfig);
     }
 
-//    public static ImplantHandler createFor(Path jarFilePath, String classFileName) throws IOException {
-//        Set<JarFileFiddler.WrappedJarEntry> foundMatchingClasses = new HashSet<>();
-//        try (JarFileFiddler jar = JarFileFiddler.open(jarFilePath)) {
-//            for (JarFileFiddler.WrappedJarEntry entry : jar) {
-//                if (entry.getName().endsWith(classFileName)) {
-//                    foundMatchingClasses.add(entry);
-//                }
-//            }
-//        }
-//
-//        if (foundMatchingClasses.size() > 1) {
-//            throw new RuntimeException("Found more than one class matching '" + classFileName + "' in " + jarFilePath);
-//        }
-//        JarFileFiddler.WrappedJarEntry entry = foundMatchingClasses.stream().findAny().orElseThrow();
-//        byte[] rawClassData = entry.getContent().readAllBytes();
-//        ClassFile classFile = readClassFile(rawClassData);
-//
-//        return new ImplantHandler(rawClassData, );
-//    }
-
     // Finds the class file using some weird Java quirks
     public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();

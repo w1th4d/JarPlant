@@ -3,7 +3,7 @@ package org.example;
 import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
 import org.example.injector.ClassInjectorTests;
-import org.example.injector.JarFileFiddler;
+import org.example.injector.StreamedJarFiddler;
 
 import java.io.*;
 import java.net.URISyntaxException;
@@ -146,8 +146,8 @@ public class TestHelpers {
             throw new RuntimeException("Cannot find SHA-256 provider.", e);
         }
 
-        try (JarFileFiddler jar = JarFileFiddler.open(jarFile)) {
-            for (JarFileFiddler.WrappedJarEntry entry : jar) {
+        try (StreamedJarFiddler jar = StreamedJarFiddler.open(jarFile)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : jar) {
                 String filename = entry.getName();
                 byte[] contentDigest = md.digest(entry.getContent().readAllBytes());
                 md.reset();

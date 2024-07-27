@@ -32,8 +32,8 @@ public class ClassInjector {
             return false;
         }
 
-        try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
+        try (StreamedJarFiddler fiddler = StreamedJarFiddler.open(targetJarFilePath, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
                     entry.forward();
                     continue;

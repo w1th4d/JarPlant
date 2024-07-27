@@ -21,7 +21,7 @@ import java.util.zip.ZipEntry;
 
 import static org.junit.Assert.*;
 
-public class JarFileFiddlerTests {
+public class StreamedJarFiddlerTests {
     private Path testJar;
     private Path outputJar;
     private final Set<String> expectedFileNames = Set.of(
@@ -52,7 +52,7 @@ public class JarFileFiddlerTests {
 
     @Before
     public void createOutputJar() throws IOException {
-        outputJar = Files.createTempFile("JarFileFiddlerTests-", UUID.randomUUID().toString());
+        outputJar = Files.createTempFile("StreamedJarFiddlerTests-", UUID.randomUUID().toString());
     }
 
     @After
@@ -64,7 +64,7 @@ public class JarFileFiddlerTests {
     public void testOpen_OnlyInput_Instance() throws IOException {
         // Act
         JarFile jarFile;
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar)) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar)) {
             jarFile = subject.getJarFile();
         }
 
@@ -75,7 +75,7 @@ public class JarFileFiddlerTests {
     @Test
     public void testOpen_WithOutput_Instance() throws IOException {
         // Act
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
             // Assert
             assertNotNull("JAR opened.", subject);
             assertNotNull("JAR is returned.", subject.getJarFile());
@@ -88,8 +88,8 @@ public class JarFileFiddlerTests {
         Set<String> foundFileNames = new HashSet<>(expectedFileNames.size());
 
         // Act: Go through all entries
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 foundFileNames.add(entry.getName());
             }
         }
@@ -104,8 +104,8 @@ public class JarFileFiddlerTests {
         Set<String> forwardedEntries = new HashSet<>(expectedFileNames.size());
 
         // Act: Go through the whole testJar and forward() all entries
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 entry.forward();
                 forwardedEntries.add(entry.getName());
             }
@@ -124,8 +124,8 @@ public class JarFileFiddlerTests {
         Set<JarEntry> forwardedEntries = new HashSet<>(expectedFileNames.size());
 
         // Act: Go through and forward all entries
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 entry.forward();
                 forwardedEntries.add(entry.getEntry());
             }
@@ -147,8 +147,8 @@ public class JarFileFiddlerTests {
         HashMap<String, Long> originalFileHashes = new HashMap<>();
 
         // Act: Go through the entire JAR and modify Main.class
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 originalFileHashes.put(entry.getName(), entry.getEntry().getCrc());
 
                 if (entry.getName().equals(nameOfMain)) {
@@ -183,8 +183,8 @@ public class JarFileFiddlerTests {
         ByteBuffer replacementData = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
 
         // Act: Go through entire JAR but replace Main with something else
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
                     // This is what's being tested
                     entry.replaceContentWith(replacementData);
@@ -213,8 +213,8 @@ public class JarFileFiddlerTests {
         InputStream replacementStream = new ByteArrayInputStream(replacementData);
 
         // Act: Go through entire JAR but replace Main with something else
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
                     // This is what's being tested
                     entry.replaceContentWith(replacementStream);
@@ -242,8 +242,8 @@ public class JarFileFiddlerTests {
         byte[] replacementData = new byte[]{1, 2, 3, 4, 5};
 
         // Act: Go through entire JAR but replace Main with something else
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 if (entry.getName().equals(nameOfMain)) {
                     // This is what's being tested
                     DataOutputStream replacementStream = entry.replaceContentByStream();
@@ -268,8 +268,8 @@ public class JarFileFiddlerTests {
     @Test(expected = IllegalStateException.class)
     public void testIterator_AddToReadOnlyFiddler_Exception() throws IOException {
         // Act + Assert
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 // Forward it despite there being no output JAR
                 entry.forward();
             }
@@ -279,8 +279,8 @@ public class JarFileFiddlerTests {
     @Test(expected = IllegalStateException.class)
     public void testIterator_ForwardSameEntryTwice_Exception() throws IOException {
         // Act + Assert
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 // Forward it twice
                 entry.forward();
                 entry.forward();
@@ -294,8 +294,8 @@ public class JarFileFiddlerTests {
         ByteBuffer replacement = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
 
         // Act + Assert
-        try (JarFileFiddler subject = JarFileFiddler.open(testJar, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : subject) {
+        try (StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, outputJar)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : subject) {
                 // First forward and then try to modify the same entry
                 entry.forward();
                 entry.replaceContentWith(replacement);
@@ -306,7 +306,7 @@ public class JarFileFiddlerTests {
     @Test(expected = Exception.class)
     public void testCreate_SameFile_Exception() throws IOException {
         // Act + Assert
-        JarFileFiddler subject = JarFileFiddler.open(testJar, testJar);
+        StreamedJarFiddler subject = StreamedJarFiddler.open(testJar, testJar);
         subject.close();
     }
 

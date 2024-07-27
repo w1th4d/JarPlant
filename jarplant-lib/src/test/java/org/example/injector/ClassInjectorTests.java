@@ -423,8 +423,8 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did successfully inject.", didInfect);
         boolean didFindInitClass = false;
-        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile)) {
-            for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
+        try (StreamedJarFiddler searchTheOutputJar = StreamedJarFiddler.open(tempOutputFile)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : searchTheOutputJar) {
                 if (entry.getName().endsWith("Init.class")) {
                     didFindInitClass = true;
                 }
@@ -446,8 +446,8 @@ public class ClassInjectorTests {
         assertTrue("Did successfully inject.", didInfect);
 
         InputStream initEntryContent = null;
-        JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile);
-        for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
+        StreamedJarFiddler searchTheOutputJar = StreamedJarFiddler.open(tempOutputFile);
+        for (StreamedJarFiddler.StreamedJarEntry entry : searchTheOutputJar) {
             if (entry.getName().endsWith("Init.class")) {
                 initEntryContent = entry.getContent();
             }
@@ -474,8 +474,8 @@ public class ClassInjectorTests {
         ClassInjector injector = new ClassInjector(handler);
         boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
         boolean didFindInitClass = false;
-        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile)) {
-            for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
+        try (StreamedJarFiddler searchTheOutputJar = StreamedJarFiddler.open(tempOutputFile)) {
+            for (StreamedJarFiddler.StreamedJarEntry entry : searchTheOutputJar) {
                 if (entry.getName().endsWith("Init.class")) {
                     didFindInitClass = true;
                 }

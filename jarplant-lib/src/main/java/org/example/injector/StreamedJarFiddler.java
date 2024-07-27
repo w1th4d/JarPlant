@@ -13,32 +13,32 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 
-public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>, AutoCloseable {
+public class StreamedJarFiddler implements Iterable<StreamedJarFiddler.StreamedJarEntry>, AutoCloseable {
     private final JarFile jarFile;
     private final JarOutputStream outputJarStream;
 
-    public JarFileFiddler(final JarFile jarFile) {
+    public StreamedJarFiddler(final JarFile jarFile) {
         this.jarFile = jarFile;
         this.outputJarStream = null;
     }
 
-    public JarFileFiddler(final JarFile jarFile, JarOutputStream outputJarStream) {
+    public StreamedJarFiddler(final JarFile jarFile, JarOutputStream outputJarStream) {
         this.jarFile = jarFile;
         this.outputJarStream = outputJarStream;
     }
 
-    public static JarFileFiddler open(final Path jarFilePath) throws IOException {
-        return new JarFileFiddler(new JarFile(jarFilePath.toFile()));
+    public static StreamedJarFiddler open(final Path jarFilePath) throws IOException {
+        return new StreamedJarFiddler(new JarFile(jarFilePath.toFile()));
     }
 
-    public static JarFileFiddler open(final Path jarFilePath, final Path outputJarFilePath) throws IllegalArgumentException, IOException {
+    public static StreamedJarFiddler open(final Path jarFilePath, final Path outputJarFilePath) throws IllegalArgumentException, IOException {
         if (Files.exists(outputJarFilePath)) {
             if (outputJarFilePath.toRealPath().equals(jarFilePath.toRealPath())) {
                 throw new IllegalArgumentException("Output JAR is the same as input JAR. This is not yet supported.");
             }
         }
 
-        return new JarFileFiddler(
+        return new StreamedJarFiddler(
                 new JarFile(jarFilePath.toFile()),
                 new JarOutputStream(new FileOutputStream(outputJarFilePath.toFile()))
         );
@@ -57,8 +57,8 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
     }
 
     @Override
-    public JarEntryIterator iterator() {
-        return new JarEntryIterator(jarFile, outputJarStream);
+    public StreamedJarEntryIterator iterator() {
+        return new StreamedJarEntryIterator(jarFile, outputJarStream);
     }
 
     public void close() throws IOException {
@@ -68,12 +68,12 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         }
     }
 
-    public static class JarEntryIterator implements Iterator<WrappedJarEntry> {
+    public static class StreamedJarEntryIterator implements Iterator<StreamedJarEntry> {
         private final JarFile jarFile;
         private final JarOutputStream outputJarStream;
         private final Enumeration<JarEntry> enumeration;
 
-        JarEntryIterator(JarFile jarFile, JarOutputStream outputJarStream) {
+        StreamedJarEntryIterator(JarFile jarFile, JarOutputStream outputJarStream) {
             this.jarFile = jarFile;
             this.outputJarStream = outputJarStream;
             this.enumeration = jarFile.entries();
@@ -85,18 +85,18 @@ public class JarFileFiddler implements Iterable<JarFileFiddler.WrappedJarEntry>,
         }
 
         @Override
-        public WrappedJarEntry next() {
-            return new WrappedJarEntry(enumeration.nextElement(), jarFile, outputJarStream);
+        public StreamedJarEntry next() {
+            return new StreamedJarEntry(enumeration.nextElement(), jarFile, outputJarStream);
         }
     }
 
-    public static class WrappedJarEntry {
+    public static class StreamedJarEntry {
         private final JarEntry jarEntry;
         private final JarFile jarFile;
         private final JarOutputStream outputJarStream;
         private boolean hasWrittenToOutputJar = false;
 
-        WrappedJarEntry(JarEntry jarEntry, JarFile jarFileRef, JarOutputStream outputJarStreamRef) {
+        StreamedJarEntry(JarEntry jarEntry, JarFile jarFileRef, JarOutputStream outputJarStreamRef) {
             this.jarEntry = jarEntry;
             this.jarFile = jarFileRef;
             this.outputJarStream = outputJarStreamRef;

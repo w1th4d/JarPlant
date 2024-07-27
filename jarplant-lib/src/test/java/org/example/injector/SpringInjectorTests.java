@@ -144,12 +144,12 @@ public class SpringInjectorTests {
                 + "\r\n";
 
         // Add a .SF file
-        JarFileFiddler fiddler = JarFileFiddler.open(simpleSpringBootApp, tempInputFile);
+        StreamedJarFiddler fiddler = StreamedJarFiddler.open(simpleSpringBootApp, tempInputFile);
         DataOutputStream newEntryStream = fiddler.addNewEntry(new JarEntry("META-INF/SOMETHING.SF"));
         newEntryStream.write(signatureFile.getBytes(StandardCharsets.UTF_8));
 
         // Append entries to MANIFEST.MF and copy all other entries
-        for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
+        for (StreamedJarFiddler.StreamedJarEntry entry : fiddler) {
             if (entry.getName().equals("META-INF/MANIFEST.MF")) {
                 InputStream manifestStream = entry.getContent();
                 DataOutputStream manifestManipulation = entry.replaceContentByStream();

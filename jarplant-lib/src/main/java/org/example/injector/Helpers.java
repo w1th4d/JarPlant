@@ -154,12 +154,11 @@ public class Helpers {
     public static boolean jarLooksSigned(Path jarFilePath) throws IOException {
         Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
 
-        try (StreamedJarFiddler jar = StreamedJarFiddler.open(jarFilePath)) {
-            for (StreamedJarFiddler.StreamedJarEntry entry : jar) {
-                Matcher matcher = regex.matcher(entry.getName());
-                if (matcher.matches()) {
-                    return true;
-                }
+        BufferedJarFiddler jar = BufferedJarFiddler.read(jarFilePath);
+        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+            Matcher matcher = regex.matcher(entry.getName());
+            if (matcher.matches()) {
+                return true;
             }
         }
 

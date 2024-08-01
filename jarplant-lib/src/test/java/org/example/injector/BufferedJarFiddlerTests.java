@@ -60,6 +60,11 @@ public class BufferedJarFiddlerTests {
     }
 
     @After
+    public void removeTempTestJar() throws IOException {
+        Files.delete(testJar);
+    }
+
+    @After
     public void removeOutputJar() throws IOException {
         Files.delete(outputJar);
     }

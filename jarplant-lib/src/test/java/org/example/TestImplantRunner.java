@@ -34,7 +34,9 @@ public class TestImplantRunner extends ClassLoader {
      * @throws IOException if anything went wrong
      */
     public Set<Class<?>> loadAllClassesFromJar(Path jarPath) throws IOException {
-        Set<Class<?>> loadedClasses = new HashSet<>();
+        Set<Class<?>> result = new HashSet<>();
+        Set<ClassDef> classesToLoad = new HashSet<>();
+        Set<ClassDef> successfullyLoaded = new HashSet<>();
 
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             Enumeration<JarEntry> entries = jar.entries();
@@ -46,12 +48,34 @@ public class TestImplantRunner extends ClassLoader {
 
                 String binaryClassName = Helpers.convertToBinaryClassNameFromPath(entry.getRealName());
                 byte[] classData = jar.getInputStream(entry).readAllBytes();
-                Class<?> loadedClass = load(binaryClassName, classData);
-                loadedClasses.add(loadedClass);
+                classesToLoad.add(new ClassDef(binaryClassName, classData));
             }
         }
 
-        return loadedClasses;
+        // This code is as solid as an undetonated ordinance
+        int failures = 0;
+        while (!classesToLoad.isEmpty()) {
+            if (failures > 1000) {
+                throw new RuntimeException("Cannot load classes from JAR " + jarPath);
+            }
+
+            for (ClassDef classToLoad : classesToLoad) {
+                try {
+                    Class<?> loadedClass = load(classToLoad.binaryClassName, classToLoad.rawClassData);
+                    result.add(loadedClass);
+                    successfullyLoaded.add(classToLoad);
+                } catch (NoClassDefFoundError ignored) {
+                    // The class depends on some other class in this collection
+                    // Keep trying with another one and retry later
+                    failures++;
+                }
+            }
+
+            classesToLoad.removeAll(successfullyLoaded);
+            successfullyLoaded.clear();
+        }
+
+        return result;
     }
 
     /**
@@ -147,5 +171,8 @@ public class TestImplantRunner extends ClassLoader {
         }
 
         return castedReturnValue;
+    }
+
+    private record ClassDef(String binaryClassName, byte[] rawClassData) {
     }
 }

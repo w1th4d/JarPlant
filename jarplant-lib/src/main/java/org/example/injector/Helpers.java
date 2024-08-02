@@ -83,8 +83,12 @@ public class Helpers {
         return dotFormatClassName.replace(".", "/");
     }
 
-    public static String convertToBinaryClassNameFromPath(final String classFilePath) {
-        Pattern pattern = Pattern.compile("\\/?((\\w+\\/)*)?(\\w+)\\.class");
+    public static String convertToBinaryClassNameFromPath(String classFilePath) {
+        if (classFilePath.startsWith("BOOT-INF/classes/")) {
+            classFilePath = classFilePath.replaceFirst("BOOT-INF/classes/", "");
+        }
+
+        Pattern pattern = Pattern.compile("\\/?(([-\\w]+\\/)*)?([$\\w]+)\\.class");
         Matcher matcher = pattern.matcher(classFilePath);
         if (!matcher.matches() || matcher.groupCount() < 3) {
             throw new RuntimeException("Not a path to a class file: " + classFilePath);

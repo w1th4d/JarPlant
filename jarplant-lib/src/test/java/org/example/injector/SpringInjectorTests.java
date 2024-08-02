@@ -7,10 +7,9 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.DataOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -146,23 +145,20 @@ public class SpringInjectorTests {
                 + "\r\n";
 
         // Add a .SF file
-        StreamedJarFiddler fiddler = StreamedJarFiddler.open(simpleSpringBootApp, tempInputFile);
-        DataOutputStream newEntryStream = fiddler.addNewEntry(new JarEntry("META-INF/SOMETHING.SF"));
-        newEntryStream.write(signatureFile.getBytes(StandardCharsets.UTF_8));
+        BufferedJarFiddler fiddler = BufferedJarFiddler.read(simpleSpringBootApp);
+        fiddler.addNewEntry(
+                new JarEntry("META-INF/SOMETHING.SF"),
+                signatureFile.getBytes(StandardCharsets.UTF_8)
+        );
 
         // Append entries to MANIFEST.MF and copy all other entries
-        for (StreamedJarFiddler.StreamedJarEntry entry : fiddler) {
-            if (entry.getName().equals("META-INF/MANIFEST.MF")) {
-                InputStream manifestStream = entry.getContent();
-                DataOutputStream manifestManipulation = entry.replaceContentByStream();
-                manifestManipulation.write(manifestStream.readAllBytes());
-                manifestManipulation.write(manifestAmendment.getBytes());
-            } else {
-                entry.forward();
-            }
-        }
+        BufferedJarFiddler.BufferedJarEntry manifestEntry = fiddler.getEntry("META-INF/MANIFEST.MF").orElseThrow();
+        ByteArrayOutputStream newManifestContent = new ByteArrayOutputStream();
+        newManifestContent.write(manifestEntry.getContent());
+        newManifestContent.write(manifestAmendment.getBytes(StandardCharsets.UTF_8));
+        manifestEntry.replaceContentWith(newManifestContent.toByteArray());
 
-        fiddler.close();
+        fiddler.write(tempInputFile);
 
         // Act
         boolean didInfect = injector.infect(tempInputFile, tempOutputFile);

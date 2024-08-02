@@ -81,11 +81,23 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
 
     /**
      * Write the current state to a stream.
+     * There are no guarantees that this method will produce the exact binary content as the input file used for
+     * <code>read</code> (even when no entries were modified). It's recommended to only overwrite JARs that has
+     * actually been modified.
      *
      * @param outputStream An open output stream
      * @throws IOException If failed to write
      */
     public void write(OutputStream outputStream) throws IOException {
+        /*
+         * JarOutputStream.putNextEntry() will add a magic number to the "extra" metadata field
+         * of the first entry in the JAR. It seems that JARs from Maven may not contain these.
+         * This may result in the metadata being slightly modified for the first entry, despite
+         * it being untouched. This is true even if an entire JAR is read and written by the fiddler
+         * without having any modified entries.
+         * ZipOutputStream could be used instead of JarOutputStream to leave this metadata untouched.
+         * However, we'll stick with the JarOutputStream to be sure.
+         */
         try (JarOutputStream jarOutputStream = new JarOutputStream(outputStream)) {
             for (BufferedJarEntry entry : entries) {
                 jarOutputStream.putNextEntry(entry.metadata);

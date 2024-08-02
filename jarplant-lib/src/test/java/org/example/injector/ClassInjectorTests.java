@@ -21,6 +21,7 @@ import java.util.jar.*;
 import java.util.zip.ZipFile;
 
 import static org.example.TestHelpers.*;
+import static org.example.injector.Helpers.readClassFile;
 import static org.junit.Assert.*;
 
 public class ClassInjectorTests {
@@ -90,7 +91,7 @@ public class ClassInjectorTests {
     @Before
     public void createMiscTestJars() throws IOException {
         tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
-        tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
+        tempOutputFile = Path.of(tempInputFile.toAbsolutePath() + "-output.jar");
     }
 
     @After
@@ -100,7 +101,9 @@ public class ClassInjectorTests {
 
     @After
     public void removeTempOutputFile() throws IOException {
-        Files.delete(tempOutputFile);
+        if (Files.exists(tempOutputFile)) {
+            Files.delete(tempOutputFile);
+        }
     }
 
     @Test
@@ -405,9 +408,7 @@ public class ClassInjectorTests {
 
         // Assert
         assertFalse("Did not infect signed JAR.", didInfect);
-        assertArrayEquals("Output JAR is identical to input JAR.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     // Corresponds to the standard debugging info produce by javac (lines + source)
@@ -423,11 +424,10 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did successfully inject.", didInfect);
         boolean didFindInitClass = false;
-        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile)) {
-            for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
-                if (entry.getName().endsWith("Init.class")) {
-                    didFindInitClass = true;
-                }
+        for (BufferedJarFiddler.BufferedJarEntry entry : BufferedJarFiddler.read(tempOutputFile)) {
+            if (entry.getName().endsWith("Init.class")) {
+                didFindInitClass = true;
+                break;
             }
         }
         assertTrue("Did find injected Init class in output JAR.", didFindInitClass);
@@ -445,9 +445,8 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did successfully inject.", didInfect);
 
-        InputStream initEntryContent = null;
-        JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile);
-        for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
+        byte[] initEntryContent = null;
+        for (BufferedJarFiddler.BufferedJarEntry entry : BufferedJarFiddler.read(tempOutputFile)) {
             if (entry.getName().endsWith("Init.class")) {
                 initEntryContent = entry.getContent();
             }
@@ -455,7 +454,7 @@ public class ClassInjectorTests {
         if (initEntryContent == null) {
             fail("Failed to find Init class in infected JAR.");
         }
-        ClassFile classFile = new ClassFile(new DataInputStream(initEntryContent));
+        ClassFile classFile = readClassFile(initEntryContent);
         boolean didFindOriginalName = classFile.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
                 .map(attr -> (SourceFileAttribute) attr)
@@ -474,11 +473,9 @@ public class ClassInjectorTests {
         ClassInjector injector = new ClassInjector(handler);
         boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
         boolean didFindInitClass = false;
-        try (JarFileFiddler searchTheOutputJar = JarFileFiddler.open(tempOutputFile)) {
-            for (JarFileFiddler.WrappedJarEntry entry : searchTheOutputJar) {
-                if (entry.getName().endsWith("Init.class")) {
-                    didFindInitClass = true;
-                }
+        for (BufferedJarFiddler.BufferedJarEntry entry : BufferedJarFiddler.read(tempOutputFile)) {
+            if (entry.getName().endsWith("Init.class")) {
+                didFindInitClass = true;
             }
         }
 
@@ -498,8 +495,6 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did infect the first time.", didInfect);
         assertFalse("Did not infect an already infected JAR.", didInfectASecondTime);
-        assertArrayEquals("Output JAR is the same as input JAR when it was already infected.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 }

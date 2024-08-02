@@ -7,10 +7,9 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.DataOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,7 +65,7 @@ public class SpringInjectorTests {
     @Before
     public void createMiscTestJars() throws IOException {
         tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
-        tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
+        tempOutputFile = Path.of(tempInputFile.toAbsolutePath() + "-output.jar");
     }
 
     @After
@@ -76,7 +75,9 @@ public class SpringInjectorTests {
 
     @After
     public void removeTempOutputFile() throws IOException {
-        Files.delete(tempOutputFile);
+        if (Files.exists(tempOutputFile)) {
+            Files.delete(tempOutputFile);
+        }
     }
 
     @Test
@@ -144,32 +145,27 @@ public class SpringInjectorTests {
                 + "\r\n";
 
         // Add a .SF file
-        JarFileFiddler fiddler = JarFileFiddler.open(simpleSpringBootApp, tempInputFile);
-        DataOutputStream newEntryStream = fiddler.addNewEntry(new JarEntry("META-INF/SOMETHING.SF"));
-        newEntryStream.write(signatureFile.getBytes(StandardCharsets.UTF_8));
+        BufferedJarFiddler fiddler = BufferedJarFiddler.read(simpleSpringBootApp);
+        fiddler.addNewEntry(
+                new JarEntry("META-INF/SOMETHING.SF"),
+                signatureFile.getBytes(StandardCharsets.UTF_8)
+        );
 
         // Append entries to MANIFEST.MF and copy all other entries
-        for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
-            if (entry.getName().equals("META-INF/MANIFEST.MF")) {
-                InputStream manifestStream = entry.getContent();
-                DataOutputStream manifestManipulation = entry.replaceContentByStream();
-                manifestManipulation.write(manifestStream.readAllBytes());
-                manifestManipulation.write(manifestAmendment.getBytes());
-            } else {
-                entry.forward();
-            }
-        }
+        BufferedJarFiddler.BufferedJarEntry manifestEntry = fiddler.getEntry("META-INF/MANIFEST.MF").orElseThrow();
+        ByteArrayOutputStream newManifestContent = new ByteArrayOutputStream();
+        newManifestContent.write(manifestEntry.getContent());
+        newManifestContent.write(manifestAmendment.getBytes(StandardCharsets.UTF_8));
+        manifestEntry.replaceContentWith(newManifestContent.toByteArray());
 
-        fiddler.close();
+        fiddler.write(tempInputFile);
 
         // Act
         boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
 
         // Assert
         assertFalse("Did not infect signed JAR.", didInfect);
-        assertArrayEquals("Output JAR is identical to input JAR.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test
@@ -280,12 +276,7 @@ public class SpringInjectorTests {
         // Assert
         assertTrue("Did infect the first time.", didInfectFirst);
         assertFalse("Did not infect the second time.", didInfectSecond);
-        assertEquals("The JAR contents are the same.",
-                hashAllJarContents(tempInputFile),
-                hashAllJarContents(tempOutputFile));
-        assertArrayEquals("The JAR files are completely the same.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test

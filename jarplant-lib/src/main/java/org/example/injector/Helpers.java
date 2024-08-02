@@ -24,6 +24,21 @@ public class Helpers {
         return cf;
     }
 
+    public static ClassFile readClassFile(byte[] rawClassData) throws IOException {
+        ClassFile cf;
+        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(rawClassData))) {
+            cf = new ClassFile(in);
+        }
+        return cf;
+    }
+
+    public static byte[] asByteArray(ClassFile classFile) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        classFile.write(new DataOutputStream(buffer));
+        buffer.close();
+        return buffer.toByteArray();
+    }
+
     public static boolean isStaticFlagSet(FieldInfo field) {
         int accessFlags = field.getAccessFlags();
         return (accessFlags & AccessFlag.STATIC) != 0;
@@ -139,12 +154,11 @@ public class Helpers {
     public static boolean jarLooksSigned(Path jarFilePath) throws IOException {
         Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
 
-        try (JarFileFiddler jar = JarFileFiddler.open(jarFilePath)) {
-            for (JarFileFiddler.WrappedJarEntry entry : jar) {
-                Matcher matcher = regex.matcher(entry.getName());
-                if (matcher.matches()) {
-                    return true;
-                }
+        BufferedJarFiddler jar = BufferedJarFiddler.read(jarFilePath);
+        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+            Matcher matcher = regex.matcher(entry.getName());
+            if (matcher.matches()) {
+                return true;
             }
         }
 

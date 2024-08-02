@@ -55,10 +55,10 @@ public class Cli {
                 .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
                 .required(true);
         classInjectorParser.addArgument("--output", "-o")
-                .help("Path to where the spiked JAR will be written. Should not be the same file as the target.")
+                .help("Path to where the spiked JAR will be written. The default behaviour is to overwrite the target JAR. This option overrides that behaviour.")
                 .metavar("JAR")
                 .type(Arguments.fileType().verifyCanCreate())
-                .required(true);
+                .required(false);
         classInjectorParser.addArgument("--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
                 .choices("ClassImplant", "DnsBeaconImplant")
@@ -79,10 +79,10 @@ public class Cli {
                 .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
                 .required(true);
         springInjectorParser.addArgument("--output", "-o")
-                .help("Path to where the spiked JAR will be written. Should not be the same file as the target.")
+                .help("Path to where the spiked JAR will be written. The default behaviour is to overwrite the target JAR. This option overrides that behaviour.")
                 .metavar("JAR")
                 .type(Arguments.fileType().verifyCanCreate())
-                .required(true);
+                .required(false);
         springInjectorParser.addArgument("--implant-component")
                 .help("Name of the Spring component to inject into the class. This will typically be a '@RestController' class.")
                 .choices("SpringImplantController")
@@ -154,8 +154,11 @@ public class Cli {
 
     private static void classInjector(Namespace namespace) {
         Path targetPath = Path.of(namespace.getString("target"));
-        Path outputPath = Path.of(namespace.getString("output"));
-        assertNotSameFile(targetPath, outputPath);
+
+        Path outputPath = targetPath;   // Default to overwrite target JAR
+        if (namespace.getString("output") != null) {
+            outputPath = Path.of(namespace.getString("output"));
+        }
 
         String implantClassName = namespace.getString("implant_class");
         ImplantHandler implantHandler;
@@ -222,8 +225,11 @@ public class Cli {
 
     private static void springInjector(Namespace namespace) {
         Path targetPath = Path.of(namespace.getString("target"));
-        Path outputPath = Path.of(namespace.getString("output"));
-        assertNotSameFile(targetPath, outputPath);
+
+        Path outputPath = targetPath;   // Default to overwrite target JAR
+        if (namespace.getString("output") != null) {
+            outputPath = Path.of(namespace.getString("output"));
+        }
 
         String implantComponent = namespace.getString("implant_component");
         String implantConfClass = namespace.getString("implant_config");

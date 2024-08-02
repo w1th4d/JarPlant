@@ -90,7 +90,7 @@ public class ClassInjectorTests {
     @Before
     public void createMiscTestJars() throws IOException {
         tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
-        tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
+        tempOutputFile = Path.of(tempInputFile.toAbsolutePath() + "-output.jar");
     }
 
     @After
@@ -100,7 +100,9 @@ public class ClassInjectorTests {
 
     @After
     public void removeTempOutputFile() throws IOException {
-        Files.delete(tempOutputFile);
+        if (Files.exists(tempOutputFile)) {
+            Files.delete(tempOutputFile);
+        }
     }
 
     @Test
@@ -405,9 +407,7 @@ public class ClassInjectorTests {
 
         // Assert
         assertFalse("Did not infect signed JAR.", didInfect);
-        assertArrayEquals("Output JAR is identical to input JAR.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     // Corresponds to the standard debugging info produce by javac (lines + source)
@@ -498,8 +498,6 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did infect the first time.", didInfect);
         assertFalse("Did not infect an already infected JAR.", didInfectASecondTime);
-        assertArrayEquals("Output JAR is the same as input JAR when it was already infected.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 }

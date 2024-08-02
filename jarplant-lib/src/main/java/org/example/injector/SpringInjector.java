@@ -6,9 +6,7 @@ import javassist.bytecode.annotation.MemberValue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.zip.ZipException;
@@ -30,8 +28,6 @@ public class SpringInjector {
 
         if (jarLooksSigned(targetJarFilePath)) {
             System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
-            // Just copy the input JAR to the output JAR to keep up with expected behaviour
-            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
             return false;
         }
 
@@ -101,11 +97,11 @@ public class SpringInjector {
             System.out.println("[-] Found signed classes. These were not considered for infection.");
         }
 
-        fiddler.write(outputJar);
         if (didInfect) {
-            System.out.println("[+] Write spiked jar to " + outputJar);
+            fiddler.write(outputJar);
+            System.out.println("[+] Wrote spiked JAR to " + outputJar);
         } else {
-            System.out.println("[+] Wrote untouched JAR to " + outputJar);
+            System.out.println("[-] Did not write to any JAR.");
         }
 
         return didInfect;

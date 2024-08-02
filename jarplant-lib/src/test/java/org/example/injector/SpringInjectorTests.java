@@ -66,7 +66,7 @@ public class SpringInjectorTests {
     @Before
     public void createMiscTestJars() throws IOException {
         tempInputFile = Files.createTempFile("JarPlantTests-", ".jar");
-        tempOutputFile = Files.createTempFile("JarPlantTests-", ".jar");
+        tempOutputFile = Path.of(tempInputFile.toAbsolutePath() + "-output.jar");
     }
 
     @After
@@ -76,7 +76,9 @@ public class SpringInjectorTests {
 
     @After
     public void removeTempOutputFile() throws IOException {
-        Files.delete(tempOutputFile);
+        if (Files.exists(tempOutputFile)) {
+            Files.delete(tempOutputFile);
+        }
     }
 
     @Test
@@ -167,9 +169,7 @@ public class SpringInjectorTests {
 
         // Assert
         assertFalse("Did not infect signed JAR.", didInfect);
-        assertArrayEquals("Output JAR is identical to input JAR.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test
@@ -280,12 +280,7 @@ public class SpringInjectorTests {
         // Assert
         assertTrue("Did infect the first time.", didInfectFirst);
         assertFalse("Did not infect the second time.", didInfectSecond);
-        assertEquals("The JAR contents are the same.",
-                hashAllJarContents(tempInputFile),
-                hashAllJarContents(tempOutputFile));
-        assertArrayEquals("The JAR files are completely the same.",
-                Files.readAllBytes(tempInputFile),
-                Files.readAllBytes(tempOutputFile));
+        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test

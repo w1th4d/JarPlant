@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarEntry;
@@ -70,11 +71,11 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
      * Write the current state to a file.
      * The output file can be the same as the input file.
      *
-     * @param outputFile Path to writable file (will be created if not exist)
+     * @param outputFile File to create or overwrite
      * @throws IOException If unable to create or write file
      */
     public void write(Path outputFile) throws IOException {
-        try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
+        try (OutputStream outputStream = Files.newOutputStream(outputFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             write(outputStream);
         }
     }

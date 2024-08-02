@@ -175,7 +175,7 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
         private final JarEntry metadata;
         private byte[] content;
 
-        BufferedJarEntry(JarEntry metadata, byte[] content) {
+        public BufferedJarEntry(JarEntry metadata, byte[] content) {
             this.metadata = metadata;
             this.content = content;
         }

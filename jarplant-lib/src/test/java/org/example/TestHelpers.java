@@ -286,4 +286,25 @@ public class TestHelpers {
 
         return configClass;
     }
+
+    /**
+     * Just generate some ClassFile instance with dummy stuff in it.
+     *
+     * @param fullName The full dot notated class name, like "com.example.Something"
+     * @return ClassFile instance
+     */
+    public static ClassFile generateDummyClassFile(String fullName) {
+        ClassFile cf = new ClassFile(false, fullName, null);
+
+        try {
+            cf.addField(new FieldInfo(cf.getConstPool(), "someField", "I"));
+            cf.addField(new FieldInfo(cf.getConstPool(), "anotherField", "Ljava/lang/String;"));
+            cf.addMethod(new MethodInfo(cf.getConstPool(), "aMethod", "V()"));
+            cf.addMethod(new MethodInfo(cf.getConstPool(), "anotherMethod", "V()"));
+        } catch (DuplicateMemberException e) {
+            throw new RuntimeException(e);
+        }
+
+        return cf;
+    }
 }

@@ -21,6 +21,7 @@ import java.util.jar.*;
 import java.util.zip.ZipFile;
 
 import static org.example.TestHelpers.*;
+import static org.example.injector.Helpers.convertToJarEntryPathName;
 import static org.example.injector.Helpers.readClassFile;
 import static org.junit.Assert.*;
 
@@ -496,5 +497,31 @@ public class ClassInjectorTests {
         assertTrue("Did infect the first time.", didInfect);
         assertFalse("Did not infect an already infected JAR.", didInfectASecondTime);
         assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
+    }
+
+    @Test
+    public void testInfect_WithDependencies_DependenciesAdded() throws IOException {
+        // Arrange
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+        List<String> dependencyClassNames = Arrays.asList(
+                "com.example.junk.Something",
+                "com.example.junk.Another",
+                "local.Whatever"
+        );
+
+        // Act
+        for (String className : dependencyClassNames) {
+            injector.addDependency(className, generateDummyClassFile(className));
+        }
+        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
+
+        // Assert
+        assertTrue("Did infect", didInfect);
+        List<String> entries = BufferedJarFiddler.read(tempOutputFile).listEntries();
+        for (String dependencyClassName : dependencyClassNames) {
+            String dependencyFullPathInJar = convertToJarEntryPathName(dependencyClassName);
+            assertTrue("Contains dependency class", entries.contains(dependencyFullPathInJar));
+        }
     }
 }

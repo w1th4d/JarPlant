@@ -19,6 +19,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
 import static org.example.TestHelpers.*;
+import static org.example.injector.Helpers.convertToJarEntryPathName;
 import static org.junit.Assert.*;
 
 public class SpringInjectorTests {
@@ -414,5 +415,29 @@ public class SpringInjectorTests {
                 targetMethod.getAttribute("RuntimeVisibleAnnotations"));
         assertNull("Source method still has no annotations.",
                 sourceMethod.getAttribute("RuntimeVisibleAnnotations"));
+    }
+
+    @Test
+    public void testInfect_WithDependencies_DependenciesAdded() throws IOException {
+        // Arrange
+        List<String> dependencyClassNames = Arrays.asList(
+                "com.example.junk.Something",
+                "com.example.junk.Another",
+                "local.Whatever"
+        );
+
+        // Act
+        for (String className : dependencyClassNames) {
+            injector.addDependency(className, generateDummyClassFile(className));
+        }
+        boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
+
+        // Assert
+        assertTrue("Did infect", didInfect);
+        List<String> entries = BufferedJarFiddler.read(tempOutputFile).listEntries();
+        for (String dependencyClassName : dependencyClassNames) {
+            String dependencyFullPathInJar = convertToJarEntryPathName(dependencyClassName);
+            assertTrue("Contains dependency class", entries.contains(dependencyFullPathInJar));
+        }
     }
 }

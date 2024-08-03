@@ -419,9 +419,9 @@ public class SpringInjectorTests {
     @Test
     public void testInfect_WithDependencies_DependenciesAdded() throws IOException {
         // Act
-        injector.addDependency(generateDummyClassFile("com.example.junk.Something"));
-        injector.addDependency(generateDummyClassFile("com.example.junk.Another"));
-        injector.addDependency(generateDummyClassFile("Whatever"));
+        injector.includeDependency(generateDummyClassFile("com.example.junk.Something"));
+        injector.includeDependency(generateDummyClassFile("com.example.junk.Another"));
+        injector.includeDependency(generateDummyClassFile("Whatever"));
         boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
 
         // Assert
@@ -435,7 +435,7 @@ public class SpringInjectorTests {
     @Test
     public void testInfect_DependencySameAsExistingFile_Aborted() throws IOException {
         // Act
-        injector.addDependency(generateDummyClassFile("org.springframework.boot.loader.launch.JarLauncher"));
+        injector.includeDependency(generateDummyClassFile("org.springframework.boot.loader.launch.JarLauncher"));
         boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
 
         // Assert

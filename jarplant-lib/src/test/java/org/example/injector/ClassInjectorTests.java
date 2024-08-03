@@ -505,9 +505,9 @@ public class ClassInjectorTests {
         ClassInjector injector = new ClassInjector(handler);
 
         // Act
-        injector.addDependency(generateDummyClassFile("com.example.junk.Something"));
-        injector.addDependency(generateDummyClassFile("com.example.junk.Another"));
-        injector.addDependency(generateDummyClassFile("Whatever"));
+        injector.includeDependency(generateDummyClassFile("com.example.junk.Something"));
+        injector.includeDependency(generateDummyClassFile("com.example.junk.Another"));
+        injector.includeDependency(generateDummyClassFile("Whatever"));
         boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
 
         // Assert
@@ -525,7 +525,7 @@ public class ClassInjectorTests {
         ClassInjector injector = new ClassInjector(handler);
 
         // Act
-        injector.addDependency(generateDummyClassFile("org.example.target.Main"));
+        injector.includeDependency(generateDummyClassFile("org.example.target.Main"));
         boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
 
         // Assert

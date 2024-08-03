@@ -19,7 +19,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
 import static org.example.TestHelpers.*;
-import static org.example.injector.Helpers.convertToJarEntryPathName;
 import static org.junit.Assert.*;
 
 public class SpringInjectorTests {
@@ -419,25 +418,17 @@ public class SpringInjectorTests {
 
     @Test
     public void testInfect_WithDependencies_DependenciesAdded() throws IOException {
-        // Arrange
-        List<String> dependencyClassNames = Arrays.asList(
-                "com.example.junk.Something",
-                "com.example.junk.Another",
-                "local.Whatever"
-        );
-
         // Act
-        for (String className : dependencyClassNames) {
-            injector.addDependency(className, generateDummyClassFile(className));
-        }
+        injector.addDependency(generateDummyClassFile("com.example.junk.Something"));
+        injector.addDependency(generateDummyClassFile("com.example.junk.Another"));
+        injector.addDependency(generateDummyClassFile("Whatever"));
         boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
 
         // Assert
         assertTrue("Did infect", didInfect);
         List<String> entries = BufferedJarFiddler.read(tempOutputFile).listEntries();
-        for (String dependencyClassName : dependencyClassNames) {
-            String dependencyFullPathInJar = convertToJarEntryPathName(dependencyClassName);
-            assertTrue("Contains dependency class", entries.contains(dependencyFullPathInJar));
-        }
+        assertTrue("Contains dependency class", entries.contains("com/example/junk/Something.class"));
+        assertTrue("Contains dependency class", entries.contains("com/example/junk/Another.class"));
+        assertTrue("Contains dependency class", entries.contains("Whatever.class"));
     }
 }

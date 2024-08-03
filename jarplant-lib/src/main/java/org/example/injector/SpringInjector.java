@@ -24,15 +24,15 @@ public class SpringInjector {
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
-    public void addDependency(String fullClassName, ClassFile classData) throws IOException {
-        addDependency(fullClassName, ByteBuffer.wrap(asByteArray(classData)));
+    public void addDependency(ClassFile classData) throws IOException {
+        addDependency(ByteBuffer.wrap(asByteArray(classData)), classData.getName());
     }
 
-    public void addDependency(String fullClassName, byte[] classData) {
-        addDependency(fullClassName, ByteBuffer.wrap(classData));
+    public void addDependency(byte[] classData, String fullClassName) {
+        addDependency(ByteBuffer.wrap(classData), fullClassName);
     }
 
-    public void addDependency(String fullClassName, ByteBuffer rawClassData) {
+    public void addDependency(ByteBuffer rawClassData, String fullClassName) {
         String pathInJar = convertToJarEntryPathName(fullClassName);
         dependencies.put(pathInJar, rawClassData);
     }

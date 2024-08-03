@@ -5,7 +5,6 @@ import javassist.bytecode.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -34,10 +33,6 @@ public class ClassInjector {
     public void addDependency(String fullClassName, ByteBuffer rawClassData) {
         String pathInJar = convertToJarEntryPathName(fullClassName);
         dependencies.put(pathInJar, rawClassData);
-    }
-
-    public void addDependency(String pathInJar, Path arbitraryFile) throws IOException {
-        dependencies.put(pathInJar, ByteBuffer.wrap(Files.readAllBytes(arbitraryFile)));
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {

@@ -1,7 +1,5 @@
 package org.example.injector;
 
-import com.example.simple.Greeting;
-import com.example.simple.GreetingController;
 import javassist.bytecode.*;
 import org.example.TestImplantRunner;
 import org.example.implants.TestClassImplant;
@@ -14,7 +12,6 @@ import java.io.DataInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -525,46 +522,6 @@ public class ClassInjectorTests {
         for (String dependencyClassName : dependencyClassNames) {
             String dependencyFullPathInJar = convertToJarEntryPathName(dependencyClassName);
             assertTrue("Contains dependency class", entries.contains(dependencyFullPathInJar));
-        }
-    }
-
-    @Test
-    public void testInfect_WithJarDependency_JarAddedToJar() throws IOException {
-        // Arrange
-        ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
-        TestImplantRunner runner = new TestImplantRunner();
-
-        // Act
-        injector.addDependency("com/example/my-lib-1.2.3.jar", targetSpringBootApp);
-        injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
-
-        // Assert
-        BufferedJarFiddler readOutputJar = BufferedJarFiddler.read(tempOutputFile);
-        Optional<BufferedJarFiddler.BufferedJarEntry> dependencyEntry = readOutputJar.getEntry("com/example/my-lib-1.2.3.jar");
-        assertTrue("JAR contains JAR", dependencyEntry.isPresent());
-
-        // Just dump it out to a temp file for the tests (in order for it to work with that stupid TestImplantRunner)
-        byte[] rawJarData = dependencyEntry.get().getContent();
-        Set<Class<?>> loaded;
-        Path tempFile = Files.createTempFile("ClassInjectorTests-" + UUID.randomUUID(), ".jar");
-        try {
-            Files.write(tempFile, rawJarData);
-            loaded = runner.loadAllClassesFromJar(tempFile);
-        } finally {
-            Files.delete(tempFile);
-        }
-        assertFalse("Loaded classes", loaded.isEmpty());
-
-        // Try to use the loaded class using reflection, just to be sure
-        try {
-            Class<?> loadedClass = Class.forName("com.example.simple.GreetingController");
-            GreetingController loadedInstance = (GreetingController) loadedClass.getDeclaredConstructor().newInstance();
-            Greeting greeting = loadedInstance.greeting("The test thing");
-            assertEquals("Hello, The test thing!", greeting.content());
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException |
-                 InstantiationException e) {
-            throw new RuntimeException("Cannot use loaded class", e);
         }
     }
 }

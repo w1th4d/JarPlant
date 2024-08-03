@@ -431,4 +431,14 @@ public class SpringInjectorTests {
         assertTrue("Contains dependency class", entries.contains("com/example/junk/Another.class"));
         assertTrue("Contains dependency class", entries.contains("Whatever.class"));
     }
+
+    @Test
+    public void testInfect_DependencySameAsExistingFile_Aborted() throws IOException {
+        // Act
+        injector.addDependency(generateDummyClassFile("org.springframework.boot.loader.launch.JarLauncher"));
+        boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect", didInfect);
+    }
 }

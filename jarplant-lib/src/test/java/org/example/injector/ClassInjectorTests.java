@@ -517,4 +517,18 @@ public class ClassInjectorTests {
         assertTrue("Contains dependency class", entries.contains("com/example/junk/Another.class"));
         assertTrue("Contains dependency class", entries.contains("Whatever.class"));
     }
+
+    @Test
+    public void testInfect_DependencySameAsExistingFile_Aborted() throws IOException {
+        // Arrange
+        ImplantHandler handler = new ImplantHandlerMock(testImplant);
+        ClassInjector injector = new ClassInjector(handler);
+
+        // Act
+        injector.addDependency(generateDummyClassFile("org.example.target.Main"));
+        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
+
+        // Assert
+        assertFalse("Did not infect", didInfect);
+    }
 }

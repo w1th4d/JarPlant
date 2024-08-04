@@ -102,11 +102,17 @@ public class SpringInjector {
             Map<String, byte[]> allDependencies = new HashMap<>();
             allDependencies.putAll(implantSpringConfigHandler.getDependencies());
             allDependencies.putAll(implantComponentHandler.getDependencies());
+            // Since this injector involves two different implant handlers, do a bit of manual exclusion of themselves
+            allDependencies.remove(convertToJarEntryPathName(implantSpringConfigHandler.getImplantClassName()));
+            allDependencies.remove(convertToJarEntryPathName(implantComponentHandler.getImplantClassName()));
+            // Also note that the dependencies are not renamed in any way
+            // Any custom classes bundled with the implant will contain the whole package name etc
+
             for (Map.Entry<String, byte[]> dependencyEntry : allDependencies.entrySet()) {
                 String fileName = dependencyEntry.getKey();
                 byte[] fileContent = dependencyEntry.getValue();
 
-                JarEntry newJarEntry = new JarEntry(fileName);
+                JarEntry newJarEntry = new JarEntry("BOOT-INF/classes/" + fileName);
                 try {
                     fiddler.addNewEntry(newJarEntry, fileContent);
                 } catch (ZipException e) {

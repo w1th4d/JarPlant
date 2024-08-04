@@ -76,7 +76,7 @@ public class ImplantHandlerTests {
         Path classPath = findTestEnvironmentDir(this.getClass());
 
         // Act
-        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(className, classPath);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(classPath, className);
         ClassFile specimen = implant.loadFreshRawSpecimen();
         Class<?> loadedClass = runner.load(specimen);
 
@@ -93,7 +93,23 @@ public class ImplantHandlerTests {
         populateJarEntriesIntoEmptyFile(tempFile, baseDir, relativePath);
 
         // Act + Assert
-        ImplantHandlerImpl.findAndCreateFor(DummyTestClassImplant.class.getName(), tempFile);
+        ImplantHandlerImpl.findAndCreateFor(tempFile, DummyTestClassImplant.class.getName());
+    }
+
+    @Test
+    public void testFindAndCreateFor_WithDependencies_ContainsDependencyClasses() throws IOException, ClassNotFoundException {
+        // Arrange
+        Path baseDir = findTestEnvironmentDir(this.getClass());
+        Path implantSubPath = Path.of("org/example/implants/DummyTestClassImplant.class");
+        populateJarEntriesIntoEmptyFile(tempFile, baseDir, implantSubPath, Path.of("org/example/implants/DummyDependency.class"));
+
+        // Act
+        ImplantHandler subject = ImplantHandlerImpl.findAndCreateFor(tempFile, DummyTestClassImplant.class.getName(),
+                "org/example/implants/DummyDependency.class");
+
+        // Assert
+        Map<String, byte[]> dependencies = subject.getDependencies();
+        assertNotNull("Contains specified dependency", dependencies.get("org/example/implants/DummyDependency.class"));
     }
 
     @Test

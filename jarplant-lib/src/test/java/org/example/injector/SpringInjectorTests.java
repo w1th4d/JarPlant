@@ -415,30 +415,4 @@ public class SpringInjectorTests {
         assertNull("Source method still has no annotations.",
                 sourceMethod.getAttribute("RuntimeVisibleAnnotations"));
     }
-
-    @Test
-    public void testInfect_WithDependencies_DependenciesAdded() throws IOException {
-        // Act
-        injector.includeDependency(generateDummyClassFile("com.example.junk.Something"));
-        injector.includeDependency(generateDummyClassFile("com.example.junk.Another"));
-        injector.includeDependency(generateDummyClassFile("Whatever"));
-        boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
-
-        // Assert
-        assertTrue("Did infect", didInfect);
-        List<String> entries = BufferedJarFiddler.read(tempOutputFile).listEntries();
-        assertTrue("Contains dependency class", entries.contains("com/example/junk/Something.class"));
-        assertTrue("Contains dependency class", entries.contains("com/example/junk/Another.class"));
-        assertTrue("Contains dependency class", entries.contains("Whatever.class"));
-    }
-
-    @Test
-    public void testInfect_DependencySameAsExistingFile_Aborted() throws IOException {
-        // Act
-        injector.includeDependency(generateDummyClassFile("org.springframework.boot.loader.launch.JarLauncher"));
-        boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
-
-        // Assert
-        assertFalse("Did not infect", didInfect);
-    }
 }

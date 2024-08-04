@@ -15,20 +15,22 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.zip.ZipEntry;
 
-import static org.example.injector.Helpers.bufferFrom;
-import static org.example.injector.Helpers.searchForEndOfMethodIndex;
+import static org.example.injector.Helpers.*;
 
 public class ImplantHandlerImpl implements ImplantHandler {
     private final byte[] classData;
     private final String implantClassName;
     private final Map<String, ConfDataType> availableConfig;
     private final Map<String, Object> configModifications;
+    private final Map<String, byte[]> dependencies;
 
-    ImplantHandlerImpl(byte[] classData, String implantClassName, Map<String, ConfDataType> availableConfig) {
+    ImplantHandlerImpl(byte[] classData, String implantClassName, Map<String, ConfDataType> availableConfig, Map<String, byte[]> dependencies) {
         this.classData = classData;
         this.implantClassName = implantClassName;
         this.availableConfig = Collections.unmodifiableMap(availableConfig);
+        this.dependencies = dependencies;
         this.configModifications = new HashMap<>();
     }
 
@@ -37,11 +39,11 @@ public class ImplantHandlerImpl implements ImplantHandler {
         ClassFile classFile = readClassFile(bytes);
         String className = classFile.getName();
         Map<String, ConfDataType> availableConfig = readImplantConfig(classFile);
-        return new ImplantHandlerImpl(bytes, className, availableConfig);
+        return new ImplantHandlerImpl(bytes, className, availableConfig, Collections.emptyMap());
     }
 
     // Finds the class file using some weird Java quirks
-    public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(final Class<?> clazz, String... dependencyClasses) throws ClassNotFoundException, IOException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself
@@ -49,24 +51,38 @@ public class ImplantHandlerImpl implements ImplantHandler {
         }
         Path sourcePath = Path.of(codeSource.getLocation().getPath());
 
-        return findAndCreateFor(clazz.getName(), sourcePath);
+        return findAndCreateFor(sourcePath, clazz.getName(), dependencyClasses);
     }
 
     // This method may be used when extracting the implant from another place than self
-    public static ImplantHandler findAndCreateFor(final String className, final Path path) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(final Path path, final String className, String... dependencyClasses) throws ClassNotFoundException, IOException {
         if (Files.isDirectory(path)) {
-            return findAndReadFromDirectory(className, path);
+            return findAndReadFromDirectory(path, className, dependencyClasses);
         } else {
-            return findAndReadFromJar(className, path);
+            return findAndReadFromJar(path, className, dependencyClasses);
         }
     }
 
-    private static ImplantHandler findAndReadFromDirectory(final String className, final Path directory) throws ClassNotFoundException, IOException {
+    private static ImplantHandler findAndReadFromDirectory(final Path directory, final String className, String... dependencyClasses) throws ClassNotFoundException, IOException {
         if (!Files.isDirectory(directory)) {
             throw new UnsupportedOperationException("Not a directory");
         }
 
+        byte[] implantRawClassBytes = bufferFrom(calcSourcePath(directory, className));
+        Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(implantRawClassBytes));
+
+        Map<String, byte[]> readDependencies = new HashMap<>(dependencyClasses.length);
+        for (String dependency : dependencyClasses) {
+            byte[] dependencyRawClassBytes = bufferFrom(calcSourcePath(directory, dependency));
+            readDependencies.put(dependency, dependencyRawClassBytes);
+        }
+
+        return new ImplantHandlerImpl(implantRawClassBytes, className, availableConfig, readDependencies);
+    }
+
+    private static Path calcSourcePath(Path directory, String className) throws ClassNotFoundException {
         // Convert "org.example.injector.Inject" to "org/example/injector/Inject.class"
+        // TODO Make sense of all the helper methods at this point
         String[] packageHierarchy = className.split("\\.");
         packageHierarchy[packageHierarchy.length - 1] += ".class";
         Path sourcePath = Path.of(directory.toString(), packageHierarchy);
@@ -75,12 +91,10 @@ public class ImplantHandlerImpl implements ImplantHandler {
             throw new ClassNotFoundException(sourcePath.toString());
         }
 
-        byte[] bytes = bufferFrom(sourcePath);
-        Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(bytes));
-        return new ImplantHandlerImpl(bytes, className, availableConfig);
+        return sourcePath;
     }
 
-    private static ImplantHandler findAndReadFromJar(final String className, final Path jarFilePath) throws ClassNotFoundException, IOException {
+    private static ImplantHandler findAndReadFromJar(final Path jarFilePath, final String className, String... dependencyClasses) throws ClassNotFoundException, IOException {
         try (JarFile jarFile = new JarFile(jarFilePath.toFile())) {
             String lookingForFileName = className.replace(".", File.separator) + ".class";
 
@@ -94,8 +108,20 @@ public class ImplantHandlerImpl implements ImplantHandler {
                 bytes = bufferFrom(inputStream);
             }
 
+            Map<String, byte[]> readDependencies = new HashMap<>(dependencyClasses.length);
+            for (String dependencyClass : dependencyClasses) {
+                ZipEntry entry = jarFile.getEntry(convertToJarEntryPathName(dependencyClass));
+                if (entry == null) {
+                    // Just go on anyway?
+                    continue;
+                }
+
+                byte[] dependencyRawClassBytes = jarFile.getInputStream(entry).readAllBytes();
+                readDependencies.put(dependencyClass, dependencyRawClassBytes);
+            }
+
             Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(bytes));
-            return new ImplantHandlerImpl(bytes, className, availableConfig);
+            return new ImplantHandlerImpl(bytes, className, availableConfig, readDependencies);
         }
     }
 
@@ -256,6 +282,10 @@ public class ImplantHandlerImpl implements ImplantHandler {
         }
 
         return bytecode;
+    }
+
+    public Map<String, byte[]> getDependencies() {
+        return Collections.unmodifiableMap(dependencies);
     }
 
     public enum ConfDataType {

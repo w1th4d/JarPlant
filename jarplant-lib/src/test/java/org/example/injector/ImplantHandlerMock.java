@@ -110,6 +110,11 @@ public class ImplantHandlerMock implements ImplantHandler {
         return copy(specimen);
     }
 
+    @Override
+    public Map<String, byte[]> getDependencies() {
+        return Map.of();
+    }
+
     private static ClassFile copy(ClassFile original) throws IOException {
         byte[] bytecode = TestHelpers.asBytes(original);
         return new ClassFile(new DataInputStream(new ByteArrayInputStream(bytecode)));

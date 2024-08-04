@@ -8,5 +8,6 @@ package org.example.implants;
 public class DummyTestClassImplant {
     @SuppressWarnings("unused")
     public static void init() {
+        String something = DummyDependency.somethingUseful();
     }
 }

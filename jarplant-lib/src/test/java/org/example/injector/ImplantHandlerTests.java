@@ -16,8 +16,7 @@ import java.util.Map;
 
 import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.example.TestHelpers.populateJarEntriesIntoEmptyFile;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class ImplantHandlerTests {
     private TestImplantRunner runner;
@@ -104,12 +103,12 @@ public class ImplantHandlerTests {
         populateJarEntriesIntoEmptyFile(tempFile, baseDir, implantSubPath, Path.of("org/example/implants/DummyDependency.class"));
 
         // Act
-        ImplantHandler subject = ImplantHandlerImpl.findAndCreateFor(tempFile, DummyTestClassImplant.class.getName(),
-                "org/example/implants/DummyDependency.class");
+        ImplantHandler subject = ImplantHandlerImpl.findAndCreateFor(tempFile, DummyTestClassImplant.class.getName());
 
         // Assert
         Map<String, byte[]> dependencies = subject.getDependencies();
         assertNotNull("Contains specified dependency", dependencies.get("org/example/implants/DummyDependency.class"));
+        assertNull("Implant class is not a dependency", dependencies.get("org/example/implants/DummyTestClassImplant.class"));
     }
 
     @Test

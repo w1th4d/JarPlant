@@ -18,4 +18,6 @@ public interface ImplantHandler {
     ClassFile loadFreshConfiguredSpecimen() throws IOException;
 
     ClassFile loadFreshRawSpecimen() throws IOException;
+
+    Map<String, byte[]> getDependencies();
 }

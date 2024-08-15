@@ -95,8 +95,16 @@ public class Helpers {
     }
 
     public static JarEntry convertToJarEntry(final ClassFile classFile) {
-        String fullPathInsideJar = classFile.getName().replace(".", "/") + ".class";
+        String fullPathInsideJar = convertToJarEntryPathName(classFile.getName());
         return new JarEntry(fullPathInsideJar);
+    }
+
+    public static String convertToJarEntryPathName(String fullClassName) {
+        if (fullClassName.endsWith(".class")) {
+            fullClassName = fullClassName.substring(0, fullClassName.lastIndexOf(".class"));
+        }
+
+        return fullClassName.replace(".", "/") + ".class";
     }
 
     public static JarEntry convertToSpringJarEntry(final ClassFile classFile) {

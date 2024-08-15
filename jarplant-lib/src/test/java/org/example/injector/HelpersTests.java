@@ -1,6 +1,7 @@
 package org.example.injector;
 
 import javassist.bytecode.*;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -232,6 +233,16 @@ public class HelpersTests {
         // Assert
         assertTrue("JAR entry ends with the class name path.",
                 jarEntry.getName().endsWith("org/example/TestClass.class"));
+    }
+
+    @Test
+    public void testConvertToJarEntryPathName() {
+        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com.example.Something"));
+        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com.example.Something.class"));
+        Assert.assertEquals("Something.class", Helpers.convertToJarEntryPathName("Something"));
+        Assert.assertEquals("Something.class", Helpers.convertToJarEntryPathName("Something.class"));
+        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com/example/Something"));
+        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com/example/Something.class"));
     }
 
     @Test

@@ -16,8 +16,7 @@ import java.util.Map;
 
 import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.example.TestHelpers.populateJarEntriesIntoEmptyFile;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class ImplantHandlerTests {
     private TestImplantRunner runner;
@@ -76,7 +75,7 @@ public class ImplantHandlerTests {
         Path classPath = findTestEnvironmentDir(this.getClass());
 
         // Act
-        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(className, classPath);
+        ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(classPath, className);
         ClassFile specimen = implant.loadFreshRawSpecimen();
         Class<?> loadedClass = runner.load(specimen);
 
@@ -93,7 +92,22 @@ public class ImplantHandlerTests {
         populateJarEntriesIntoEmptyFile(tempFile, baseDir, relativePath);
 
         // Act + Assert
-        ImplantHandlerImpl.findAndCreateFor(DummyTestClassImplant.class.getName(), tempFile);
+        ImplantHandlerImpl.findAndCreateFor(tempFile, DummyTestClassImplant.class.getName());
+    }
+
+    @Test
+    public void testFindAndCreateFor_WithDependencies_ContainsDependencyClasses() throws IOException, ClassNotFoundException {
+        // Arrange
+        Path baseDir = findTestEnvironmentDir(this.getClass());
+
+        // Act
+        ImplantHandler subject = ImplantHandlerImpl.findAndCreateFor(baseDir, DummyTestClassImplant.class.getName());
+
+        // Assert
+        Map<String, byte[]> dependencies = subject.getDependencies();
+        assertNotNull("Contains specified dependency", dependencies.get("org/example/implants/DummyDependency.class"));
+        assertNotNull("Contains transitive dependency", dependencies.get("org/example/implants/DummySubDependency.class"));
+        assertNull("Implant class is not a dependency", dependencies.get("org/example/implants/DummyTestClassImplant.class"));
     }
 
     @Test

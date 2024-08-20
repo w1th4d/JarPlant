@@ -324,8 +324,15 @@ public class ImplantHandlerImpl implements ImplantHandler {
         ClassFile thisClass = readClassFile(thisClassData);
         Set<String> classReferences = thisClass.getConstPool().getClassNames();
         for (String classReference : classReferences) {
-            if (thisClass.getName().equals(classReference.replace("/", "."))) {
+            String classReferenceName = classReference.replace("/", ".");
+            if (thisClass.getName().equals(classReferenceName)) {
                 // Don't go recursing on ourselves again
+                continue;
+            }
+
+            String classReferenceKey = convertToJarEntryPathName(classReference);
+            if (accumulator.containsKey(classReferenceKey)) {
+                // This dependency is already noted (don't get lost in circular dependencies)
                 continue;
             }
 
@@ -334,7 +341,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
                 continue;
             }
 
-            accumulator.put(convertToJarEntryPathName(classReference), classRawData.get());
+            accumulator.put(classReferenceKey, classRawData.get());
 
             // Recursively go through the whole dependency tree
             readAllDependencies(classReference, classDataReader, accumulator);

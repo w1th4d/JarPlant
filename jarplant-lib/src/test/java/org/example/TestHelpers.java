@@ -14,6 +14,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.jar.*;
+import java.util.logging.Formatter;
+import java.util.logging.*;
 
 /**
  * Contains methods that tests may have in common.
@@ -22,6 +24,25 @@ import java.util.jar.*;
  * Feel free to add arbitrary static methods to this class as the test suite evolves.
  */
 public class TestHelpers {
+    /**
+     * Configure JUL (java.util.logger) to write nicely to stdout.
+     * Invoke this <code>@Before</code> all tests.
+     */
+    public static void configureLogger() {
+        Logger rootLogger = Logger.getLogger("");
+        rootLogger.setLevel(Level.ALL);
+        for (Handler handler : rootLogger.getHandlers()) {
+            rootLogger.removeHandler(handler);
+        }
+        StreamHandler consoleHandler = new StreamHandler(System.out, new Formatter() {
+            @Override
+            public String format(LogRecord logRecord) {
+                return logRecord.getLoggerName() + ": " + logRecord.getMessage() + "\n";
+            }
+        });
+        rootLogger.addHandler(consoleHandler);
+    }
+
     /**
      * Finds the directory where the compiled test classes are.
      * This perhaps naively exploits the fact that the root resource path will be the <code>target/test-classes</code>

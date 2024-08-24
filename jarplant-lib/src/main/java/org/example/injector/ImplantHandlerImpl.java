@@ -13,11 +13,13 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 
 import static org.example.injector.Helpers.*;
 
 public class ImplantHandlerImpl implements ImplantHandler {
+    private final static Logger log = Logger.getLogger("ImplantHandler");
     private final byte[] classData;
     private final String implantClassName;
     private final Map<String, ConfDataType> availableConfig;
@@ -274,7 +276,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
                 int constPoolIndex = bytecode.getConstPool().addStringInfo(strValue);
                 bytecode.addLdc(constPoolIndex);
                 bytecode.addPutstatic(forClass.getName(), confKey, ConfDataType.STRING.descriptor);
-                System.out.println("[ ] Wrote config override: " + confKey + "=" + strValue + " (String)");
+                log.fine("Wrote config override: " + confKey + "=" + strValue + " (String)");
             } else if (confValue instanceof Boolean boolValue) {
                 if (boolValue) {
                     bytecode.addIconst(1);
@@ -282,12 +284,12 @@ public class ImplantHandlerImpl implements ImplantHandler {
                     bytecode.addIconst(0);
                 }
                 bytecode.addPutstatic(forClass.getName(), entry.getKey(), ConfDataType.BOOLEAN.descriptor);
-                System.out.println("[ ] Wrote config override: " + confKey + "=" + boolValue + " (Boolean)");
+                log.fine("Wrote config override: " + confKey + "=" + boolValue + " (Boolean)");
             } else if (confValue instanceof Integer intValue) {
                 int constPoolIndex = bytecode.getConstPool().addIntegerInfo(intValue);
                 bytecode.addLdc(constPoolIndex);
                 bytecode.addPutstatic(forClass.getName(), confKey, ConfDataType.INT.descriptor);
-                System.out.println("[ ] Wrote config override: " + confKey + "=" + intValue + " (Integer)");
+                log.fine("Wrote config override: " + confKey + "=" + intValue + " (Integer)");
             }
         }
 

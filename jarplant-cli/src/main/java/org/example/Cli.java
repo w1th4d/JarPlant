@@ -11,12 +11,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.logging.Formatter;
+import java.util.logging.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 
 public class Cli {
+    private final static Logger log = Logger.getLogger("JarPlant");
+
     // Credz: 'Square' font by Chris Gill, 30-JUN-94 -- based on .sig of Jeb Hagan.
     private final static String banner =
             "       _____               ______  __                __   \n" +
@@ -38,6 +42,8 @@ public class Cli {
     }
 
     public static void main(String[] args) {
+        configureLogger(Level.FINE);   // TODO Set this based on -v flag(s)
+
         ArgumentParser parser = ArgumentParsers.newFor("java -jar jarplant.jar").build()
                 .defaultHelp(true)
                 .description(banner)
@@ -175,7 +181,7 @@ public class Cli {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else {
-            System.out.println("[!] Unknown --implant-class.");
+            System.err.println("Unknown --implant-class.");
             System.exit(1);
             throw new RuntimeException();
         }
@@ -184,7 +190,7 @@ public class Cli {
         try {
             implantHandler.setConfig(configOverrides);
         } catch (ImplantConfigException e) {
-            System.out.println("[!] " + e.getMessage());
+            System.err.println("Cannot set implant config: " + e.getMessage());
             System.exit(1);
         }
 
@@ -197,26 +203,23 @@ public class Cli {
         System.out.println(banner);
         System.out.println();
 
-        System.out.println("[i] Implant class: " + implantHandler.getImplantClassName());
-        System.out.println("[i] Target JAR: " + targetPath);
-        System.out.println("[i] Output JAR: " + outputPath);
-        System.out.println();
+        log.config("Implant class: " + implantHandler.getImplantClassName());
+        log.config("Target JAR: " + targetPath);
+        log.config("Output JAR: " + outputPath);
 
-        System.out.println("[+] Reading available implant config properties...");
+        log.fine("Reading available implant config properties...");
         Map<String, ImplantHandlerImpl.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
         for (Map.Entry<String, ImplantHandlerImpl.ConfDataType> entry : availableConfig.entrySet()) {
-            System.out.println("[i] " + entry.getKey() + " (" + entry.getValue() + ")");
+            log.fine(entry.getKey() + " (" + entry.getValue() + ")");
         }
 
         try {
             boolean didInfect = injector.infect(targetPath, outputPath);
 
             if (didInfect) {
-                System.out.println("[+] Infected '" + targetPath + "'.");
-                System.out.println();
-                System.out.println("[i] Spiked JAR available at: " + outputPath);
+                log.info("Success.");
             } else {
-                System.out.println("[-] Did not infect '" + targetPath + "'.");
+                log.warning("Failure.");
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -247,13 +250,13 @@ public class Cli {
             try {
                 componentHandler.setConfig(configOverrides);
             } catch (ImplantConfigException e) {
-                System.out.println("[!] " + e.getMessage());
+                System.err.println("Cannot set implant config: " + e.getMessage());
                 System.exit(1);
             }
 
             runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);
         } else {
-            System.out.println("[!] Unknown --implant-component or --implant-config.");
+            System.err.println("Unknown --implant-component or --implant-config.");
             System.exit(1);
         }
     }
@@ -264,20 +267,17 @@ public class Cli {
         System.out.println(banner);
         System.out.println();
 
-        System.out.println("[i] Implant Spring component: " + componentHandler.getImplantClassName());
-        System.out.println("[i] Implant Spring config class: " + componentHandler.getImplantClassName());
-        System.out.println("[i] Target JAR: " + targetPath);
-        System.out.println("[i] Output JAR: " + outputPath);
-        System.out.println();
+        log.config("Implant Spring component: " + componentHandler.getImplantClassName());
+        log.config("Implant Spring config class: " + componentHandler.getImplantClassName());
+        log.config("Target JAR: " + targetPath);
+        log.config("Output JAR: " + outputPath);
 
         try {
             boolean didInfect = injector.infect(targetPath, outputPath);
             if (didInfect) {
-                System.out.println("[+] Infected '" + targetPath + "'. Modified JAR available at: " + outputPath);
-                System.out.println();
-                System.out.println("[i] Spiked JAR available at: " + outputPath);
+                log.info("Success.");
             } else {
-                System.out.println("[-] Did not infect '" + targetPath + "'.");
+                log.warning("Failure.");
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -296,7 +296,7 @@ public class Cli {
         for (String configArg : configArgs) {
             Matcher match = regex.matcher(configArg);
             if (!match.matches()) {
-                System.out.println("[!] Each config entry must be in the format KEY=VALUE. Example: CONF_LOCAL_PORT=1234");
+                System.err.println("Each config entry must be in the format KEY=VALUE. Example: CONF_LOCAL_PORT=1234");
                 System.exit(1);
             }
             String key = match.group("key");
@@ -315,9 +315,10 @@ public class Cli {
         System.out.println(banner);
         System.out.println();
 
-        System.out.println("[+] Bundled implants:");
+        System.out.println("Bundled implants:");
         for (ImplantInfo info : ImplantInfo.values()) {
-            System.out.println("[+]   " + info.name() + ": " + info.summary);
+            System.out.println(" - " + info.name() + ":");
+            System.out.println("      " + info.summary);
         }
     }
 
@@ -331,7 +332,7 @@ public class Cli {
             try {
                 ImplantInfo bundled = ImplantInfo.valueOf(implant);
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(bundled.clazz);
-                System.out.println("[i] Bundled implant '" + implant + "':");
+                System.out.println("Bundled implant '" + implant + "':");
             } catch (ClassNotFoundException | IOException e) {
                 throw new RuntimeException("Failed to read bundled implant: " + e.getMessage());
             } catch (IllegalArgumentException e) {
@@ -340,25 +341,22 @@ public class Cli {
                 try {
                     Path classFilePath = Path.of(implant);
                     if (!Files.exists(classFilePath)) {
-                        System.out.println("[!] Implant not found: " + implant);
-                        System.out.println();
+                        System.out.println("Implant not found: " + implant);
                         continue;
                     }
                     implantHandler = ImplantHandlerImpl.createFor(classFilePath);
-                    System.out.println("[i] File '" + implant + "':");
+                    System.out.println("File '" + implant + "':");
                 } catch (IOException e2) {
-                    System.out.println("[!] Failed to read class file: " + e2.getMessage());
-                    System.out.println();
+                    System.out.println("Failed to read class file: " + e2.getMessage());
                     continue;
                 }
             }
 
-            System.out.println("[i]   Class: " + implantHandler.getImplantClassName());
-            System.out.println("[i]   Available configuration properties:");
+            System.out.println("   Class: " + implantHandler.getImplantClassName());
+            System.out.println("   Available configuration properties:");
             for (Map.Entry<String, ImplantHandlerImpl.ConfDataType> entry : implantHandler.getAvailableConfig().entrySet()) {
-                System.out.println("[i]     " + entry.getKey() + " (" + entry.getValue() + ")");
+                System.out.println("    - " + entry.getKey() + " (" + entry.getValue() + ")");
             }
-            System.out.println();
         }
     }
 
@@ -382,10 +380,10 @@ public class Cli {
                 try {
                     inputs.addAll(Files.readAllLines(Path.of(inputFile)));
                     if (verbose) {
-                        System.err.println("[+] Using input file: " + inputFile);
+                        log.config("Using input file: " + inputFile);
                     }
                 } catch (IOException e) {
-                    System.err.println("[!] Failed to read input file: " + inputFile);
+                    log.severe("Failed to read input file: " + inputFile);
                 }
             }
         }
@@ -400,7 +398,7 @@ public class Cli {
             Optional<Map<String, String>> decoded = DnsBeaconDecoder.decode(input);
             if (decoded.isEmpty()) {
                 if (verbose) {
-                    System.err.println("[-] Could not parse: " + input);
+                    log.warning("Could not parse: " + input);
                 }
             } else {
                 String json = DnsBeaconDecoder.toJson(decoded.get());
@@ -412,11 +410,53 @@ public class Cli {
     private static void assertNotSameFile(Path target, Path output) {
         try {
             if (Files.exists(output) && target.toRealPath().equals(output.toRealPath())) {
-                System.out.println("[!] Target JAR and output JAR cannot be the same.");
+                System.out.println("Target JAR and output JAR cannot be the same.");
                 System.exit(1);
             }
         } catch (IOException e) {
-            System.out.println("[!] Cannot read file: " + e.getMessage());
+            System.out.println("Cannot read file: " + e.getMessage());
         }
+    }
+
+    /**
+     * Configure JUL (java.util.logger) to write nicely to stdout.
+     */
+    private static void configureLogger(Level logLevel) {
+        Logger rootLogger = Logger.getLogger("");
+        rootLogger.setLevel(logLevel);
+        for (Handler handler : rootLogger.getHandlers()) {
+            rootLogger.removeHandler(handler);
+        }
+        StreamHandler handler = new StreamHandler(System.out, new Formatter() {
+            @Override
+            public String format(LogRecord logRecord) {
+                StringBuilder line = new StringBuilder();
+                Level logLevel = logRecord.getLevel();
+                if (logLevel.equals(Level.SEVERE)) {
+                    line.append("[!] ");
+                } else if (logLevel.equals(Level.WARNING)) {
+                    line.append("[-] ");
+                } else if (logLevel.equals(Level.INFO)) {
+                    line.append("[+] ");
+                } else if (logLevel.equals(Level.CONFIG)) {
+                    line.append("[*] ");
+                } else {
+                    line.append("[ ] ");
+                }
+                line.append(logRecord.getMessage()).append("\n");
+
+                return line.toString();
+            }
+        });
+        handler.setLevel(logLevel);
+        handler.setFilter(logRecord -> {
+            String sourceClassName = logRecord.getSourceClassName();
+            if (sourceClassName == null) {
+                // Unknown source class. Just default to OK.
+                return true;
+            }
+            return sourceClassName.startsWith("org.example.");
+        });
+        rootLogger.addHandler(handler);
     }
 }

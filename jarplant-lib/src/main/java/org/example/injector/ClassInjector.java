@@ -32,6 +32,7 @@ public class ClassInjector {
 
         BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
         try {
+            int countClinitModified = 0;
             for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
                     continue;
@@ -73,8 +74,10 @@ public class ClassInjector {
                  */
                 modifyClinit(currentlyProcessing, implantedClass);
                 entry.replaceContentWith(asByteArray(currentlyProcessing));
-                log.info("Modified class initializer for '" + currentlyProcessing.getName() + "'.");
+                countClinitModified++;
+                log.fine("Modified class initializer for '" + entry.getName() + "'.");
             }
+            log.info("Modified the class initializer for  " + countClinitModified + " classes.");
 
             boolean didInfect = implantedClass != null;
 
@@ -89,7 +92,7 @@ public class ClassInjector {
                     try {
                         fiddler.addNewEntry(newJarEntry, fileContent);
                         countDependencies++;
-                        log.finer("Added dependency file '" + fileName + "'.");
+                        log.fine("Added dependency file '" + fileName + "'.");
                     } catch (ZipException e) {
                         // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
                         log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
@@ -102,7 +105,7 @@ public class ClassInjector {
 
             if (didInfect) {
                 fiddler.write(outputJar);
-                log.info("Wrote spiked JAR to '" + outputJar + "'.");
+                log.info("Wrote output JAR to '" + outputJar + "'.");
             } else {
                 log.warning("No output JAR was written.");
             }

@@ -34,6 +34,8 @@ public class SpringInjector {
         }
 
         BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
+        int countConfigModifications = 0;
+        int countComponentsCreated = 0;
         for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
             if (!entry.getName().endsWith(".class")) {
                 continue;
@@ -64,29 +66,31 @@ public class SpringInjector {
                 JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
                 try {
                     fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
+                    countComponentsCreated++;
                 } catch (ZipException e) {
                     // QUICKFIX: The entry most likely already exist in the ZIP file
                     log.warning("Class '" + newJarEntry + "' already exist in JAR '" + outputJar + "'. Skipping.");
                     continue;
                     // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
                 }
-                log.info("Created implant class '" + newJarEntry.getName() + "'.");
+                log.fine("Created implant class '" + newJarEntry.getName() + "'.");
 
                 if (!hasComponentScanEnabled(currentlyProcessing)) {
                     /*
                      * Component Scanning seems to not be enabled for this Spring configuration.
                      * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
                      */
-                    log.fine("Spring configuration '" + currentlyProcessing.getName() + "' is not set to automatically scan for components (@ComponentScan).");
+                    log.fine("Spring configuration '" + entry.getName() + "' is not set to automatically scan for components (@ComponentScan).");
 
                     ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
                     if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
-                        log.warning("Class '" + currentlyProcessing.getName() + "' already infected. Skipping.");
+                        log.warning("Class '" + entry.getName() + "' already infected. Skipping.");
                         continue;
                     }
 
                     entry.replaceContentWith(asByteArray(currentlyProcessing));
-                    log.info("Injected @Bean method into '" + currentlyProcessing.getName() + "'.");
+                    countConfigModifications++;
+                    log.fine("Injected @Bean method into '" + entry.getName() + "'.");
                 }
 
                 didInfect = true;
@@ -94,6 +98,8 @@ public class SpringInjector {
                 throw new RuntimeException(e);
             }
         }
+        log.info("Modified " + countConfigModifications + " Spring configuration classes.");
+        log.info("Created " + countComponentsCreated + " Spring component classes.");
 
         if (foundSignedClasses) {
             log.warning("Found signed classes. These were not considered for infection.");
@@ -128,7 +134,7 @@ public class SpringInjector {
 
         if (didInfect) {
             fiddler.write(outputJar);
-            log.info("Wrote spiked JAR to '" + outputJar + "'.");
+            log.info("Wrote output JAR to '" + outputJar + "'.");
         } else {
             log.warning("No output JAR was written.");
         }

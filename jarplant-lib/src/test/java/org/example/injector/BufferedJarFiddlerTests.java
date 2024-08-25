@@ -41,6 +41,11 @@ public class BufferedJarFiddlerTests {
     );
 
     @Before
+    public void configureLogger() {
+        TestHelpers.configureLogger();
+    }
+
+    @Before
     public void getTestJar() throws IOException {
         Path testEnv = TestHelpers.findTestEnvironmentDir(this.getClass());
         Path testJarPath = testEnv.resolve("test-app-pojo-with-debug.jar");

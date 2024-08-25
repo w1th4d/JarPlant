@@ -1,6 +1,7 @@
 package org.example.injector;
 
 import javassist.bytecode.*;
+import org.example.TestHelpers;
 import org.example.TestImplantRunner;
 import org.example.implants.TestClassImplant;
 import org.junit.After;
@@ -40,6 +41,11 @@ public class ClassInjectorTests {
     // These can be used for test that just needs an empty JAR to work with
     private Path tempInputFile;
     private Path tempOutputFile;
+
+    @Before
+    public void configureLogger() {
+        TestHelpers.configureLogger();
+    }
 
     @Before
     public void getTestImplants() throws IOException {

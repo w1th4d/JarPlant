@@ -1,6 +1,7 @@
 package org.example.injector;
 
 import javassist.bytecode.ClassFile;
+import org.example.TestHelpers;
 import org.example.TestImplantRunner;
 import org.example.implants.DummyTestClassImplant;
 import org.example.implants.TestClassImplant;
@@ -21,6 +22,11 @@ import static org.junit.Assert.*;
 public class ImplantHandlerTests {
     private TestImplantRunner runner;
     private Path tempFile;
+
+    @Before
+    public void configureLogger() {
+        TestHelpers.configureLogger();
+    }
 
     @Before
     public void getImplantRunner() {

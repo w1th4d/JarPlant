@@ -2,6 +2,7 @@ package org.example.injector;
 
 import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
+import org.example.TestHelpers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -38,6 +39,11 @@ public class SpringInjectorTests {
     // Temporary files to work with
     private Path tempInputFile;
     private Path tempOutputFile;
+
+    @Before
+    public void configureLogger() {
+        TestHelpers.configureLogger();
+    }
 
     @Before
     public void loadTestImplants() throws IOException {

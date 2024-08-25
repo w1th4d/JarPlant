@@ -417,10 +417,10 @@ public class Cli {
                 try {
                     inputs.addAll(Files.readAllLines(Path.of(inputFile)));
                     if (verbose) {
-                        log.config("Using input file: " + inputFile);
+                        System.err.println("Using input file: " + inputFile);
                     }
                 } catch (IOException e) {
-                    log.severe("Failed to read input file: " + inputFile);
+                    System.err.println("Failed to read input file: " + inputFile);
                 }
             }
         }
@@ -434,9 +434,7 @@ public class Cli {
         for (String input : inputs) {
             Optional<Map<String, String>> decoded = DnsBeaconDecoder.decode(input);
             if (decoded.isEmpty()) {
-                if (verbose) {
-                    log.warning("Could not parse: " + input);
-                }
+                System.err.println("Could not parse: " + input);
             } else {
                 String json = DnsBeaconDecoder.toJson(decoded.get());
                 System.out.println(json);

@@ -53,8 +53,8 @@ public class Cli {
                 .help("Inject a class implant into any JAR. The implant will detonate whenever any class in the JAR is used but the payload will only run once (or possibly twice in some very fringe cases). This is the most versatile implant type and works with any JAR (even ones without a main function, like a library).")
                 .description(banner)
                 .setDefault("command", Command.CLASS_INJECTOR);
-        classInjectorParser.addArgument("-v", "--verbose")
-                .help("Print more details on what's going on.")
+        classInjectorParser.addArgument("--brief")
+                .help("Print less details on what's going on.")
                 .type(Boolean.class)
                 .action(storeTrue())
                 .setDefault(false);
@@ -87,8 +87,8 @@ public class Cli {
                 .help("Inject a Spring component implant into JAR-packaged Spring application. The component will be loaded and included in the Spring context. The component could be something like an extra REST controller or scheduled task.")
                 .description(banner)
                 .setDefault("command", Command.SPRING_INJECTOR);
-        springInjectorParser.addArgument("-v", "--verbose")
-                .help("Print more details on what's going on.")
+        springInjectorParser.addArgument("--brief")
+                .help("Print less details on what's going on.")
                 .type(Boolean.class)
                 .action(storeTrue())
                 .setDefault(false);
@@ -163,14 +163,14 @@ public class Cli {
         }
 
         // Set log level based on verbosity flags
-        Boolean verboseFlag = namespace.getBoolean("verbose");
+        Boolean briefFlag = namespace.getBoolean("brief");
         Boolean debugFlag = namespace.getBoolean("debug");
         if (debugFlag != null && debugFlag) {
             configureLogger(Level.ALL, LogSourceLevel.ALL);
-        } else if (verboseFlag != null && verboseFlag) {
-            configureLogger(Level.FINE, LogSourceLevel.LIB);
-        } else {
+        } else if (briefFlag != null && briefFlag) {
             configureLogger(Level.INFO, LogSourceLevel.CLI);
+        } else {
+            configureLogger(Level.INFO, LogSourceLevel.LIB);
         }
 
         Command command = namespace.get("command");

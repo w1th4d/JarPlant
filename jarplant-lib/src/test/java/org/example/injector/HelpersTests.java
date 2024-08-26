@@ -1,7 +1,6 @@
 package org.example.injector;
 
 import javassist.bytecode.*;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -11,7 +10,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
-import java.util.jar.JarEntry;
 
 import static org.example.TestHelpers.findTestEnvironmentDir;
 import static org.example.injector.Helpers.readClassFile;
@@ -87,162 +85,6 @@ public class HelpersTests {
         // Assert
         int isStaticNow = knownRegularMethod.get().getAccessFlags() & AccessFlag.STATIC;
         assertTrue("Static flag was set for a regular method.", isStaticNow != 0);
-    }
-
-    @Test
-    public void testParsePackageNameFromFcqn_ValidFcqn_CorrectPackageName() {
-        // Act
-        String packageName = Helpers.parsePackageNameFromFqcn("org.example.TestClass");
-
-        // Assert
-        assertEquals("Parsed package name.", "org.example", packageName);
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParsePackageNameFromFcqn_PlainString_RuntimeException() {
-        // Act + Assert
-        Helpers.parsePackageNameFromFqcn("orgexampleTestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParsePackageNameFromFcqn_ClassFileStyle_RuntimeException() {
-        // Act + Assert
-        Helpers.parsePackageNameFromFqcn("org/example/TestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParsePackageNameFromFcqn_OnlyClassName_RuntimeException() {
-        // Act + Assert
-        Helpers.parsePackageNameFromFqcn("TestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParsePackageNameFromFcqn_OnlyDots_RuntimeException() {
-        // Act + Assert
-        Helpers.parsePackageNameFromFqcn("...");
-    }
-
-    @Test
-    public void testParseClassNameFromFcqn_ValidFcqn_CorrectClassName() {
-        // Act
-        String className = Helpers.parseClassNameFromFqcn("org.example.TestClass");
-
-        // Assert
-        assertEquals("Class name was parsed.", "TestClass", className);
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParseClassNameFromFcqn_PlainString_RuntimeException() {
-        // Act + Assert
-        Helpers.parseClassNameFromFqcn("orgexampleTestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParseClassNameFromFcqn_ClassFileStyle_RuntimeException() {
-        // Act + Assert
-        Helpers.parseClassNameFromFqcn("org/example/TestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParseClassNameFromFcqn_OnlyClassName_RuntimeException() {
-        // Act + Assert
-        Helpers.parseClassNameFromFqcn("TestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParseClassNameFromFcqn_OnlyDots_RuntimeException() {
-        // Act + Assert
-        Helpers.parseClassNameFromFqcn("...");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParseClassNameFromFcqn_WithFileExt_RuntimeException() {
-        // Act + Assert
-        Helpers.parseClassNameFromFqcn("org.example.TestClass.class");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testParseClassNameFromFcqn_WithFileExtOnly_RuntimeException() {
-        // Act + Assert
-        Helpers.parseClassNameFromFqcn("TestClass.class");
-    }
-
-    @Test
-    public void testConvertToClassFormatFcqn_ValidFcqn_CorrectFormat() {
-        // Act
-        String classFcqn = Helpers.convertToClassFormatFqcn("org.example.TestClass");
-
-        // Assert
-        assertEquals("Binary name was converted to fully qualified class name used in the ConstPool.",
-                "org/example/TestClass", classFcqn);
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testConvertToClassFormatFcqn_AlreadyClassFcqn_RuntimeException() {
-        // Act + Assert
-        Helpers.convertToClassFormatFqcn("org/example/TestClass");
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void testConvertToClassFormatFcqn_PlainString_RuntimeException() {
-        // Act + Assert
-        Helpers.convertToClassFormatFqcn("orgexampleTestClass");
-    }
-
-    @Test
-    public void convertToBinaryClassNameFromPath_ValidJarEntryPath_BinaryClassName() {
-        // Act + Assert
-        assertEquals("",
-                Helpers.convertToBinaryClassNameFromPath("org/example/TestClass.class"),
-                "org.example.TestClass");
-        assertEquals(Helpers.convertToBinaryClassNameFromPath("/org/example/TestClass.class"),
-                "org.example.TestClass");
-        assertEquals(Helpers.convertToBinaryClassNameFromPath("TestClass.class"),
-                "TestClass");
-        assertEquals(Helpers.convertToBinaryClassNameFromPath("/TestClass.class"),
-                "TestClass");
-    }
-
-    @Test
-    public void convertToBinaryClassNameFromPath_InvalidJarEntryPath_Exception() {
-        // Arrange
-        String[] invalidInputs = new String[]{
-                "org/example/TestClass",
-                "org/example/TestClass/",
-                "TestClass",
-                "org.example.TestClass",
-                "org.example.TestClass.class",
-                "",
-        };
-
-        // Act + Assert: Fail if any input did not result in an exception
-        for (String invalidInput : invalidInputs) {
-            try {
-                Helpers.convertToBinaryClassNameFromPath(invalidInput);
-                fail();
-            } catch (Exception ignored) {
-            }
-        }
-    }
-
-    @Test
-    public void testConvertToJarEntry_ValidClassFile_EndsWithPath() {
-        // Act
-        JarEntry jarEntry = Helpers.convertToJarEntry(testClass);
-
-        // Assert
-        assertTrue("JAR entry ends with the class name path.",
-                jarEntry.getName().endsWith("org/example/TestClass.class"));
-    }
-
-    @Test
-    public void testConvertToJarEntryPathName() {
-        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com.example.Something"));
-        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com.example.Something.class"));
-        Assert.assertEquals("Something.class", Helpers.convertToJarEntryPathName("Something"));
-        Assert.assertEquals("Something.class", Helpers.convertToJarEntryPathName("Something.class"));
-        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com/example/Something"));
-        Assert.assertEquals("com/example/Something.class", Helpers.convertToJarEntryPathName("com/example/Something.class"));
     }
 
     @Test

@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface ImplantHandler {
-    String getImplantClassName();
+    ClassName getImplantClassName();
 
     Map<String, ImplantHandlerImpl.ConfDataType> getAvailableConfig();
 
@@ -19,5 +19,5 @@ public interface ImplantHandler {
 
     ClassFile loadFreshRawSpecimen() throws IOException;
 
-    Map<String, byte[]> getDependencies();
+    Map<ClassName, byte[]> getDependencies();
 }

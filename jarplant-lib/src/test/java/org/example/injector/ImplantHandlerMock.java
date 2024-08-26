@@ -81,8 +81,8 @@ public class ImplantHandlerMock implements ImplantHandler {
     }
 
     @Override
-    public String getImplantClassName() {
-        return specimen.getName();
+    public ClassName getImplantClassName() {
+        return ClassName.of(specimen);
     }
 
     @Override
@@ -111,7 +111,7 @@ public class ImplantHandlerMock implements ImplantHandler {
     }
 
     @Override
-    public Map<String, byte[]> getDependencies() {
+    public Map<ClassName, byte[]> getDependencies() {
         return Map.of();
     }
 

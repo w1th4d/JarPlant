@@ -43,8 +43,9 @@ public class ClassInjector {
                 }
 
                 ClassFile currentlyProcessing = readClassFile(entry.getContent());
+                ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
 
-                String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
+                String targetPackageName = currentlyProcessingName.getPackageName();
                 if (implantedClass == null) {
                     /*
                      * Since there are other classes in this directory, the implant will blend in better here.
@@ -52,7 +53,8 @@ public class ClassInjector {
                      */
                     ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
                     deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
-                    JarEntry newJarEntry = convertToJarEntry(implant);
+                    ClassName newImplantName = ClassName.of(implant);
+                    JarEntry newJarEntry = new JarEntry(newImplantName.getClassFilePath());
                     try {
                         fiddler.addNewEntry(newJarEntry, asByteArray(implant));
                         log.info("Created implant class '" + newJarEntry.getName() + "'.");
@@ -84,8 +86,8 @@ public class ClassInjector {
             // Add any dependency classes needed for the implant
             if (didInfect) {
                 int countDependencies = 0;
-                for (Map.Entry<String, byte[]> dependencyEntry : implantHandler.getDependencies().entrySet()) {
-                    String fileName = convertToJarEntryPathName(dependencyEntry.getKey());
+                for (Map.Entry<ClassName, byte[]> dependencyEntry : implantHandler.getDependencies().entrySet()) {
+                    String fileName = dependencyEntry.getKey().getClassFilePath();
                     byte[] fileContent = dependencyEntry.getValue();
 
                     JarEntry newJarEntry = new JarEntry(fileName);
@@ -147,7 +149,13 @@ public class ClassInjector {
 
     // TODO This code is getting gnarly. Consider just stripping away debug info (for the implant class).
     static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
-        String newFqcn = newPackageName + "." + newClassName;
+        // TODO Rewrite this using ClassName instead of Strings
+        String newFqcn;
+        if (newPackageName.isEmpty()) {
+            newFqcn = newClassName;
+        } else {
+            newFqcn = newPackageName + "." + newClassName;
+        }
         String newSourceFileName = newClassName + ".java";
 
         boolean didChangeSomething = false;
@@ -160,7 +168,7 @@ public class ClassInjector {
             }
             int fileNameIndex = sourceFileInfo.getShort();
             String fileName = classFile.getConstPool().getUtf8Info(fileNameIndex);
-            String expectedName = parseClassNameFromFqcn(classFile.getName());
+            String expectedName = ClassName.of(classFile).getClassName();
             if (!fileName.startsWith(expectedName)) {
                 throw new RuntimeException("Unexpected SourceFileAttribute: Expected class to start with '" + expectedName + "'.");
             }

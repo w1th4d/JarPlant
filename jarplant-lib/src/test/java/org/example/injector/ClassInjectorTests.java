@@ -217,11 +217,11 @@ public class ClassInjectorTests {
     @Test
     public void testDeepRenameClass_SameName_Unmodified() throws IOException {
         // Arrange
-        String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplantWithDebug.getName());
+        String originalPackageName = ClassName.of(testImplantWithDebug).getPackageName();
         byte[] classDataBefore = asBytes(testImplantWithDebug);
 
         // Act
-        ClassInjector.deepRenameClass(testImplantWithDebug, originalFqcn, testImplantSourceFileName);
+        ClassInjector.deepRenameClass(testImplantWithDebug, originalPackageName, testImplantSourceFileName);
 
         // Assert
         byte[] classDataAfter = asBytes(testImplantWithDebug);
@@ -231,15 +231,27 @@ public class ClassInjectorTests {
     @Test
     public void testDeepRenameClass_NoDebuggingInfo_Unmodified() throws IOException {
         // Arrange
-        String originalFqcn = Helpers.parsePackageNameFromFqcn(testImplant.getName());
+        String originalPackageName = ClassName.of(testImplant).getPackageName();
         byte[] classDataBefore = asBytes(testImplant);
 
         // Act
-        ClassInjector.deepRenameClass(testImplant, originalFqcn, testImplantSourceFileName);
+        ClassInjector.deepRenameClass(testImplant, originalPackageName, testImplantSourceFileName);
 
         // Assert
         byte[] classDataAfter = asBytes(testImplant);
         assertArrayEquals("Class is not changed.", classDataBefore, classDataAfter);
+    }
+
+    @Test
+    public void testDeepRenameClass_NoPackageName_Fine() {
+        // Arrange
+        ClassFile emptyClass = new ClassFile(false, "Original", null);
+
+        // Act
+        ClassInjector.deepRenameClass(emptyClass, "", "Changed");
+
+        // Assert
+        assertEquals("Changed", ClassName.of(emptyClass).getFullClassName());
     }
 
     @Test

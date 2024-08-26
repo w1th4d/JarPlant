@@ -77,7 +77,7 @@ public class ImplantHandlerTests {
     @Test
     public void testFindAndCreateFor_ClassNameAndPath_Success() throws IOException, ClassNotFoundException {
         // Arrange
-        String className = DummyTestClassImplant.class.getName();
+        ClassName className = ClassName.of(DummyTestClassImplant.class);
         Path classPath = findTestEnvironmentDir(this.getClass());
 
         // Act
@@ -98,22 +98,22 @@ public class ImplantHandlerTests {
         populateJarEntriesIntoEmptyFile(tempFile, baseDir, relativePath);
 
         // Act + Assert
-        ImplantHandlerImpl.findAndCreateFor(tempFile, DummyTestClassImplant.class.getName());
+        ImplantHandlerImpl.findAndCreateFor(tempFile, ClassName.of(DummyTestClassImplant.class));
     }
 
     @Test
-    public void testFindAndCreateFor_WithDependencies_ContainsDependencyClasses() throws IOException, ClassNotFoundException {
+    public void testFindAndCreateFor_WithDependencies_ContainsDependencyClasses() throws IOException, ClassNotFoundException, ClassNameException {
         // Arrange
         Path baseDir = findTestEnvironmentDir(this.getClass());
 
         // Act
-        ImplantHandler subject = ImplantHandlerImpl.findAndCreateFor(baseDir, DummyTestClassImplant.class.getName());
+        ImplantHandler subject = ImplantHandlerImpl.findAndCreateFor(baseDir, ClassName.of(DummyTestClassImplant.class));
 
         // Assert
-        Map<String, byte[]> dependencies = subject.getDependencies();
-        assertNotNull("Contains specified dependency", dependencies.get("org/example/implants/DummyDependency.class"));
-        assertNotNull("Contains transitive dependency", dependencies.get("org/example/implants/DummySubDependency.class"));
-        assertNull("Implant class is not a dependency", dependencies.get("org/example/implants/DummyTestClassImplant.class"));
+        Map<ClassName, byte[]> dependencies = subject.getDependencies();
+        assertNotNull("Contains specified dependency", dependencies.get(ClassName.fromFullClassName("org.example.implants.DummyDependency")));
+        assertNotNull("Contains transitive dependency", dependencies.get(ClassName.fromFullClassName("org.example.implants.DummySubDependency")));
+        assertNull("Implant class is not a dependency", dependencies.get(ClassName.fromFullClassName("org.example.implants.DummyTestClassImplant")));
     }
 
     @Test
@@ -122,10 +122,10 @@ public class ImplantHandlerTests {
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(DummyTestClassImplant.class);
 
         // Act
-        String name = implant.getImplantClassName();
+        ClassName name = implant.getImplantClassName();
 
         // Assert
-        assertEquals("org.example.implants.DummyTestClassImplant", name);
+        assertEquals("org.example.implants.DummyTestClassImplant", name.getFullClassName());
     }
 
     @Test

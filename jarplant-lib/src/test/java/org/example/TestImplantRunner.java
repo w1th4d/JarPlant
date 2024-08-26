@@ -1,7 +1,8 @@
 package org.example;
 
 import javassist.bytecode.ClassFile;
-import org.example.injector.Helpers;
+import org.example.injector.ClassName;
+import org.example.injector.ClassNameException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -44,9 +45,14 @@ public class TestImplantRunner extends ClassLoader {
                     continue;
                 }
 
-                String binaryClassName = Helpers.convertToBinaryClassNameFromPath(entry.getRealName());
+                ClassName className;
+                try {
+                    className = ClassName.of(entry);
+                } catch (ClassNameException e) {
+                    throw new RuntimeException(e);
+                }
                 byte[] classData = jar.getInputStream(entry).readAllBytes();
-                Class<?> loadedClass = load(binaryClassName, classData);
+                Class<?> loadedClass = load(className.getClassFormatInternalName(), classData);
                 loadedClasses.add(loadedClass);
             }
         }

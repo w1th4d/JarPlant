@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.*;
-import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Logger;
@@ -72,15 +71,13 @@ public class ImplantHandlerImpl implements ImplantHandler {
         Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(implantRawClassBytes));
 
         // Dig through the implant class and snatch its dependencies, too
-        Function<ClassName, Optional<byte[]>> readEntryFromDirectory = (name) -> {
+        ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromDirectory = (name) -> {
             Optional<byte[]> result = Optional.empty();
             try {
                 byte[] dependencyRawClassBytes = bufferFrom(calcSourcePath(directory, name));
                 result = Optional.of(dependencyRawClassBytes);
             } catch (ClassNotFoundException ignored) {
                 // It's likely a provided dependency (like the standard library)
-            } catch (IOException e) {
-                throw new RuntimeException("Cannot read class '" + name + "'", e);
             }
             return result;
         };
@@ -114,19 +111,15 @@ public class ImplantHandlerImpl implements ImplantHandler {
             }
 
             // Dig through the implant class and snatch its dependencies, too
-            Function<ClassName, Optional<byte[]>> readEntryFromJar = (name) -> {
+            ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromJar = (name) -> {
                 ZipEntry entry = jarFile.getEntry(name.getClassFilePath());
                 if (entry == null) {
                     // This is probably a provided dependency (like the standard library)
                     return Optional.empty();
                 }
 
-                try {
-                    byte[] dependencyRawClassBytes = jarFile.getInputStream(entry).readAllBytes();
-                    return Optional.of(dependencyRawClassBytes);
-                } catch (IOException e) {
-                    throw new RuntimeException("Cannot read class " + name, e);
-                }
+                byte[] dependencyRawClassBytes = jarFile.getInputStream(entry).readAllBytes();
+                return Optional.of(dependencyRawClassBytes);
             };
             Map<ClassName, byte[]> readDependencies = readAllDependencies(className, readEntryFromJar);
 
@@ -306,7 +299,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
      */
     private static Map<ClassName, byte[]> readAllDependencies(
             ClassName className,
-            Function<ClassName, Optional<byte[]>> classDataReader
+            ThrowingFunction<ClassName, Optional<byte[]>, IOException> classDataReader
     ) throws IOException {
         Map<ClassName, byte[]> dependencies = new HashMap<>();
         readAllDependencies(className, classDataReader, dependencies);
@@ -316,7 +309,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
     // This is not meant to be used directly
     private static void readAllDependencies(
             ClassName className,
-            Function<ClassName, Optional<byte[]>> classDataReader,
+            ThrowingFunction<ClassName, Optional<byte[]>, IOException> classDataReader,
             Map<ClassName, byte[]> accumulator
     ) throws IOException {
         byte[] thisClassData = classDataReader.apply(className).orElseThrow();
@@ -389,5 +382,10 @@ public class ImplantHandlerImpl implements ImplantHandler {
             }
             return UNSUPPORTED;
         }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingFunction<T, R, E extends Throwable> {
+        R apply(T t) throws E;
     }
 }

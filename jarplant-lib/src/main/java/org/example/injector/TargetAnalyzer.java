@@ -10,7 +10,7 @@ import static org.example.injector.Helpers.readClassFile;
 public class TargetAnalyzer {
     private final ClassFile target;
 
-    TargetAnalyzer(final ClassFile target) {
+    TargetAnalyzer(ClassFile target) {
         this.target = target;
     }
 
@@ -18,7 +18,7 @@ public class TargetAnalyzer {
         return new TargetAnalyzer(loadedClass);
     }
 
-    public static TargetAnalyzer loadClassFile(final Path classFilePath) throws IOException {
+    public static TargetAnalyzer loadClassFile(Path classFilePath) throws IOException {
         return new TargetAnalyzer(readClassFile(classFilePath));
     }
 

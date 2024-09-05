@@ -40,7 +40,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
     }
 
     // Finds the class file using some weird Java quirks
-    public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself
@@ -52,7 +52,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
     }
 
     // This method may be used when extracting the implant from another place than self
-    public static ImplantHandler findAndCreateFor(final Path path, final ClassName className) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Path path, ClassName className) throws ClassNotFoundException, IOException {
         if (Files.isDirectory(path)) {
             return findAndReadFromDirectory(path, className);
         } else {
@@ -60,7 +60,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
         }
     }
 
-    private static ImplantHandler findAndReadFromDirectory(final Path directory, ClassName implantClassName) throws ClassNotFoundException, IOException {
+    private static ImplantHandler findAndReadFromDirectory(Path directory, ClassName implantClassName) throws ClassNotFoundException, IOException {
         // Lambda function for reading a class from this directory
         ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromDirectory = (name) -> {
             Path sourcePath = Path.of(directory.toString(), name.getClassFilePath());
@@ -87,7 +87,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
         return new ImplantHandlerImpl(implantClassBytes.get(), implantClassName, availableConfig, dependencies);
     }
 
-    private static ImplantHandler findAndReadFromJar(final Path jarFilePath, ClassName implantClassName) throws ClassNotFoundException, IOException {
+    private static ImplantHandler findAndReadFromJar(Path jarFilePath, ClassName implantClassName) throws ClassNotFoundException, IOException {
         try (JarFile jarFile = new JarFile(jarFilePath.toFile())) {
             // Lambda function for reading a class from this JAR
             ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromJar = (name) -> {

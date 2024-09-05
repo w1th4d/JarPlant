@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 public class Helpers {
     private static final Set<Integer> returnOpcodes = Set.of(Opcode.RETURN, Opcode.DRETURN, Opcode.ARETURN, Opcode.FRETURN, Opcode.IRETURN, Opcode.LRETURN);
 
-    public static ClassFile readClassFile(final Path classFilePath) throws IOException {
+    public static ClassFile readClassFile(Path classFilePath) throws IOException {
         final ClassFile cf;
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(classFilePath.toFile())))) {
             cf = new ClassFile(in);

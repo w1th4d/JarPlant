@@ -24,7 +24,7 @@ public class ClassInjector {
         this.implantHandler = implantHandler;
     }
 
-    public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
+    public boolean infect(Path targetJarFilePath, Path outputJar) throws IOException {
         ClassFile implantedClass = null;
 
         if (jarLooksSigned(targetJarFilePath)) {

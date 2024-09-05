@@ -25,7 +25,7 @@ public class ImplantHandlerMock implements ImplantHandler {
         this.specimen = specimen;
     }
 
-    public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself

@@ -24,7 +24,7 @@ public class SpringInjector {
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
-    public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
+    public boolean infect(Path targetJarFilePath, Path outputJar) throws IOException {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
 
@@ -192,7 +192,7 @@ public class SpringInjector {
     }
 
     // Copy all annotations from implant method to target method. Notice the const pools!
-    static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
+    static void copyAllMethodAnnotations(MethodInfo target, MethodInfo source) {
         AttributeInfo sourceAttr = source.getAttribute("RuntimeVisibleAnnotations");
         if (sourceAttr == null) {
             // The source method does not have any annotations. Is this fine?
@@ -251,7 +251,7 @@ public class SpringInjector {
         return results;
     }
 
-    private static boolean isSpringConfigurationClass(final ClassFile classFile) {
+    private static boolean isSpringConfigurationClass(ClassFile classFile) {
         List<Annotation> springAnnotations = classFile.getAttributes().stream()
                 .filter(attribute -> attribute instanceof AnnotationsAttribute)
                 .map(attribute -> (AnnotationsAttribute) attribute)
@@ -263,7 +263,7 @@ public class SpringInjector {
         return !springAnnotations.isEmpty();
     }
 
-    private static boolean isAnySpringContextAnnotation(final Annotation annotation) {
+    private static boolean isAnySpringContextAnnotation(Annotation annotation) {
         return switch (annotation.getTypeName()) {
             case "org.springframework.boot.autoconfigure.SpringBootApplication" -> true;
             case "org.springframework.context.annotation.Configuration" -> true;
@@ -271,7 +271,7 @@ public class SpringInjector {
         };
     }
 
-    private static boolean hasComponentScanEnabled(final ClassFile springContextClassFile) {
+    private static boolean hasComponentScanEnabled(ClassFile springContextClassFile) {
         Set<String> annotationsThatActivatesComponentScanning = Set.of(
                 "org.springframework.context.annotation.ComponentScan",
                 "org.springframework.boot.autoconfigure.SpringBootApplication"

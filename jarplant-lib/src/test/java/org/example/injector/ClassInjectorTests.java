@@ -113,7 +113,7 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testMaybeModifyClinit_ExistingClinit_ModifiedClinit() {
+    public void testModifyClinit_ExistingClinit_ModifiedClinit() {
         // Arrange
         ClassFile testClass = new ClassFile(false, "TestClass", null);
         MethodInfo clinit = new MethodInfo(testClass.getConstPool(), MethodInfo.nameClinit, "()V");
@@ -130,11 +130,11 @@ public class ClassInjectorTests {
         }
 
         // Act
-        boolean didModifyClinit = ClassInjector.maybeModifyClinit(testClass, testImplant);
+        Optional<ClassFile> modified = ClassInjector.modifyClinit(testClass, testImplant);
 
         // Assert
-        assertTrue("Did modify <clinit>", didModifyClinit);
-        MethodInfo actual = testClass.getMethod(MethodInfo.nameClinit);
+        assertTrue("Did modify <clinit>", modified.isPresent());
+        MethodInfo actual = modified.get().getMethod(MethodInfo.nameClinit);
         assertNotNull("Class initializer method exists.", actual);
 
         byte[] actualBytecode = actual.getCodeAttribute().getCode();
@@ -147,16 +147,16 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testMaybeModifyClinit_NoClinit_AddedClinit() {
+    public void testModifyClinit_NoClinit_AddedClinit() {
         // Arrange
         ClassFile testClass = new ClassFile(false, "TestClass", null);
 
         // Act
-        boolean didModifyClinit = ClassInjector.maybeModifyClinit(testClass, testImplant);
+        Optional<ClassFile> modified = ClassInjector.modifyClinit(testClass, testImplant);
 
         // Assert
-        assertTrue("Did modify <clinit>", didModifyClinit);
-        MethodInfo actual = testClass.getMethod(MethodInfo.nameClinit);
+        assertTrue("Did modify <clinit>", modified.isPresent());
+        MethodInfo actual = modified.get().getMethod(MethodInfo.nameClinit);
         assertNotNull("Class initializer method exists.", actual);
     }
 
@@ -192,6 +192,24 @@ public class ClassInjectorTests {
         assertEquals("Modified values after init().", expected, actualPostInit);
     }
 
+
+    @Test
+    public void testDeepRenameClass_Any_OriginalClassUnchanged() throws IOException {
+        // Arrange
+        String originalPackageName = ClassName.of(testImplantWithDebug).getPackageName();
+        byte[] classDataBefore = asBytes(testImplantWithDebug);
+
+        // Act
+        ClassFile renamedClass = ClassInjector.deepRenameClass(testImplantWithDebug, originalPackageName, "Changed");
+
+        // Assert
+        byte[] classDataAfter = asBytes(testImplantWithDebug);
+        assertArrayEquals("Class is not changed.", classDataBefore, classDataAfter);
+
+        byte[] renamedClassDataAfter = asBytes(renamedClass);
+        assertFalse("Renamed class is different from original class.", Arrays.equals(classDataBefore, renamedClassDataAfter));
+    }
+
     @Test
     public void testDeepRenameClass_ValidClass_Renamed() {
         // Arrange
@@ -202,8 +220,8 @@ public class ClassInjectorTests {
                 .toList();
 
         // Act
-        ClassInjector.deepRenameClass(testImplantWithDebug, "local.target", "NewName");
-        List<String> changedNames = testImplantWithDebug.getAttributes().stream()
+        ClassFile renamedClass = ClassInjector.deepRenameClass(testImplantWithDebug, "local.target", "NewName");
+        List<String> changedNames = renamedClass.getAttributes().stream()
                 .filter(attr -> attr instanceof SourceFileAttribute)
                 .map(attr -> (SourceFileAttribute) attr)
                 .map(SourceFileAttribute::getFileName)
@@ -250,10 +268,10 @@ public class ClassInjectorTests {
         ClassFile emptyClass = new ClassFile(false, "Original", null);
 
         // Act
-        ClassInjector.deepRenameClass(emptyClass, "", "Changed");
+        ClassFile renamedClass = ClassInjector.deepRenameClass(emptyClass, "", "Changed");
 
         // Assert
-        assertEquals("Changed", ClassName.of(emptyClass).getFullClassName());
+        assertEquals("Class name is changed.", "Changed", ClassName.of(renamedClass).getFullClassName());
     }
 
     @Test

@@ -29,6 +29,20 @@ public class Helpers {
         return cf;
     }
 
+    public static ClassFile cloneClassFile(ClassFile original) {
+        ClassFile clone;
+        try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            original.write(new DataOutputStream(buffer));
+            buffer.flush();
+            clone = new ClassFile(new DataInputStream(new ByteArrayInputStream(buffer.toByteArray())));
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot clone ClassFile", e);
+        }
+
+        return clone;
+    }
+
     public static byte[] asByteArray(ClassFile classFile) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         classFile.write(new DataOutputStream(buffer));

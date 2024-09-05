@@ -65,7 +65,7 @@ public class SpringInjectorTests {
 
     @Before
     public void setupSpringInjector() {
-        this.injector = new SpringInjector(testConfigImplantHandler, testBeanImplantHandler);
+        this.injector = new SpringInjector(testBeanImplantHandler, testConfigImplantHandler);
     }
 
     @Before
@@ -293,11 +293,14 @@ public class SpringInjectorTests {
         ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
         // Act
-        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+        Optional<ClassFile> modifiedSpringConfig = SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
 
         // Assert
-        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertTrue("Spring config is modified.", modifiedSpringConfig.isPresent());
+
+        MethodInfo injectedBean = modifiedSpringConfig.get().getMethod("ImplantBean");
         assertNotNull("Config implant exists.", injectedBean);
+
         AttributeInfo annotationsAttr = injectedBean.getAttribute("RuntimeVisibleAnnotations");
         assertNotNull("Config implant has annotations.", annotationsAttr);
         assertTrue("Config implant has annotations.", annotationsAttr.length() > 0);
@@ -311,10 +314,12 @@ public class SpringInjectorTests {
         ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
         // Act
-        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+        Optional<ClassFile> modifiedSpringConfig = SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
 
         // Assert
-        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertTrue("Spring config is modified.", modifiedSpringConfig.isPresent());
+
+        MethodInfo injectedBean = modifiedSpringConfig.get().getMethod("ImplantBean");
         assertNotNull("Config implant exists.", injectedBean);
 
         AttributeInfo annotationsAttr = injectedBean.getAttribute("RuntimeVisibleAnnotations");
@@ -333,9 +338,10 @@ public class SpringInjectorTests {
         ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
         // Act
-        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+        Optional<ClassFile> modifiedSpringConfig = SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
 
         // Assert
+        assertTrue("Spring config is modified.", modifiedSpringConfig.isPresent());
         MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
         assertNull("There was no config to implant, so nothing was implanted into existing config.", injectedBean);
     }

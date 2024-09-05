@@ -113,7 +113,7 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testModifyClinit_ExistingClinit_ModifiedClinit() {
+    public void testMaybeModifyClinit_ExistingClinit_ModifiedClinit() {
         // Arrange
         ClassFile testClass = new ClassFile(false, "TestClass", null);
         MethodInfo clinit = new MethodInfo(testClass.getConstPool(), MethodInfo.nameClinit, "()V");
@@ -130,9 +130,10 @@ public class ClassInjectorTests {
         }
 
         // Act
-        ClassInjector.modifyClinit(testClass, testImplant);
+        boolean didModifyClinit = ClassInjector.maybeModifyClinit(testClass, testImplant);
 
         // Assert
+        assertTrue("Did modify <clinit>", didModifyClinit);
         MethodInfo actual = testClass.getMethod(MethodInfo.nameClinit);
         assertNotNull("Class initializer method exists.", actual);
 
@@ -146,14 +147,15 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testModifyClinit_NoClinit_AddedClinit() {
+    public void testMaybeModifyClinit_NoClinit_AddedClinit() {
         // Arrange
         ClassFile testClass = new ClassFile(false, "TestClass", null);
 
         // Act
-        ClassInjector.modifyClinit(testClass, testImplant);
+        boolean didModifyClinit = ClassInjector.maybeModifyClinit(testClass, testImplant);
 
         // Assert
+        assertTrue("Did modify <clinit>", didModifyClinit);
         MethodInfo actual = testClass.getMethod(MethodInfo.nameClinit);
         assertNotNull("Class initializer method exists.", actual);
     }

@@ -5,11 +5,12 @@ public class Lib {
         System.out.println("This is an instance of the target library.");
     }
 
-//    private static void benign() {
-//    }
-//
-//    static {
-//        System.out.println("This is a static block in the target library.");
-//        benign();
-//    }
+    private static void something() {
+        System.out.println("This is a static method in the target library.");
+    }
+
+    static {
+        System.out.println("This is a static block in the target library.");
+        something();
+    }
 }

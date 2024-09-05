@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
 import java.util.zip.ZipException;
@@ -72,7 +73,12 @@ public class ClassInjector {
                  * Several classes are infected because it's difficult to know what specific class will be used
                  * by an app.
                  */
-                modifyClinit(currentlyProcessing, implantedClass);
+                try {
+                    modifyClinit(currentlyProcessing, implantedClass);
+                } catch (UnsupportedOperationException e) {
+                    log.warning(e.getMessage());
+                    continue;
+                }
                 entry.replaceContentWith(asByteArray(currentlyProcessing));
                 countClinitModified++;
                 log.fine("Modified class initializer for '" + entry.getName() + "'.");
@@ -123,6 +129,9 @@ public class ClassInjector {
         }
 
         MethodInfo currentClinit = targetClass.getMethod(MethodInfo.nameClinit);
+        if (currentClinit != null && containsInvokeOpcodes(currentClinit)) {
+            throw new UnsupportedOperationException("Non-trivial <clinit> in '" + targetClass.getName() + "'. Skipping infection of this class.");
+        }
         if (currentClinit == null) {
             // The target does not already have a class initializer (aka <clinit>) to merge implant code into.
             // This is fine, but to make things a bit more streamlined, create an empty one first.
@@ -143,6 +152,33 @@ public class ClassInjector {
         concatenatedCode.put(currentClinitCodeAttr.getCode());
         CodeAttribute newCodeAttribute = new CodeAttribute(targetClass.getConstPool(), currentClinitCodeAttr.getMaxStack(), currentClinitCodeAttr.getMaxLocals(), concatenatedCode.array(), currentClinitCodeAttr.getExceptionTable());
         currentClinit.setCodeAttribute(newCodeAttribute);
+    }
+
+    private static boolean containsInvokeOpcodes(MethodInfo clinit) {
+        Set<Integer> invokeOpcodes = Set.of(Opcode.INVOKESTATIC, Opcode.INVOKEVIRTUAL, Bytecode.INVOKEDYNAMIC, Bytecode.INVOKEINTERFACE, Bytecode.INVOKESPECIAL);
+
+        if (clinit.getCodeAttribute() == null) {
+            return false;
+        }
+
+        try {
+            CodeIterator iterator = clinit.getCodeAttribute().iterator();
+            iterator.begin();
+            while (iterator.hasNext()) {
+                int index = iterator.next();
+                if (index + 1 >= iterator.getCodeLength()) {
+                    break;
+                }
+                int opcode = (iterator.u16bitAt(index) & 0xFF00) >> 8;
+                if (invokeOpcodes.contains(opcode)) {
+                    return true;
+                }
+            }
+        } catch (BadBytecode e) {
+            throw new RuntimeException("Cannot make sense of <clinit> bytecode", e);
+        }
+
+        return false;
     }
 
     // TODO This code is getting gnarly. Consider just stripping away debug info (for the implant class).

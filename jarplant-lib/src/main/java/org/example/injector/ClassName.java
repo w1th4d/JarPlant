@@ -174,6 +174,36 @@ public class ClassName implements Comparable<ClassName>, Cloneable {
     }
 
     /**
+     * Use another package name.
+     * This instance will not be modified.
+     *
+     * @param newPackageName Other instance of ClassName to take the package name from
+     * @return A new instance with a changed package name
+     */
+    public ClassName renamePackage(ClassName newPackageName) {
+        try {
+            return ClassName.fromFullClassName(newPackageName.getPackageName() + "." + getClassName());
+        } catch (ClassNameException e) {
+            throw new RuntimeException("Internal error", e);
+        }
+    }
+
+    /**
+     * Use another class name.
+     * This instance will not be modified.
+     *
+     * @param newClassName Other instance of ClassName to take the class name from
+     * @return A new instance with a changed class name
+     */
+    public ClassName renameClassName(ClassName newClassName) {
+        try {
+            return ClassName.fromFullClassName(getPackageName() + "." + newClassName.getClassName());
+        } catch (ClassNameException e) {
+            throw new RuntimeException("Internal error", e);
+        }
+    }
+
+    /**
      * Get the full dot-notated class name, including the package name.
      *
      * @return Full class name, like "com.example.MyClass"

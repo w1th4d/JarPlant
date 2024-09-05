@@ -12,8 +12,7 @@ import java.util.jar.JarEntry;
 import java.util.logging.Logger;
 import java.util.zip.ZipException;
 
-import static org.example.injector.Helpers.asByteArray;
-import static org.example.injector.Helpers.jarLooksSigned;
+import static org.example.injector.Helpers.*;
 
 public class SpringInjector {
     private final static Logger log = Logger.getLogger("SpringInjector");
@@ -62,10 +61,9 @@ public class SpringInjector {
                  * component needs to be explicitly referenced as a @Bean in the config class.
                  */
                 ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
-                ClassName implantComponentName = ClassName.of(implantComponent);
-                String targetPackageName = currentlyProcessingName.getPackageName();
-                implantComponent.setName(targetPackageName + "." + implantComponentName.getClassName());
-                JarEntry newJarEntry = new JarEntry(implantComponentName.getSpringJarEntryPath());
+                ClassName renamedImplantComponentName = ClassName.of(implantComponent).renamePackage(currentlyProcessingName);
+                implantComponent.setName(renamedImplantComponentName.getFullClassName());
+                JarEntry newJarEntry = new JarEntry(renamedImplantComponentName.getSpringJarEntryPath());
                 try {
                     fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
                     countComponentsCreated++;

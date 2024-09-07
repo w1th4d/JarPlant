@@ -15,7 +15,7 @@ import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
-public class ClassInjector {
+public class ClassInjector implements Injector {
     private final static Logger log = Logger.getLogger("ClassInjector");
     final static String IMPLANT_CLASS_NAME = "Init";
     private final ImplantHandler implantHandler;
@@ -24,7 +24,7 @@ public class ClassInjector {
         this.implantHandler = implantHandler;
     }
 
-    public boolean infect(Path targetJarFilePath, Path outputJar) throws IOException {
+    public boolean inject(Path targetJarFilePath, Path outputJar) throws IOException {
         ClassFile implantedClass = null;
 
         if (jarLooksSigned(targetJarFilePath)) {

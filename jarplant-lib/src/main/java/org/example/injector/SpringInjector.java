@@ -14,7 +14,7 @@ import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
-public class SpringInjector {
+public class SpringInjector implements Injector {
     private final static Logger log = Logger.getLogger("SpringInjector");
     private final ImplantHandler implantComponentHandler;
     private final ImplantHandler implantSpringConfigHandler;
@@ -24,7 +24,7 @@ public class SpringInjector {
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
-    public boolean infect(Path targetJarFilePath, Path outputJar) throws IOException {
+    public boolean inject(Path targetJarFilePath, Path outputJar) throws IOException {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
 

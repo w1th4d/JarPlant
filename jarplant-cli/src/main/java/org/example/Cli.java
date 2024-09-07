@@ -243,7 +243,7 @@ public class Cli {
         }
 
         try {
-            boolean didInfect = injector.infect(targetPath, outputPath);
+            boolean didInfect = injector.inject(targetPath, outputPath);
 
             if (didInfect) {
                 if (outputPath.equals(targetPath)) {
@@ -306,7 +306,7 @@ public class Cli {
         log.config("Output JAR: " + outputPath);
 
         try {
-            boolean didInfect = injector.infect(targetPath, outputPath);
+            boolean didInfect = injector.inject(targetPath, outputPath);
             if (didInfect) {
                 if (outputPath.equals(targetPath)) {
                     log.info("Successfully spiked JAR '" + targetPath + "'.");

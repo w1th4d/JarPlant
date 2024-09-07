@@ -138,7 +138,7 @@ public class SpringInjectorTests {
     }
 
     @Test
-    public void testInject_SignedJar_Untouched() throws IOException {
+    public void testInject_SignedJar_Untouched() throws IOException, DuplicateEntryException {
         // Arrange
         // This is a rather fake way of simulating a signed JAR. Consider the real deal by Maven.
         String manifestAmendment = "\r\n"
@@ -286,7 +286,7 @@ public class SpringInjectorTests {
     }
 
     @Test
-    public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() throws Exception {
+    public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() {
         // Arrange
         ClassFile existingConfigClass = createSpringConfWithBean("com.example.target.ExistingConfiguration", "ExistingBean");
         ClassFile injectConfigClass = createSpringConfWithBean("com.example.implant.ImplantConfiguration", "ImplantBean");
@@ -307,7 +307,7 @@ public class SpringInjectorTests {
     }
 
     @Test
-    public void testAddBeanToSpringConfig_ExistingConfigWithoutBeans_AddedBean() throws ClassNotFoundException {
+    public void testAddBeanToSpringConfig_ExistingConfigWithoutBeans_AddedBean() {
         // Arrange
         ClassFile existingConfigClass = new ClassFile(false, "com.example.ExistingConfiguration", null);    // <---
         ClassFile injectConfigClass = createSpringConfWithBean("com.example.implant.ImplantConfiguration", "ImplantBean");
@@ -331,7 +331,7 @@ public class SpringInjectorTests {
     }
 
     @Test
-    public void testAddBeanToSpringConfig_ImplantConfigWithoutBeans_Untouched() throws ClassNotFoundException {
+    public void testAddBeanToSpringConfig_ImplantConfigWithoutBeans_Untouched() {
         // Arrange
         ClassFile existingConfigClass = createSpringConfWithBean("com.example.target.ExistingConfiguration", "ExistingBean");
         ClassFile injectConfigClass = new ClassFile(false, "com.example.implants.EmptyConfiguration", null);    // <---

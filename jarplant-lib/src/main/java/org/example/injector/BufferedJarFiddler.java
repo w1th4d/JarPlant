@@ -13,7 +13,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
-import java.util.zip.ZipException;
 
 /**
  * Utility for modifying contents of a JAR file.
@@ -113,11 +112,11 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
      *
      * @param newEntry Entry to add
      * @param contents Entry file content
-     * @throws ZipException If the entry name already exist
+     * @throws DuplicateEntryException If the entry name already exist
      */
-    public void addNewEntry(JarEntry newEntry, byte[] contents) throws ZipException {
+    public void addNewEntry(JarEntry newEntry, byte[] contents) throws DuplicateEntryException {
         if (cachedEntryNames.contains(newEntry.getName())) {
-            throw new ZipException("Entry " + newEntry.getName() + " already exist.");
+            throw new DuplicateEntryException(newEntry.getName());
         }
 
         entries.add(new BufferedJarEntry(newEntry, contents));

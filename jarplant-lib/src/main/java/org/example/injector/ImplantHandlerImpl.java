@@ -40,7 +40,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
     }
 
     // Finds the class file using some weird Java quirks
-    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException, ImplantException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself
@@ -52,12 +52,27 @@ public class ImplantHandlerImpl implements ImplantHandler {
     }
 
     // This method may be used when extracting the implant from another place than self
-    public static ImplantHandler findAndCreateFor(Path path, ClassName className) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Path path, ClassName className) throws ClassNotFoundException, IOException, ImplantException {
+        ImplantHandler ret;
         if (Files.isDirectory(path)) {
-            return findAndReadFromDirectory(path, className);
+            ret = findAndReadFromDirectory(path, className);
         } else {
-            return findAndReadFromJar(path, className);
+            ret = findAndReadFromJar(path, className);
         }
+
+        ClassFile sample = ret.loadFreshRawSpecimen();
+        MethodInfo init = sample.getMethod("init");
+        if (init == null) {
+            throw new ImplantException("Implant class does not have an init() method");
+        }
+        if (!AccessFlag.isPublic(init.getAccessFlags())) {
+            throw new ImplantException("init() method is not public");
+        }
+        if ((init.getAccessFlags() & AccessFlag.STATIC) == 0) {
+            throw new ImplantException("init() method is not static");
+        }
+
+        return ret;
     }
 
     private static ImplantHandler findAndReadFromDirectory(Path directory, ClassName implantClassName) throws ClassNotFoundException, IOException {

@@ -1,6 +1,7 @@
 package org.example.injector;
 
 import javassist.bytecode.ClassFile;
+import org.example.TestClass;
 import org.example.TestHelpers;
 import org.example.TestImplantRunner;
 import org.example.implants.DummyTestClassImplant;
@@ -60,7 +61,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testFindAndCreateFor_Class_Success() throws IOException, ClassNotFoundException {
+    public void testFindAndCreateFor_Class_Success() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         Class<?> clazz = DummyTestClassImplant.class;
 
@@ -75,7 +76,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testFindAndCreateFor_ClassNameAndPath_Success() throws IOException, ClassNotFoundException {
+    public void testFindAndCreateFor_ClassNameAndPath_Success() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         ClassName className = ClassName.of(DummyTestClassImplant.class);
         Path classPath = findTestEnvironmentDir(this.getClass());
@@ -91,7 +92,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testFindAndCreateFor_JarFile_Success() throws IOException, ClassNotFoundException {
+    public void testFindAndCreateFor_JarFile_Success() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         Path baseDir = findTestEnvironmentDir(this.getClass());
         Path relativePath = Path.of("org/example/implants/DummyTestClassImplant.class");
@@ -101,8 +102,25 @@ public class ImplantHandlerTests {
         ImplantHandlerImpl.findAndCreateFor(tempFile, ClassName.of(DummyTestClassImplant.class));
     }
 
+    @Test(expected = ClassNotFoundException.class)
+    public void testFindAndCreateFor_StdlibClass_NotFound() throws ImplantException, IOException, ClassNotFoundException {
+        ImplantHandlerImpl.findAndCreateFor(String.class);
+    }
+
+    @Test(expected = IOException.class)
+    public void testFindAndCreateFor_NotAClassFile_IOException() throws ImplantException, IOException, ClassNotFoundException {
+        Path baseDir = findTestEnvironmentDir(this.getClass());
+        Path notAClassFile = baseDir.resolve("../maven-archiver/pom.properties");
+        ImplantHandlerImpl.findAndCreateFor(notAClassFile, ClassName.of(Object.class));
+    }
+
+    @Test(expected = ImplantException.class)
+    public void testFindAndCreateFor_InvalidImplant_ImplantException() throws ImplantException, IOException, ClassNotFoundException {
+        ImplantHandlerImpl.findAndCreateFor(TestClass.class);
+    }
+
     @Test
-    public void testFindAndCreateFor_WithDependencies_ContainsDependencyClasses() throws IOException, ClassNotFoundException, ClassNameException {
+    public void testFindAndCreateFor_WithDependencies_ContainsDependencyClasses() throws IOException, ClassNotFoundException, ClassNameException, ImplantException {
         // Arrange
         Path baseDir = findTestEnvironmentDir(this.getClass());
 
@@ -117,7 +135,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testGetImplantClassName_Valid_FullClassName() throws IOException, ClassNotFoundException {
+    public void testGetImplantClassName_Valid_FullClassName() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(DummyTestClassImplant.class);
 
@@ -129,7 +147,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testGetAvailableConfig_AfterLoaded_CorrectType() throws IOException, ClassNotFoundException {
+    public void testGetAvailableConfig_AfterLoaded_CorrectType() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
@@ -149,7 +167,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testSetConfig_CorrectProp_Success() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_CorrectProp_Success() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
@@ -167,7 +185,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testSetConfig_PartialOverride_OnlyChangeAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_PartialOverride_OnlyChangeAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
@@ -183,7 +201,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testSetConfig_BulkConfigOverride_AddAllOverrides() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_BulkConfigOverride_AddAllOverrides() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Map<String, Object> bulk = new HashMap<>();
@@ -203,7 +221,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testSetConfig_PartialBulkConfOverride_AddOnlyAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_PartialBulkConfOverride_AddOnlyAffectedField() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Map<String, Object> bulk = new HashMap<>();
@@ -221,7 +239,7 @@ public class ImplantHandlerTests {
     }
 
     @Test(expected = ImplantConfigException.class)
-    public void testSetConfig_InvalidDataType_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_InvalidDataType_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
@@ -231,7 +249,7 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testSetConfig_StringValues_ConvertFromString() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_StringValues_ConvertFromString() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
@@ -248,7 +266,7 @@ public class ImplantHandlerTests {
     }
 
     @Test(expected = ImplantConfigException.class)
-    public void testSetConfig_InvalidBooleanString_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_InvalidBooleanString_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // Arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 
@@ -258,7 +276,7 @@ public class ImplantHandlerTests {
     }
 
     @Test(expected = ImplantConfigException.class)
-    public void testSetConfig_InvalidIntString_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testSetConfig_InvalidIntString_ThrowException() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         // arrange
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
 

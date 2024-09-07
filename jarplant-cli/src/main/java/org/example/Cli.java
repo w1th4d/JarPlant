@@ -200,13 +200,13 @@ public class Cli {
         if (implantClassName.equals("ClassImplant")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else if (implantClassName.equals("DnsBeaconImplant")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(DnsBeaconImplant.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else {
@@ -275,7 +275,7 @@ public class Cli {
             try {
                 componentHandler = ImplantHandlerImpl.findAndCreateFor(SpringImplantController.class);
                 springConfigHandler = ImplantHandlerImpl.findAndCreateFor(SpringImplantConfiguration.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
 
@@ -370,7 +370,7 @@ public class Cli {
                 ImplantInfo bundled = ImplantInfo.valueOf(implant);
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(bundled.clazz);
                 System.out.println("Bundled implant '" + implant + "':");
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Failed to read bundled implant: " + e.getMessage());
             } catch (IllegalArgumentException e) {
                 // This is Javas way of saying that no enum value was found

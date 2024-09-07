@@ -167,7 +167,7 @@ public class ClassInjectorTests {
      */
     @Test
     @Ignore // TODO Fix the failing test
-    public void testConfigOverride_DifferentTimeOfRead_SameValues() throws IOException, ClassNotFoundException, ImplantConfigException {
+    public void testConfigOverride_DifferentTimeOfRead_SameValues() throws IOException, ClassNotFoundException, ImplantConfigException, ImplantException {
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         implant.setConfig("CONF_STRING", "Modified");
         implant.setConfig("CONF_BOOLEAN", true);
@@ -275,7 +275,7 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInject_NormalJar_SomeClassModified() throws IOException, ClassNotFoundException {
+    public void testInject_NormalJar_SomeClassModified() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         ImplantHandler handler = ImplantHandlerImpl.findAndCreateFor(TestClassImplant.class);
         Map<String, String> hashesBeforeInfect = hashAllJarContents(targetAppJarWithDebuggingInfo);

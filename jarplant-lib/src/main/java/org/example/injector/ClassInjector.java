@@ -142,7 +142,7 @@ public class ClassInjector implements Injector {
 
         MethodInfo implantInitMethod = implantClass.getMethod("init");
         if (implantInitMethod == null) {
-            throw new UnsupportedOperationException("Implant class does not have a 'public static void init()' function.");
+            throw new RuntimeException("Implant class does not have a 'public static void init()' function.");
         }
 
         MethodInfo currentClinit = clone.getMethod(MethodInfo.nameClinit);

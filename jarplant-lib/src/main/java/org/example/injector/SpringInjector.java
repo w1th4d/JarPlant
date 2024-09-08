@@ -36,7 +36,8 @@ public class SpringInjector implements Injector {
         return new SpringInjector(componentImplant, springConfigImplant);
     }
 
-    public boolean inject(JarFiddler jar) {
+    @Override
+    public boolean injectInto(JarFiddler jar) {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
 

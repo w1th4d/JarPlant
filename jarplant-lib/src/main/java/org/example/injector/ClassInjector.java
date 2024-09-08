@@ -37,7 +37,8 @@ public class ClassInjector implements Injector {
         return new ClassInjector(implant);
     }
 
-    public boolean inject(JarFiddler jar) {
+    @Override
+    public boolean injectInto(JarFiddler jar) {
         ClassFile implantedClass = null;
 
         if (jarLooksSigned(jar)) {

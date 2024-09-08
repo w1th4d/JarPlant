@@ -258,7 +258,7 @@ public class Cli {
             return;
         }
 
-        boolean didInfect = injector.inject(jar);
+        boolean didInfect = injector.injectInto(jar);
         if (didInfect) {
             try {
                 jar.write(outputPath);
@@ -332,7 +332,7 @@ public class Cli {
             return;
         }
 
-        boolean didInfect = injector.inject(jar);
+        boolean didInfect = injector.injectInto(jar);
         if (didInfect) {
             try {
                 jar.write(outputPath);

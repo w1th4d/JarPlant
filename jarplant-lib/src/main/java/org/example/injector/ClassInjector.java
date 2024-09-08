@@ -17,8 +17,24 @@ public class ClassInjector implements Injector {
     final static String IMPLANT_CLASS_NAME = "Init";
     private final ImplantHandler implantHandler;
 
-    public ClassInjector(ImplantHandler implantHandler) {
+    ClassInjector(ImplantHandler implantHandler) {
         this.implantHandler = implantHandler;
+    }
+
+    public static ClassInjector createLoadedWith(ImplantHandler implant) throws ImplantException {
+        ClassFile sample = implant.loadFreshRawSpecimen();
+        MethodInfo init = sample.getMethod("init");
+        if (init == null) {
+            throw new ImplantException("Implant class does not have an init() method");
+        }
+        if (!AccessFlag.isPublic(init.getAccessFlags())) {
+            throw new ImplantException("init() method is not public");
+        }
+        if ((init.getAccessFlags() & AccessFlag.STATIC) == 0) {
+            throw new ImplantException("init() method is not static");
+        }
+
+        return new ClassInjector(implant);
     }
 
     public boolean inject(JarFiddler jar) {

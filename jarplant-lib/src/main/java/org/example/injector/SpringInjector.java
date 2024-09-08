@@ -15,9 +15,25 @@ public class SpringInjector implements Injector {
     private final ImplantHandler implantComponentHandler;
     private final ImplantHandler implantSpringConfigHandler;
 
-    public SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
+    SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
         this.implantComponentHandler = implantComponentHandler;
         this.implantSpringConfigHandler = implantSpringConfigHandler;
+    }
+
+    public static SpringInjector createLoadedWith(ImplantHandler componentImplant, ImplantHandler springConfigImplant) throws ImplantException {
+        // Validate Spring component implant
+        ClassFile componentSpecimen = componentImplant.loadFreshRawSpecimen();
+        if (findAllSpringAnnotatedMethods(componentSpecimen).isEmpty()) {
+            throw new ImplantException("No Spring things in component implant.");
+        }
+
+        // Validate Spring config implant
+        ClassFile springConfigSpecimen = springConfigImplant.loadFreshRawSpecimen();
+        if (findAllSpringBeanMethods(springConfigSpecimen).isEmpty()) {
+            throw new ImplantException("No @Bean method(s) in Spring config implant.");
+        }
+
+        return new SpringInjector(componentImplant, springConfigImplant);
     }
 
     public boolean inject(JarFiddler jar) {
@@ -208,6 +224,29 @@ public class SpringInjector implements Injector {
         }
 
         target.addAttribute(targetAnnotationsAttr);
+    }
+
+    private static List<MethodInfo> findAllSpringAnnotatedMethods(ClassFile springComponent) {
+        List<MethodInfo> results = new ArrayList<>(1);
+
+        for (MethodInfo method : springComponent.getMethods()) {
+            AttributeInfo attr = method.getAttribute("RuntimeVisibleAnnotations");
+            if (attr == null) {
+                continue;
+            }
+            if (!(attr instanceof AnnotationsAttribute annotationAttr)) {
+                throw new RuntimeException("Failed to make sense of RuntimeVisibleAnnotations.");
+            }
+
+            for (Annotation annotation : annotationAttr.getAnnotations()) {
+                String annotationType = annotation.getTypeName();
+                if (annotationType.startsWith("org.springframework.")) {
+                    results.add(method);
+                }
+            }
+        }
+
+        return results;
     }
 
     private static List<MethodInfo> findAllSpringBeanMethods(ClassFile springController) {

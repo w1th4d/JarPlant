@@ -63,8 +63,8 @@ public class SpringInjectorTests {
     }
 
     @Before
-    public void setupSpringInjector() {
-        this.injector = new SpringInjector(testBeanImplantHandler, testConfigImplantHandler);
+    public void setupSpringInjector() throws ImplantException {
+        this.injector = SpringInjector.createLoadedWith(testBeanImplantHandler, testConfigImplantHandler);
     }
 
     @Before
@@ -75,14 +75,25 @@ public class SpringInjectorTests {
 
     @After
     public void removeTempInputFile() throws IOException {
-        Files.delete(tempInputFile);
+        if (tempInputFile != null && Files.exists(tempInputFile)) {
+            Files.delete(tempInputFile);
+        }
     }
 
     @After
     public void removeTempOutputFile() throws IOException {
-        if (Files.exists(tempOutputFile)) {
+        if (tempOutputFile != null && Files.exists(tempOutputFile)) {
             Files.delete(tempOutputFile);
         }
+    }
+
+    @Test(expected = ImplantException.class)
+    public void testCreate_InvalidImplant_ImplantException() throws ImplantException {
+        // Arrange
+        ImplantHandler invalidImplant = new ImplantHandlerMock(generateDummyClassFile("org.example.InvalidImplant"));
+
+        // Act
+        SpringInjector.createLoadedWith(invalidImplant, invalidImplant);    // Should throw up
     }
 
     @Test

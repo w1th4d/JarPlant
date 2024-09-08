@@ -1,7 +1,6 @@
 package org.example.injector;
 
 import javassist.bytecode.ClassFile;
-import org.example.TestClass;
 import org.example.TestHelpers;
 import org.example.TestImplantRunner;
 import org.example.implants.DummyTestClassImplant;
@@ -112,11 +111,6 @@ public class ImplantHandlerTests {
         Path baseDir = findTestEnvironmentDir(this.getClass());
         Path notAClassFile = baseDir.resolve("../maven-archiver/pom.properties");
         ImplantHandlerImpl.findAndCreateFor(notAClassFile, ClassName.of(Object.class));
-    }
-
-    @Test(expected = ImplantException.class)
-    public void testFindAndCreateFor_InvalidImplant_ImplantException() throws ImplantException, IOException, ClassNotFoundException {
-        ImplantHandlerImpl.findAndCreateFor(TestClass.class);
     }
 
     @Test

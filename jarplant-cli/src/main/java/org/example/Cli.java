@@ -227,14 +227,21 @@ public class Cli {
     }
 
     public static void runClassInjector(Path targetPath, Path outputPath, ImplantHandler implantHandler) {
-        ClassInjector injector = new ClassInjector(implantHandler);
-
         System.out.println(banner);
         System.out.println();
 
         log.config("Implant class: " + implantHandler.getImplantClassName());
         log.config("Target JAR: " + targetPath);
         log.config("Output JAR: " + outputPath);
+
+        ClassInjector injector;
+        try {
+            injector = ClassInjector.createLoadedWith(implantHandler);
+        } catch (ImplantException e) {
+            log.severe(e.getMessage());
+            System.exit(1);
+            return;
+        }
 
         log.fine("Reading available implant config properties...");
         Map<String, ImplantHandlerImpl.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
@@ -300,8 +307,6 @@ public class Cli {
     }
 
     public static void runSpringInjector(Path targetPath, Path outputPath, ImplantHandler componentHandler, ImplantHandler springConfigHandler) {
-        SpringInjector injector = new SpringInjector(componentHandler, springConfigHandler);
-
         System.out.println(banner);
         System.out.println();
 
@@ -309,6 +314,15 @@ public class Cli {
         log.config("Implant Spring config class: " + componentHandler.getImplantClassName());
         log.config("Target JAR: " + targetPath);
         log.config("Output JAR: " + outputPath);
+
+        SpringInjector injector;
+        try {
+            injector = SpringInjector.createLoadedWith(componentHandler, springConfigHandler);
+        } catch (ImplantException e) {
+            log.severe(e.getMessage());
+            System.exit(1);
+            return;
+        }
 
         JarFiddler jar;
         try {

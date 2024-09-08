@@ -60,18 +60,6 @@ public class ImplantHandlerImpl implements ImplantHandler {
             ret = findAndReadFromJar(path, className);
         }
 
-        ClassFile sample = ret.loadFreshRawSpecimen();
-        MethodInfo init = sample.getMethod("init");
-        if (init == null) {
-            throw new ImplantException("Implant class does not have an init() method");
-        }
-        if (!AccessFlag.isPublic(init.getAccessFlags())) {
-            throw new ImplantException("init() method is not public");
-        }
-        if ((init.getAccessFlags() & AccessFlag.STATIC) == 0) {
-            throw new ImplantException("init() method is not static");
-        }
-
         return ret;
     }
 

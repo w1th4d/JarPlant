@@ -112,6 +112,15 @@ public class ClassInjectorTests {
         }
     }
 
+    @Test(expected = ImplantException.class)
+    public void testCreate_InvalidImplant_ImplantException() throws ImplantException {
+        // Arrange
+        ImplantHandler invalidImplant = new ImplantHandlerMock(generateDummyClassFile("org.example.InvalidImplant"));
+
+        // Act
+        ClassInjector.createLoadedWith(invalidImplant); // Should throw up
+    }
+
     @Test
     public void testModifyClinit_ExistingClinit_ModifiedClinit() {
         // Arrange
@@ -172,7 +181,7 @@ public class ClassInjectorTests {
         implant.setConfig("CONF_STRING", "Modified");
         implant.setConfig("CONF_BOOLEAN", true);
         implant.setConfig("CONF_INT", 2);
-        ClassInjector injector = new ClassInjector(implant);
+        ClassInjector injector = ClassInjector.createLoadedWith(implant);
         populateJarEntriesIntoEmptyFile(
                 tempInputFile,
                 findTestEnvironmentDir(ClassInjectorTests.class),
@@ -284,7 +293,7 @@ public class ClassInjectorTests {
         Map<String, String> hashesBeforeInfect = hashAllJarContents(jar);
 
         // Act
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -294,7 +303,7 @@ public class ClassInjectorTests {
     }
 
     @Test(expected = Exception.class)
-    public void testInject_NotAJar_Exception() throws IOException {
+    public void testInject_NotAJar_Exception() throws IOException, ImplantException {
         // Arrange
         Random rng = new Random(1);
         byte[] someRandomData = new byte[10];
@@ -303,12 +312,12 @@ public class ClassInjectorTests {
 
         // Act + Assert
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         injector.inject(JarFiddler.buffer(tempInputFile)); // Should fail
     }
 
     @Test
-    public void testInject_EmptyJar_Untouched() throws IOException {
+    public void testInject_EmptyJar_Untouched() throws IOException, ImplantException {
         // Arrange
         JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         createJar.close();  // The point is to just leave the JAR empty
@@ -316,7 +325,7 @@ public class ClassInjectorTests {
 
         // Act
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -324,14 +333,14 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInject_EmptyJarWithManifest_Untouched() throws IOException {
+    public void testInject_EmptyJarWithManifest_Untouched() throws IOException, ImplantException {
         // Arrange
         populateJarEntriesIntoEmptyFile(tempInputFile, null);
         JarFiddler jar = JarFiddler.buffer(tempInputFile);
 
         // Act
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -346,7 +355,7 @@ public class ClassInjectorTests {
      * Future versions may do more stringent validations of the target JAR before infection.
      */
     @Test
-    public void testInject_JarWithoutManifest_Success() throws IOException {
+    public void testInject_JarWithoutManifest_Success() throws IOException, ImplantException {
         // Arrange
         JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         jarWriter.putNextEntry(new JarEntry("org/example/Something.class"));
@@ -358,7 +367,7 @@ public class ClassInjectorTests {
 
         // Act
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -366,14 +375,14 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInject_SpringJar_ClassesModifiedAsUsual() throws IOException {
+    public void testInject_SpringJar_ClassesModifiedAsUsual() throws IOException, ImplantException {
         // Arrange
         JarFiddler jar = JarFiddler.buffer(targetSpringBootApp);
         Map<String, String> hashesBeforeInfect = hashAllJarContents(jar);
 
         // Act
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -387,7 +396,7 @@ public class ClassInjectorTests {
      * Consider re-writing this test to use an actual multi-release JAR from Maven.
      */
     @Test
-    public void testInject_VersionedJar_AllVersionsModified() throws IOException {
+    public void testInject_VersionedJar_AllVersionsModified() throws IOException, ImplantException {
         // Arrange
         JarOutputStream jarWriter = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         Manifest manifest = new Manifest();
@@ -411,7 +420,7 @@ public class ClassInjectorTests {
 
         // Act
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         injector.inject(jar);
         jar.write(tempOutputFile);
 
@@ -433,7 +442,7 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInject_SignedJar_Untouched() throws IOException {
+    public void testInject_SignedJar_Untouched() throws IOException, ImplantException {
         // Arrange
         // This is a very rudimentary representation of a signed JAR. Consider generating a legit one somehow. Maven?
         String manifest = "Manifest-Version: 1.0\r\n\r\nName: org/example/Main.class\r\nSHA-256-Digest: "
@@ -453,7 +462,7 @@ public class ClassInjectorTests {
 
         // Act
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -462,13 +471,13 @@ public class ClassInjectorTests {
 
     // Corresponds to the standard debugging info produce by javac (lines + source)
     @Test
-    public void testInject_TargetHasStandardDebuggingInfo_Success() throws IOException {
+    public void testInject_TargetHasStandardDebuggingInfo_Success() throws IOException, ImplantException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
         JarFiddler jar = JarFiddler.buffer(targetAppJarWithDebuggingInfo);
 
         // Act
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -484,13 +493,13 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInject_ImplantStandardDebuggingInfo_ObscuredImplantName() throws IOException {
+    public void testInject_ImplantStandardDebuggingInfo_ObscuredImplantName() throws IOException, ImplantException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplantWithDebug);
         JarFiddler jar = JarFiddler.buffer(targetAppJarWithoutDebuggingInfo);
 
         // Act
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -516,13 +525,13 @@ public class ClassInjectorTests {
 
     // Corresponds to javac -g:none
     @Test
-    public void testInject_TargetHasNoDebuggingInfo_Success() throws IOException {
+    public void testInject_TargetHasNoDebuggingInfo_Success() throws IOException, ImplantException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
         JarFiddler jar = JarFiddler.buffer(targetAppJarWithoutDebuggingInfo);
 
         // Act
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
 
         // Assert
@@ -537,13 +546,13 @@ public class ClassInjectorTests {
     }
 
     @Test
-    public void testInject_AlreadyInfectedJar_Untouched() throws IOException {
+    public void testInject_AlreadyInfectedJar_Untouched() throws IOException, ImplantException {
         // Arrange
         ImplantHandler handler = new ImplantHandlerMock(testImplant);
         JarFiddler jar = JarFiddler.buffer(targetAppJarWithoutDebuggingInfo);
 
         // Act
-        ClassInjector injector = new ClassInjector(handler);
+        ClassInjector injector = ClassInjector.createLoadedWith(handler);
         boolean didInfect = injector.inject(jar);
         boolean didInfectASecondTime = injector.inject(jar);
 

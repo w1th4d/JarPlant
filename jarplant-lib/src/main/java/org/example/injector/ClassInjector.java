@@ -2,7 +2,6 @@ package org.example.injector;
 
 import javassist.bytecode.*;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
@@ -22,7 +21,7 @@ public class ClassInjector implements Injector {
         this.implantHandler = implantHandler;
     }
 
-    public boolean inject(JarFiddler jar) throws IOException {
+    public boolean inject(JarFiddler jar) {
         ClassFile implantedClass = null;
 
         if (jarLooksSigned(jar)) {

@@ -192,21 +192,23 @@ public class ImplantHandlerImpl implements ImplantHandler {
 
     // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
     @Override
-    public ClassFile loadFreshConfiguredSpecimen() throws IOException {
+    public ClassFile loadFreshConfiguredSpecimen() {
         ClassFile instance = readClassFile(classData);
         overrideImplantConfig(instance, configModifications);
         return instance;
     }
 
     @Override
-    public ClassFile loadFreshRawSpecimen() throws IOException {
+    public ClassFile loadFreshRawSpecimen() {
         return readClassFile(classData);
     }
 
-    private static ClassFile readClassFile(byte[] classData) throws IOException {
+    private static ClassFile readClassFile(byte[] classData) {
         ClassFile instance;
         try (DataInputStream classDataInput = new DataInputStream(new ByteArrayInputStream(classData))) {
             instance = new ClassFile(classDataInput);
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot interpret class.", e);
         }
         return instance;
     }
@@ -233,7 +235,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
         return configFields;
     }
 
-    private static void overrideImplantConfig(ClassFile instance, Map<String, Object> newConfig) throws IOException {
+    private static void overrideImplantConfig(ClassFile instance, Map<String, Object> newConfig) {
         if (newConfig.isEmpty()) {
             return;
         }

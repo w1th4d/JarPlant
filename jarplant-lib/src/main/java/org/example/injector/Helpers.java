@@ -21,10 +21,12 @@ public class Helpers {
         return cf;
     }
 
-    public static ClassFile readClassFile(byte[] rawClassData) throws IOException {
+    public static ClassFile readClassFile(byte[] rawClassData) {
         ClassFile cf;
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(rawClassData))) {
             cf = new ClassFile(in);
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot read ClassFile", e);
         }
         return cf;
     }
@@ -43,10 +45,14 @@ public class Helpers {
         return clone;
     }
 
-    public static byte[] asByteArray(ClassFile classFile) throws IOException {
+    public static byte[] asByteArray(ClassFile classFile) {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        classFile.write(new DataOutputStream(buffer));
-        buffer.close();
+        try {
+            classFile.write(new DataOutputStream(buffer));
+            buffer.close();
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot serialize ClassFile", e);
+        }
         return buffer.toByteArray();
     }
 
@@ -77,7 +83,7 @@ public class Helpers {
         return clinit;
     }
 
-    public static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) throws IOException {
+    public static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) {
         int index = 0;
         while (codeIterator.hasNext()) {
             try {
@@ -87,11 +93,15 @@ public class Helpers {
             }
         }
 
-        DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
-        converter.skipBytes(index);
-        int opcode = converter.readUnsignedByte();
-        if (!returnOpcodes.contains(opcode)) {
-            return Optional.empty();
+        try {
+            DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
+            converter.skipBytes(index);
+            int opcode = converter.readUnsignedByte();
+            if (!returnOpcodes.contains(opcode)) {
+                return Optional.empty();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot interpret code attribute", e);
         }
 
         return Optional.of(index);
@@ -108,7 +118,7 @@ public class Helpers {
         return allocator.toByteArray();
     }
 
-    public static boolean jarLooksSigned(JarFiddler jar) throws IOException {
+    public static boolean jarLooksSigned(JarFiddler jar) {
         Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
 
         for (JarFiddler.Entry entry : jar) {

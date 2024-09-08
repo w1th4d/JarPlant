@@ -159,7 +159,7 @@ public class Cli {
         } catch (ArgumentParserException e) {
             parser.handleError(e);
             System.exit(1);
-            throw new RuntimeException("Unreachable");
+            return;
         }
 
         // Set log level based on verbosity flags
@@ -242,17 +242,25 @@ public class Cli {
             log.fine(entry.getKey() + " (" + entry.getValue() + ")");
         }
 
+        JarFiddler jar;
         try {
-            JarFiddler jar = JarFiddler.buffer(targetPath);
-            boolean didInfect = injector.inject(jar);
-            if (didInfect) {
+            jar = JarFiddler.buffer(targetPath);
+        } catch (IOException e) {
+            log.severe("Cannot read JAR '" + targetPath + "'.");
+            System.exit(1);
+            return;
+        }
+
+        boolean didInfect = injector.inject(jar);
+        if (didInfect) {
+            try {
                 jar.write(outputPath);
                 log.info("Successfully spiked JAR '" + targetPath + "'.");
-            } else {
-                log.warning("Failed to spike JAR '" + targetPath + "'.");
+            } catch (IOException e) {
+                log.severe("Cannot write output JAR '" + outputPath + "'.");
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        } else {
+            log.warning("Failed to spike JAR '" + targetPath + "'.");
         }
     }
 
@@ -302,21 +310,29 @@ public class Cli {
         log.config("Target JAR: " + targetPath);
         log.config("Output JAR: " + outputPath);
 
+        JarFiddler jar;
         try {
-            JarFiddler jar = JarFiddler.buffer(targetPath);
-            boolean didInfect = injector.inject(jar);
-            if (didInfect) {
-                jar.write(outputPath);
-                if (outputPath.equals(targetPath)) {
-                    log.info("Successfully spiked JAR '" + targetPath + "'.");
-                } else {
-                    log.info("Successfully spiked JAR '" + targetPath + "'-> '" + outputPath + "'.");
-                }
-            } else {
-                log.warning("Failed to spike JAR '" + targetPath + "'.");
-            }
+            jar = JarFiddler.buffer(targetPath);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.severe("Cannot read JAR '" + targetPath + "'.");
+            return;
+        }
+
+        boolean didInfect = injector.inject(jar);
+        if (didInfect) {
+            try {
+                jar.write(outputPath);
+            } catch (IOException e) {
+                log.severe("Cannot write output JAR '" + outputPath + "'.");
+                return;
+            }
+            if (outputPath.equals(targetPath)) {
+                log.info("Successfully spiked JAR '" + targetPath + "'.");
+            } else {
+                log.info("Successfully spiked JAR '" + targetPath + "'-> '" + outputPath + "'.");
+            }
+        } else {
+            log.warning("Failed to spike JAR '" + targetPath + "'.");
         }
     }
 

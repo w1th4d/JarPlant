@@ -33,7 +33,7 @@ public class SpringInjector implements Injector {
 
         int countConfigModifications = 0;
         int countComponentsCreated = 0;
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             if (!entry.getName().endsWith(".class")) {
                 continue;
             }

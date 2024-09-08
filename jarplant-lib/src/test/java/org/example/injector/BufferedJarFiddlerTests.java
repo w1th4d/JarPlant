@@ -81,7 +81,7 @@ public class BufferedJarFiddlerTests {
 
         // Act
         BufferedJarFiddler subject = JarFiddler.buffer(testJar);
-        for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
+        for (JarFiddler.Entry entry : subject) {
             entriesFoundInJar.add(entry.getName());
         }
 
@@ -96,7 +96,7 @@ public class BufferedJarFiddlerTests {
 
         // Act
         BufferedJarFiddler subject = JarFiddler.buffer(testJar);
-        for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
+        for (JarFiddler.Entry entry : subject) {
             entriesFoundInJar.add(entry.getName());
         }
         subject.write(outputJar);
@@ -115,7 +115,7 @@ public class BufferedJarFiddlerTests {
 
         // Act
         BufferedJarFiddler subject = JarFiddler.buffer(testJar);
-        for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
+        for (JarFiddler.Entry entry : subject) {
             entriesFoundInJar.add(entry.toJarEntry());
         }
         subject.write(outputJar);
@@ -137,7 +137,7 @@ public class BufferedJarFiddlerTests {
 
         // Act: Go through the entire JAR and modify Main.class
         BufferedJarFiddler subject = JarFiddler.buffer(testJar);
-        for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
+        for (JarFiddler.Entry entry : subject) {
             originalFileHashes.put(entry.getName(), entry.toJarEntry().getCrc());
 
             if (entry.getName().equals(nameOfMain)) {

@@ -111,7 +111,7 @@ public class Helpers {
     public static boolean jarLooksSigned(JarFiddler jar) throws IOException {
         Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
 
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             Matcher matcher = regex.matcher(entry.getName());
             if (matcher.matches()) {
                 return true;

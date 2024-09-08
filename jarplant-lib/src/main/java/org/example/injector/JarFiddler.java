@@ -1,13 +1,15 @@
 package org.example.injector;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public interface JarFiddler extends Iterable<BufferedJarFiddler.BufferedJarEntry> {
+public interface JarFiddler extends Iterable<JarFiddler.Entry> {
     /**
      * Read the entire content of a JAR file into memory.
      *
@@ -16,7 +18,7 @@ public interface JarFiddler extends Iterable<BufferedJarFiddler.BufferedJarEntry
      * @throws IOException If unable to read file
      */
     static BufferedJarFiddler buffer(Path jarFilePath) throws IOException {
-        List<BufferedJarFiddler.BufferedJarEntry> readEntries = new ArrayList<>();
+        List<Entry> readEntries = new ArrayList<>();
         try (JarFile jar = new JarFile(jarFilePath.toFile())) {
             Enumeration<JarEntry> entries = jar.entries();
             while (entries.hasMoreElements()) {
@@ -70,7 +72,7 @@ public interface JarFiddler extends Iterable<BufferedJarFiddler.BufferedJarEntry
      * @param path Full internal path in the JAR. Ex: /META-INF/MANIFEST.MF
      * @return Entry, if it was found
      */
-    Optional<BufferedJarFiddler.BufferedJarEntry> getEntry(String path);
+    Optional<Entry> getEntry(String path);
 
     /**
      * Get all entries found in the JAR.
@@ -78,10 +80,59 @@ public interface JarFiddler extends Iterable<BufferedJarFiddler.BufferedJarEntry
      *
      * @return Entries
      */
-    List<BufferedJarFiddler.BufferedJarEntry> getEntries();
+    List<Entry> getEntries();
 
     @Override
-    ListIterator<BufferedJarFiddler.BufferedJarEntry> iterator();
+    ListIterator<Entry> iterator();
 
+    interface Entry {
+        /**
+         * Get the full file name of this entry.
+         */
+        String getName();
 
+        /**
+         * Get a clone of the underlying JarEntry.
+         *
+         * @return JarEntry
+         */
+        JarEntry toJarEntry();
+
+        /**
+         * Get the file content of this entry.
+         *
+         * @return Bytes
+         */
+        byte[] getContent();
+
+        /**
+         * Get the file contents of this entry.
+         *
+         * @return An open stream
+         */
+        InputStream getContentStream();
+
+        /**
+         * Replace the file contents with new data.
+         *
+         * @param newContent Data that will replace the content
+         */
+        void replaceContentWith(byte[] newContent);
+
+        /**
+         * Replace the file contents with new data.
+         *
+         * @param content ByteBuffer that is ready to read
+         */
+        void replaceContentWith(ByteBuffer content);
+
+        /**
+         * Replace the file contents with new data.
+         * The input stream will be read until EOF.
+         *
+         * @param in An open InputStream
+         * @throws IOException If failed to read the stream
+         */
+        void replaceContentWith(InputStream in) throws IOException;
+    }
 }

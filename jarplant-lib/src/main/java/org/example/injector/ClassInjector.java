@@ -31,7 +31,7 @@ public class ClassInjector implements Injector {
         }
 
         int countClinitModified = 0;
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             if (!entry.getName().endsWith(".class")) {
                 continue;
             }

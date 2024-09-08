@@ -34,13 +34,13 @@ import java.util.jar.JarOutputStream;
  * </code>
  */
 public class BufferedJarFiddler implements JarFiddler {
-    private final List<BufferedJarEntry> entries;
+    private final List<Entry> entries;
     private final Set<String> cachedEntryNames;
 
-    BufferedJarFiddler(List<BufferedJarEntry> entries) {
+    BufferedJarFiddler(List<Entry> entries) {
         this.entries = new CopyOnWriteArrayList<>(entries);
         this.cachedEntryNames = new HashSet<>(entries.size());
-        for (BufferedJarEntry entry : this.entries) {
+        for (Entry entry : this.entries) {
             this.cachedEntryNames.add(entry.getName());
         }
     }
@@ -64,9 +64,9 @@ public class BufferedJarFiddler implements JarFiddler {
          * However, we'll stick with the JarOutputStream to be sure.
          */
         try (JarOutputStream jarOutputStream = new JarOutputStream(outputStream)) {
-            for (BufferedJarEntry entry : entries) {
-                jarOutputStream.putNextEntry(entry.metadata);
-                jarOutputStream.write(entry.content);
+            for (Entry entry : entries) {
+                jarOutputStream.putNextEntry(entry.toJarEntry());
+                jarOutputStream.write(entry.getContent());
                 jarOutputStream.closeEntry();
             }
         }
@@ -85,16 +85,16 @@ public class BufferedJarFiddler implements JarFiddler {
     @Override
     public List<String> listEntries() {
         List<String> results = new ArrayList<>(entries.size());
-        for (BufferedJarEntry entry : entries) {
-            results.add(entry.metadata.getName());
+        for (Entry entry : entries) {
+            results.add(entry.getName());
         }
         return Collections.unmodifiableList(results);
     }
 
     @Override
-    public Optional<BufferedJarEntry> getEntry(String path) {
-        for (BufferedJarEntry entry : entries) {
-            if (entry.metadata.getName().equals(path)) {
+    public Optional<Entry> getEntry(String path) {
+        for (Entry entry : entries) {
+            if (entry.getName().equals(path)) {
                 return Optional.of(entry);
             }
         }
@@ -102,12 +102,12 @@ public class BufferedJarFiddler implements JarFiddler {
     }
 
     @Override
-    public List<BufferedJarEntry> getEntries() {
-        return entries;
+    public List<Entry> getEntries() {
+        return Collections.unmodifiableList(entries);
     }
 
     @Override
-    public ListIterator<BufferedJarEntry> iterator() {
+    public ListIterator<Entry> iterator() {
         return entries.listIterator();
     }
 
@@ -115,7 +115,7 @@ public class BufferedJarFiddler implements JarFiddler {
      * Holds both the JarEntry (metadata) and actual file contents.
      * This is suprizingly revolutionary in comparison to the native API for handling JAR files.
      */
-    public static class BufferedJarEntry {
+    public static class BufferedJarEntry implements Entry {
         private final JarEntry metadata;
         private byte[] content;
 
@@ -124,67 +124,39 @@ public class BufferedJarFiddler implements JarFiddler {
             this.content = content;
         }
 
-        /**
-         * Get the full file name of this entry.
-         */
+        @Override
         public String getName() {
             return metadata.getName();
         }
 
-        /**
-         * Get a clone of the underlying JarEntry.
-         *
-         * @return JarEntry
-         */
+        @Override
         public JarEntry toJarEntry() {
             return (JarEntry) metadata.clone();
         }
 
-        /**
-         * Get the file content of this entry.
-         *
-         * @return Bytes
-         */
+        @Override
         public byte[] getContent() {
             return content;
         }
 
-        /**
-         * Get the file contents of this entry.
-         *
-         * @return An open stream
-         */
+        @Override
         public InputStream getContentStream() {
             return new ByteArrayInputStream(content);
         }
 
-        /**
-         * Replace the file contents with new data.
-         *
-         * @param newContent Data that will replace the content
-         */
+        @Override
         public void replaceContentWith(byte[] newContent) {
             this.content = newContent;
         }
 
-        /**
-         * Replace the file contents with new data.
-         *
-         * @param content ByteBuffer that is ready to read
-         */
+        @Override
         public void replaceContentWith(ByteBuffer content) {
             byte[] bytes = new byte[content.remaining()];
             content.get(bytes);
             replaceContentWith(bytes);
         }
 
-        /**
-         * Replace the file contents with new data.
-         * The input stream will be read until EOF.
-         *
-         * @param in An open InputStream
-         * @throws IOException If failed to read the stream
-         */
+        @Override
         public void replaceContentWith(InputStream in) throws IOException {
             byte[] bytes = in.readAllBytes();
             replaceContentWith(bytes);

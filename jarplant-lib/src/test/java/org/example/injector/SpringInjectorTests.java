@@ -149,7 +149,7 @@ public class SpringInjectorTests {
         );
 
         // Append entries to MANIFEST.MF and copy all other entries
-        BufferedJarFiddler.BufferedJarEntry manifestEntry = jar.getEntry("META-INF/MANIFEST.MF").orElseThrow();
+        JarFiddler.Entry manifestEntry = jar.getEntry("META-INF/MANIFEST.MF").orElseThrow();
         ByteArrayOutputStream newManifestContent = new ByteArrayOutputStream();
         newManifestContent.write(manifestEntry.getContent());
         newManifestContent.write(manifestAmendment.getBytes(StandardCharsets.UTF_8));

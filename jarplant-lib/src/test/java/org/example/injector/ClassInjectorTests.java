@@ -474,7 +474,7 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did successfully inject.", didInfect);
         boolean didFindInitClass = false;
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             if (entry.getName().endsWith("Init.class")) {
                 didFindInitClass = true;
                 break;
@@ -497,7 +497,7 @@ public class ClassInjectorTests {
         assertTrue("Did successfully inject.", didInfect);
 
         byte[] initEntryContent = null;
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             if (entry.getName().endsWith("Init.class")) {
                 initEntryContent = entry.getContent();
             }
@@ -528,7 +528,7 @@ public class ClassInjectorTests {
         // Assert
         assertTrue("Did successfully inject.", didInfect);
         boolean didFindInitClass = false;
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             if (entry.getName().endsWith("Init.class")) {
                 didFindInitClass = true;
             }

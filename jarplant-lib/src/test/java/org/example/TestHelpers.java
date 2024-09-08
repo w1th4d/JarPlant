@@ -4,6 +4,7 @@ import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
 import org.example.injector.BufferedJarFiddler;
 import org.example.injector.ClassInjectorTests;
+import org.example.injector.JarFiddler;
 
 import java.io.*;
 import java.net.URISyntaxException;
@@ -154,11 +155,10 @@ public class TestHelpers {
     /**
      * Read and hash all entries in a JAR file.
      *
-     * @param jarFile path to JAR
+     * @param jar JarFiddler instance loaded with stuff
      * @return a map keyed on internal filename with the message digest (aka hash) as the value
-     * @throws IOException if JAR could not be read
      */
-    public static Map<String, String> hashAllJarContents(Path jarFile) throws IOException {
+    public static Map<String, String> hashAllJarContents(JarFiddler jar) {
         Map<String, String> hashes = new HashMap<>();
         MessageDigest md;
         try {
@@ -167,7 +167,6 @@ public class TestHelpers {
             throw new RuntimeException("Cannot find SHA-256 provider.", e);
         }
 
-        BufferedJarFiddler jar = BufferedJarFiddler.read(jarFile);
         for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
             String filename = entry.getName();
             byte[] contentDigest = md.digest(entry.getContent());

@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -89,27 +88,16 @@ public class SpringInjectorTests {
     @Test
     public void testInject_SpringJar_Success() throws IOException {
         // Arrange
-        Map<String, String> hashesBeforeInfect = hashAllJarContents(simpleSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+        Map<String, String> hashesBeforeInfect = hashAllJarContents(jar);
 
         // Act
-        boolean didInfect = injector.inject(simpleSpringBootApp, tempOutputFile);
+        boolean didInfect = injector.inject(jar);
 
         // Assert
         assertTrue("Did successfully inject.", didInfect);
-        Map<String, String> hashesAfterInfect = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfterInfect = hashAllJarContents(jar);
         assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
-    }
-
-    @Test(expected = Exception.class)
-    public void testInject_NotAJar_Exception() throws IOException {
-        // Arrange
-        Random rng = new Random(1);
-        byte[] someRandomData = new byte[10];
-        rng.nextBytes(someRandomData);
-        Files.write(tempInputFile, someRandomData, StandardOpenOption.WRITE);
-
-        // Act + Assert
-        injector.inject(tempInputFile, tempOutputFile);
     }
 
     @Test
@@ -117,9 +105,10 @@ public class SpringInjectorTests {
         // Arrange: Create an empty JAR
         JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         createJar.close();
+        JarFiddler jar = JarFiddler.buffer(tempInputFile);
 
         // Act
-        boolean didInfect = injector.inject(tempInputFile, tempOutputFile);
+        boolean didInfect = injector.inject(jar);
 
         // Assert
         assertFalse("Did not infect anything in an empty JAR.", didInfect);
@@ -129,9 +118,10 @@ public class SpringInjectorTests {
     public void testInject_EmptyJarWithManifest_Untouched() throws IOException {
         // Arrange: Create a JAR with only a manifest but no classes
         populateJarEntriesIntoEmptyFile(tempInputFile, null);
+        JarFiddler jar = JarFiddler.buffer(tempInputFile);
 
         // Act
-        boolean didInfect = injector.inject(tempInputFile, tempOutputFile);
+        boolean didInfect = injector.inject(jar);
 
         // Assert
         assertFalse("Did not infect anything in an empty JAR.", didInfect);
@@ -140,6 +130,8 @@ public class SpringInjectorTests {
     @Test
     public void testInject_SignedJar_Untouched() throws IOException, DuplicateEntryException {
         // Arrange
+        BufferedJarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+
         // This is a rather fake way of simulating a signed JAR. Consider the real deal by Maven.
         String manifestAmendment = "\r\n"
                 + "Name: com/example/restservice/RestServiceApplication.class\r\n"
@@ -151,33 +143,32 @@ public class SpringInjectorTests {
                 + "\r\n";
 
         // Add a .SF file
-        BufferedJarFiddler fiddler = BufferedJarFiddler.read(simpleSpringBootApp);
-        fiddler.addNewEntry(
+        jar.addNewEntry(
                 new JarEntry("META-INF/SOMETHING.SF"),
                 signatureFile.getBytes(StandardCharsets.UTF_8)
         );
 
         // Append entries to MANIFEST.MF and copy all other entries
-        BufferedJarFiddler.BufferedJarEntry manifestEntry = fiddler.getEntry("META-INF/MANIFEST.MF").orElseThrow();
+        BufferedJarFiddler.BufferedJarEntry manifestEntry = jar.getEntry("META-INF/MANIFEST.MF").orElseThrow();
         ByteArrayOutputStream newManifestContent = new ByteArrayOutputStream();
         newManifestContent.write(manifestEntry.getContent());
         newManifestContent.write(manifestAmendment.getBytes(StandardCharsets.UTF_8));
         manifestEntry.replaceContentWith(newManifestContent.toByteArray());
 
-        fiddler.write(tempInputFile);
-
         // Act
-        boolean didInfect = injector.inject(tempInputFile, tempOutputFile);
+        boolean didInfect = injector.inject(jar);
 
         // Assert
         assertFalse("Did not infect signed JAR.", didInfect);
-        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test
     public void testInject_NoSpringConfig_Untouched() throws IOException {
+        // Arrange
+        JarFiddler jar = JarFiddler.buffer(regularApp);
+
         // Act
-        boolean didInfect = injector.inject(regularApp, tempOutputFile);
+        boolean didInfect = injector.inject(jar);
 
         // Assert
         assertFalse("Did not infect JAR without a Spring config (like a regular app JAR).", didInfect);
@@ -192,13 +183,14 @@ public class SpringInjectorTests {
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(complexSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(complexSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.inject(complexSpringBootApp, tempOutputFile);
+        injector.inject(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter);
         assertFalse("Any of the configuration classes were modified.",
                 setIntersection(classesModified, knownConfigClasses).isEmpty());
@@ -214,13 +206,14 @@ public class SpringInjectorTests {
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(complexSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(complexSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.inject(complexSpringBootApp, tempOutputFile);
+        injector.inject(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter, knownConfigClasses);
         assertEquals("All Spring Configuration/Application classes were modified.", knownConfigClasses, classesModified);
         /*
@@ -246,13 +239,14 @@ public class SpringInjectorTests {
         Set<String> knownConfigClasses = Set.of(
                 "BOOT-INF/classes/com/example/simple/SimpleApplication.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(simpleSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.inject(simpleSpringBootApp, tempOutputFile);
+        injector.inject(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> modifiedFiles = getDiffingEntries(hashesBefore, hashesAfter);
         assertTrue("No Spring configurations were modified because the app uses component scanning.",
                 setIntersection(modifiedFiles, knownConfigClasses).isEmpty());
@@ -261,13 +255,14 @@ public class SpringInjectorTests {
     @Test
     public void testInject_ValidJar_AddedSpringComponent() throws IOException {
         // Arrange
-        Map<String, String> hashesBefore = hashAllJarContents(simpleSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.inject(simpleSpringBootApp, tempOutputFile);
+        injector.inject(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> addedClasses = new HashSet<>(hashesAfter.keySet());
         addedClasses.removeAll(hashesBefore.keySet());
         assertFalse("Some class was added.", addedClasses.isEmpty());
@@ -275,14 +270,16 @@ public class SpringInjectorTests {
 
     @Test
     public void testInject_AlreadyInfectedJar_Untouched() throws IOException {
+        // Arrange
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+
         // Act
-        boolean didInfectFirst = injector.inject(simpleSpringBootApp, tempInputFile);
-        boolean didInfectSecond = injector.inject(tempInputFile, tempOutputFile);
+        boolean didInfectFirst = injector.inject(jar);
+        boolean didInfectSecond = injector.inject(jar);
 
         // Assert
         assertTrue("Did infect the first time.", didInfectFirst);
         assertFalse("Did not infect the second time.", didInfectSecond);
-        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test

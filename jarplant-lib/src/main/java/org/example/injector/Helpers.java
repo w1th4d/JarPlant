@@ -108,10 +108,9 @@ public class Helpers {
         return allocator.toByteArray();
     }
 
-    public static boolean jarLooksSigned(Path jarFilePath) throws IOException {
+    public static boolean jarLooksSigned(JarFiddler jar) throws IOException {
         Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
 
-        BufferedJarFiddler jar = BufferedJarFiddler.read(jarFilePath);
         for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
             Matcher matcher = regex.matcher(entry.getName());
             if (matcher.matches()) {

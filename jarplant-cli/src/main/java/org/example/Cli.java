@@ -243,14 +243,11 @@ public class Cli {
         }
 
         try {
-            boolean didInfect = injector.inject(targetPath, outputPath);
-
+            JarFiddler jar = JarFiddler.buffer(targetPath);
+            boolean didInfect = injector.inject(jar);
             if (didInfect) {
-                if (outputPath.equals(targetPath)) {
-                    log.info("Successfully spiked JAR '" + targetPath + "'.");
-                } else {
-                    log.info("Successfully spiked JAR '" + targetPath + "' -> '" + outputPath + "'.");
-                }
+                jar.write(outputPath);
+                log.info("Successfully spiked JAR '" + targetPath + "'.");
             } else {
                 log.warning("Failed to spike JAR '" + targetPath + "'.");
             }
@@ -306,8 +303,10 @@ public class Cli {
         log.config("Output JAR: " + outputPath);
 
         try {
-            boolean didInfect = injector.inject(targetPath, outputPath);
+            JarFiddler jar = JarFiddler.buffer(targetPath);
+            boolean didInfect = injector.inject(jar);
             if (didInfect) {
+                jar.write(outputPath);
                 if (outputPath.equals(targetPath)) {
                     log.info("Successfully spiked JAR '" + targetPath + "'.");
                 } else {

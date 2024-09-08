@@ -11,7 +11,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 
 /**
@@ -34,7 +33,7 @@ import java.util.jar.JarOutputStream;
  * subject.write(jarFilePath);
  * </code>
  */
-public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJarEntry> {
+public class BufferedJarFiddler implements JarFiddler {
     private final List<BufferedJarEntry> entries;
     private final Set<String> cachedEntryNames;
 
@@ -46,48 +45,14 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
         }
     }
 
-    /**
-     * Read the entire content of a JAR file into memory.
-     *
-     * @param jarFilePath Path to existing JAR file
-     * @return Instance
-     * @throws IOException If unable to read file
-     */
-    public static BufferedJarFiddler read(Path jarFilePath) throws IOException {
-        List<BufferedJarEntry> readEntries = new ArrayList<>();
-        try (JarFile jar = new JarFile(jarFilePath.toFile())) {
-            Enumeration<JarEntry> entries = jar.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry entry = entries.nextElement();
-                byte[] content = jar.getInputStream(entry).readAllBytes();
-                readEntries.add(new BufferedJarEntry(entry, content));
-            }
-        }
-        return new BufferedJarFiddler(readEntries);
-    }
-
-    /**
-     * Write the current state to a file.
-     * The output file can be the same as the input file.
-     *
-     * @param outputFile File to create or overwrite
-     * @throws IOException If unable to create or write file
-     */
+    @Override
     public void write(Path outputFile) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(outputFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             write(outputStream);
         }
     }
 
-    /**
-     * Write the current state to a stream.
-     * There are no guarantees that this method will produce the exact binary content as the input file used for
-     * <code>read</code> (even when no entries were modified). It's recommended to only overwrite JARs that has
-     * actually been modified.
-     *
-     * @param outputStream An open output stream
-     * @throws IOException If failed to write
-     */
+    @Override
     public void write(OutputStream outputStream) throws IOException {
         /*
          * JarOutputStream.putNextEntry() will add a magic number to the "extra" metadata field
@@ -107,13 +72,7 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
         }
     }
 
-    /**
-     * Add a new entry at the end of the JAR.
-     *
-     * @param newEntry Entry to add
-     * @param contents Entry file content
-     * @throws DuplicateEntryException If the entry name already exist
-     */
+    @Override
     public void addNewEntry(JarEntry newEntry, byte[] contents) throws DuplicateEntryException {
         if (cachedEntryNames.contains(newEntry.getName())) {
             throw new DuplicateEntryException(newEntry.getName());
@@ -123,11 +82,7 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
         cachedEntryNames.add(newEntry.getName());
     }
 
-    /**
-     * List all entries found in the JAR.
-     *
-     * @return File names
-     */
+    @Override
     public List<String> listEntries() {
         List<String> results = new ArrayList<>(entries.size());
         for (BufferedJarEntry entry : entries) {
@@ -136,12 +91,7 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
         return Collections.unmodifiableList(results);
     }
 
-    /**
-     * Get a specific entry (file) from the JAR.
-     *
-     * @param path Full internal path in the JAR. Ex: /META-INF/MANIFEST.MF
-     * @return Entry, if it was found
-     */
+    @Override
     public Optional<BufferedJarEntry> getEntry(String path) {
         for (BufferedJarEntry entry : entries) {
             if (entry.metadata.getName().equals(path)) {
@@ -151,12 +101,7 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
         return Optional.empty();
     }
 
-    /**
-     * Get all entries found in the JAR.
-     * Returned objects are mutable. Any changes to these objects will stick.
-     *
-     * @return Entries
-     */
+    @Override
     public List<BufferedJarEntry> getEntries() {
         return entries;
     }

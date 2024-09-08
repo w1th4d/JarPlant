@@ -5,7 +5,6 @@ import javassist.bytecode.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -23,17 +22,16 @@ public class ClassInjector implements Injector {
         this.implantHandler = implantHandler;
     }
 
-    public boolean inject(Path targetJarFilePath, Path outputJar) throws IOException {
+    public boolean inject(JarFiddler jar) throws IOException {
         ClassFile implantedClass = null;
 
-        if (jarLooksSigned(targetJarFilePath)) {
+        if (jarLooksSigned(jar)) {
             log.warning("JAR looks signed. This is not yet implemented. Aborting.");
             return false;
         }
 
-        BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
         int countClinitModified = 0;
-        for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
+        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
             if (!entry.getName().endsWith(".class")) {
                 continue;
             }
@@ -56,7 +54,7 @@ public class ClassInjector implements Injector {
                 ClassName renamedImplantName = ClassName.of(renamedImplant);
                 JarEntry newJarEntry = new JarEntry(renamedImplantName.getClassFilePath());
                 try {
-                    fiddler.addNewEntry(newJarEntry, asByteArray(renamedImplant));
+                    jar.addNewEntry(newJarEntry, asByteArray(renamedImplant));
                     log.info("Created implant class '" + newJarEntry.getName() + "'.");
                 } catch (DuplicateEntryException e) {
                     log.warning("Implant class may already exists in package '" + targetPackageName + "'. Aborting.");
@@ -100,7 +98,7 @@ public class ClassInjector implements Injector {
 
                 JarEntry newJarEntry = new JarEntry(fileName);
                 try {
-                    fiddler.addNewEntry(newJarEntry, fileContent);
+                    jar.addNewEntry(newJarEntry, fileContent);
                     countDependencies++;
                     log.fine("Added dependency file '" + fileName + "'.");
                 } catch (DuplicateEntryException e) {
@@ -111,13 +109,6 @@ public class ClassInjector implements Injector {
                 }
             }
             log.info("Added " + countDependencies + " dependencies.");
-        }
-
-        if (didInfect) {
-            fiddler.write(outputJar);
-            log.info("Injection successful. Wrote output JAR to '" + outputJar + "'.");
-        } else {
-            log.warning("Injection failed. No output JAR was written.");
         }
 
         return didInfect;

@@ -75,12 +75,12 @@ public class BufferedJarFiddlerTests {
     }
 
     @Test
-    public void testIterator_OnlyReadWholeJar_FoundAllClasses() throws IOException {
+    public void testIterator_OnlyRead_FoundAllClasses() throws IOException {
         // Arrange
         Set<String> entriesFoundInJar = new HashSet<>(expectedEntries.size());
 
         // Act
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
             entriesFoundInJar.add(entry.getName());
         }
@@ -95,7 +95,7 @@ public class BufferedJarFiddlerTests {
         Set<String> entriesFoundInJar = new HashSet<>(expectedEntries.size());
 
         // Act
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
             entriesFoundInJar.add(entry.getName());
         }
@@ -114,7 +114,7 @@ public class BufferedJarFiddlerTests {
         Set<JarEntry> entriesFoundInJar = new HashSet<>(expectedEntries.size());
 
         // Act
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
             entriesFoundInJar.add(entry.toJarEntry());
         }
@@ -136,7 +136,7 @@ public class BufferedJarFiddlerTests {
         HashMap<String, Long> originalFileHashes = new HashMap<>();
 
         // Act: Go through the entire JAR and modify Main.class
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         for (BufferedJarFiddler.BufferedJarEntry entry : subject) {
             originalFileHashes.put(entry.getName(), entry.toJarEntry().getCrc());
 
@@ -174,7 +174,7 @@ public class BufferedJarFiddlerTests {
         byte[] replacementData = new byte[]{1, 2, 3, 4, 5};
 
         // Act
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         subject.getEntry(nameOfMain).orElseThrow().replaceContentWith(replacementData);
         subject.write(outputJar);
 
@@ -199,7 +199,7 @@ public class BufferedJarFiddlerTests {
         ByteBuffer replacementData = ByteBuffer.wrap(new byte[]{1, 2, 3, 4, 5});
 
         // Act
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         subject.getEntry(nameOfMain).orElseThrow().replaceContentWith(replacementData);
         subject.write(outputJar);
 
@@ -225,7 +225,7 @@ public class BufferedJarFiddlerTests {
         InputStream replacementStream = new ByteArrayInputStream(replacementData);
 
         // Act
-        BufferedJarFiddler subject = BufferedJarFiddler.read(testJar);
+        BufferedJarFiddler subject = JarFiddler.buffer(testJar);
         subject.getEntry(nameOfMain).orElseThrow().replaceContentWith(replacementStream);
         subject.write(outputJar);
 
@@ -249,7 +249,7 @@ public class BufferedJarFiddlerTests {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 
         // Act
-        BufferedJarFiddler.read(testJar).write(buffer);
+        JarFiddler.buffer(testJar).write(buffer);
 
         // Assert
         try {
@@ -262,7 +262,7 @@ public class BufferedJarFiddlerTests {
     @Test
     public void testWrite_SameFile_Fine() throws IOException {
         // Act + Assert
-        BufferedJarFiddler.read(testJar).write(testJar);
+        JarFiddler.buffer(testJar).write(testJar);
     }
 
     /*
@@ -275,7 +275,7 @@ public class BufferedJarFiddlerTests {
         byte[] rawDataBefore = Files.readAllBytes(testJar);
 
         // Act
-        BufferedJarFiddler.read(testJar).write(testJar);
+        JarFiddler.buffer(testJar).write(testJar);
 
         // Assert
         byte[] rawDataAfter = Files.readAllBytes(testJar);

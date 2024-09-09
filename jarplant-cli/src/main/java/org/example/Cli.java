@@ -115,6 +115,11 @@ public class Cli {
                 .help("Name of the Spring configuration class to use as a template in case the target Spring config needs to be modified. Only the '@Bean' annotated methods in this class will be copied to the target config.")
                 .choices("SpringImplantConfiguration")
                 .setDefault("SpringImplantConfiguration");
+        springInjectorParser.addArgument("-c", "--config")
+                .help("Override one or more configuration properties inside the implant. This will go into both parts of the implant, if available.")
+                .metavar("KEY=VALUE")
+                .nargs("*")
+                .type(String.class);
 
         Subparser implantListParser = subparsers.addParser("implant-list")
                 .help("List all bundled implants.")
@@ -243,12 +248,6 @@ public class Cli {
             return;
         }
 
-        log.fine("Reading available implant config properties...");
-        Map<String, ImplantHandlerImpl.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
-        for (Map.Entry<String, ImplantHandlerImpl.ConfDataType> entry : availableConfig.entrySet()) {
-            log.fine(entry.getKey() + " (" + entry.getValue() + ")");
-        }
-
         JarFiddler jar;
         try {
             jar = JarFiddler.buffer(targetPath);
@@ -292,11 +291,23 @@ public class Cli {
             }
 
             Map<String, Object> configOverrides = parseConfigOverrides(namespace);
-            try {
-                componentHandler.setConfig(configOverrides);
-            } catch (ImplantConfigException e) {
-                System.err.println("Cannot set implant config: " + e.getMessage());
-                System.exit(1);
+            for (String availableConf : componentHandler.getAvailableConfig().keySet()) {
+                if (configOverrides.containsKey(availableConf)) {
+                    try {
+                        componentHandler.setConfig(availableConf, configOverrides.get(availableConf));
+                    } catch (ImplantConfigException e) {
+                        log.severe("Failed to set config property '" + availableConf + "' in implant Spring component.");
+                    }
+                }
+            }
+            for (String availableConf : springConfigHandler.getAvailableConfig().keySet()) {
+                if (configOverrides.containsKey(availableConf)) {
+                    try {
+                        springConfigHandler.setConfig(availableConf, configOverrides.get(availableConf));
+                    } catch (ImplantConfigException e) {
+                        log.severe("Failed to set config property '" + availableConf + "' in implant Spring configuration.");
+                    }
+                }
             }
 
             runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);

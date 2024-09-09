@@ -4,19 +4,16 @@ import javassist.CtClass;
 import javassist.bytecode.*;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
-import java.util.jar.JarEntry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Helpers {
     private static final Set<Integer> returnOpcodes = Set.of(Opcode.RETURN, Opcode.DRETURN, Opcode.ARETURN, Opcode.FRETURN, Opcode.IRETURN, Opcode.LRETURN);
 
-    public static ClassFile readClassFile(final Path classFilePath) throws IOException {
+    public static ClassFile readClassFile(Path classFilePath) throws IOException {
         final ClassFile cf;
         try (DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(classFilePath.toFile())))) {
             cf = new ClassFile(in);
@@ -24,18 +21,38 @@ public class Helpers {
         return cf;
     }
 
-    public static ClassFile readClassFile(byte[] rawClassData) throws IOException {
+    public static ClassFile readClassFile(byte[] rawClassData) {
         ClassFile cf;
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(rawClassData))) {
             cf = new ClassFile(in);
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot read ClassFile", e);
         }
         return cf;
     }
 
-    public static byte[] asByteArray(ClassFile classFile) throws IOException {
+    public static ClassFile cloneClassFile(ClassFile original) {
+        ClassFile clone;
+        try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            original.write(new DataOutputStream(buffer));
+            buffer.flush();
+            clone = new ClassFile(new DataInputStream(new ByteArrayInputStream(buffer.toByteArray())));
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot clone ClassFile", e);
+        }
+
+        return clone;
+    }
+
+    public static byte[] asByteArray(ClassFile classFile) {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        classFile.write(new DataOutputStream(buffer));
-        buffer.close();
+        try {
+            classFile.write(new DataOutputStream(buffer));
+            buffer.close();
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot serialize ClassFile", e);
+        }
         return buffer.toByteArray();
     }
 
@@ -55,64 +72,6 @@ public class Helpers {
         method.setAccessFlags(accessFlags);
     }
 
-    public static String parsePackageNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        String[] packageParts = Arrays.copyOfRange(parts, 0, parts.length - 1);
-        return String.join(".", packageParts);
-    }
-
-    public static String parseClassNameFromFqcn(final String fqcn) {
-        String[] parts = fqcn.split("\\.");
-        if (parts.length < 2) {
-            throw new RuntimeException("Not a fully qualified class name: " + fqcn);
-        }
-        if (parts[parts.length - 1].equals("class")) {
-            throw new RuntimeException("Not a fully qualified class name (hint: don't include .class extension): " + fqcn);
-
-        }
-        return parts[parts.length - 1];
-    }
-
-    public static String convertToClassFormatFqcn(final String dotFormatClassName) {
-        if (!dotFormatClassName.contains(".")) {
-            throw new RuntimeException("Not a fully qualified class name: " + dotFormatClassName);
-        }
-        return dotFormatClassName.replace(".", "/");
-    }
-
-    public static String convertToBinaryClassNameFromPath(final String classFilePath) {
-        Pattern pattern = Pattern.compile("\\/?((\\w+\\/)*)?(\\w+)\\.class");
-        Matcher matcher = pattern.matcher(classFilePath);
-        if (!matcher.matches() || matcher.groupCount() < 3) {
-            throw new RuntimeException("Not a path to a class file: " + classFilePath);
-        }
-        String packageName = matcher.group(1).replace("/", ".");
-        String className = matcher.group(3);
-        return packageName + className;
-    }
-
-    public static JarEntry convertToJarEntry(final ClassFile classFile) {
-        String fullPathInsideJar = convertToJarEntryPathName(classFile.getName());
-        return new JarEntry(fullPathInsideJar);
-    }
-
-    public static String convertToJarEntryPathName(String fullClassName) {
-        if (fullClassName.endsWith(".class")) {
-            fullClassName = fullClassName.substring(0, fullClassName.lastIndexOf(".class"));
-        }
-
-        return fullClassName.replace(".", "/") + ".class";
-    }
-
-    public static JarEntry convertToSpringJarEntry(final ClassFile classFile) {
-        // TODO Maybe this "BOOT-INF" etc is not a good thing to hardcode? Versioned JARs? Discrepancies in Spring JAR structure?
-        String fullPathInsideJar = "BOOT-INF/classes/" + classFile.getName().replace(".", "/") + ".class";
-        return new JarEntry(fullPathInsideJar);
-    }
-
     public static MethodInfo createAndAddClassInitializerStub(ClassFile instance) throws DuplicateMemberException {
         MethodInfo clinit = new MethodInfo(instance.getConstPool(), MethodInfo.nameClinit, "()V");
         setStaticFlagForMethod(clinit);
@@ -124,7 +83,7 @@ public class Helpers {
         return clinit;
     }
 
-    public static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) throws IOException {
+    public static Optional<Integer> searchForEndOfMethodIndex(CodeAttribute codeAttribute, CodeIterator codeIterator) {
         int index = 0;
         while (codeIterator.hasNext()) {
             try {
@@ -134,18 +93,18 @@ public class Helpers {
             }
         }
 
-        DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
-        converter.skipBytes(index);
-        int opcode = converter.readUnsignedByte();
-        if (!returnOpcodes.contains(opcode)) {
-            return Optional.empty();
+        try {
+            DataInput converter = new DataInputStream(new ByteArrayInputStream(codeAttribute.getCode()));
+            converter.skipBytes(index);
+            int opcode = converter.readUnsignedByte();
+            if (!returnOpcodes.contains(opcode)) {
+                return Optional.empty();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot interpret code attribute", e);
         }
 
         return Optional.of(index);
-    }
-
-    public static byte[] bufferFrom(Path classFilePath) throws IOException {
-        return Files.readAllBytes(classFilePath);
     }
 
     public static byte[] bufferFrom(DataInputStream in) throws IOException {
@@ -159,11 +118,10 @@ public class Helpers {
         return allocator.toByteArray();
     }
 
-    public static boolean jarLooksSigned(Path jarFilePath) throws IOException {
+    public static boolean jarLooksSigned(JarFiddler jar) {
         Pattern regex = Pattern.compile("META-INF/.+\\.SF|DSA|RSA");
 
-        BufferedJarFiddler jar = BufferedJarFiddler.read(jarFilePath);
-        for (BufferedJarFiddler.BufferedJarEntry entry : jar) {
+        for (JarFiddler.Entry entry : jar) {
             Matcher matcher = regex.matcher(entry.getName());
             if (matcher.matches()) {
                 return true;

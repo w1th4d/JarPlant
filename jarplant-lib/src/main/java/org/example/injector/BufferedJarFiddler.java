@@ -11,9 +11,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
-import java.util.zip.ZipException;
 
 /**
  * Utility for modifying contents of a JAR file.
@@ -35,60 +33,26 @@ import java.util.zip.ZipException;
  * subject.write(jarFilePath);
  * </code>
  */
-public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJarEntry> {
-    private final List<BufferedJarEntry> entries;
+public class BufferedJarFiddler implements JarFiddler {
+    private final List<Entry> entries;
     private final Set<String> cachedEntryNames;
 
-    BufferedJarFiddler(List<BufferedJarEntry> entries) {
+    BufferedJarFiddler(List<Entry> entries) {
         this.entries = new CopyOnWriteArrayList<>(entries);
         this.cachedEntryNames = new HashSet<>(entries.size());
-        for (BufferedJarEntry entry : this.entries) {
+        for (Entry entry : this.entries) {
             this.cachedEntryNames.add(entry.getName());
         }
     }
 
-    /**
-     * Read the entire content of a JAR file into memory.
-     *
-     * @param jarFilePath Path to existing JAR file
-     * @return Instance
-     * @throws IOException If unable to read file
-     */
-    public static BufferedJarFiddler read(Path jarFilePath) throws IOException {
-        List<BufferedJarEntry> readEntries = new ArrayList<>();
-        try (JarFile jar = new JarFile(jarFilePath.toFile())) {
-            Enumeration<JarEntry> entries = jar.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry entry = entries.nextElement();
-                byte[] content = jar.getInputStream(entry).readAllBytes();
-                readEntries.add(new BufferedJarEntry(entry, content));
-            }
-        }
-        return new BufferedJarFiddler(readEntries);
-    }
-
-    /**
-     * Write the current state to a file.
-     * The output file can be the same as the input file.
-     *
-     * @param outputFile File to create or overwrite
-     * @throws IOException If unable to create or write file
-     */
+    @Override
     public void write(Path outputFile) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(outputFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
             write(outputStream);
         }
     }
 
-    /**
-     * Write the current state to a stream.
-     * There are no guarantees that this method will produce the exact binary content as the input file used for
-     * <code>read</code> (even when no entries were modified). It's recommended to only overwrite JARs that has
-     * actually been modified.
-     *
-     * @param outputStream An open output stream
-     * @throws IOException If failed to write
-     */
+    @Override
     public void write(OutputStream outputStream) throws IOException {
         /*
          * JarOutputStream.putNextEntry() will add a magic number to the "extra" metadata field
@@ -100,70 +64,50 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
          * However, we'll stick with the JarOutputStream to be sure.
          */
         try (JarOutputStream jarOutputStream = new JarOutputStream(outputStream)) {
-            for (BufferedJarEntry entry : entries) {
-                jarOutputStream.putNextEntry(entry.metadata);
-                jarOutputStream.write(entry.content);
+            for (Entry entry : entries) {
+                jarOutputStream.putNextEntry(entry.toJarEntry());
+                jarOutputStream.write(entry.getContent());
                 jarOutputStream.closeEntry();
             }
         }
     }
 
-    /**
-     * Add a new entry at the end of the JAR.
-     *
-     * @param newEntry Entry to add
-     * @param contents Entry file content
-     * @throws ZipException If the entry name already exist
-     */
-    public void addNewEntry(JarEntry newEntry, byte[] contents) throws ZipException {
+    @Override
+    public void addNewEntry(JarEntry newEntry, byte[] contents) throws DuplicateEntryException {
         if (cachedEntryNames.contains(newEntry.getName())) {
-            throw new ZipException("Entry " + newEntry.getName() + " already exist.");
+            throw new DuplicateEntryException(newEntry.getName());
         }
 
         entries.add(new BufferedJarEntry(newEntry, contents));
         cachedEntryNames.add(newEntry.getName());
     }
 
-    /**
-     * List all entries found in the JAR.
-     *
-     * @return File names
-     */
+    @Override
     public List<String> listEntries() {
         List<String> results = new ArrayList<>(entries.size());
-        for (BufferedJarEntry entry : entries) {
-            results.add(entry.metadata.getName());
+        for (Entry entry : entries) {
+            results.add(entry.getName());
         }
         return Collections.unmodifiableList(results);
     }
 
-    /**
-     * Get a specific entry (file) from the JAR.
-     *
-     * @param path Full internal path in the JAR. Ex: /META-INF/MANIFEST.MF
-     * @return Entry, if it was found
-     */
-    public Optional<BufferedJarEntry> getEntry(String path) {
-        for (BufferedJarEntry entry : entries) {
-            if (entry.metadata.getName().equals(path)) {
+    @Override
+    public Optional<Entry> getEntry(String path) {
+        for (Entry entry : entries) {
+            if (entry.getName().equals(path)) {
                 return Optional.of(entry);
             }
         }
         return Optional.empty();
     }
 
-    /**
-     * Get all entries found in the JAR.
-     * Returned objects are mutable. Any changes to these objects will stick.
-     *
-     * @return Entries
-     */
-    public List<BufferedJarEntry> getEntries() {
-        return entries;
+    @Override
+    public List<Entry> getEntries() {
+        return Collections.unmodifiableList(entries);
     }
 
     @Override
-    public ListIterator<BufferedJarEntry> iterator() {
+    public ListIterator<Entry> iterator() {
         return entries.listIterator();
     }
 
@@ -171,7 +115,7 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
      * Holds both the JarEntry (metadata) and actual file contents.
      * This is suprizingly revolutionary in comparison to the native API for handling JAR files.
      */
-    public static class BufferedJarEntry {
+    public static class BufferedJarEntry implements Entry {
         private final JarEntry metadata;
         private byte[] content;
 
@@ -180,67 +124,39 @@ public class BufferedJarFiddler implements Iterable<BufferedJarFiddler.BufferedJ
             this.content = content;
         }
 
-        /**
-         * Get the full file name of this entry.
-         */
+        @Override
         public String getName() {
             return metadata.getName();
         }
 
-        /**
-         * Get a clone of the underlying JarEntry.
-         *
-         * @return JarEntry
-         */
+        @Override
         public JarEntry toJarEntry() {
             return (JarEntry) metadata.clone();
         }
 
-        /**
-         * Get the file content of this entry.
-         *
-         * @return Bytes
-         */
+        @Override
         public byte[] getContent() {
             return content;
         }
 
-        /**
-         * Get the file contents of this entry.
-         *
-         * @return An open stream
-         */
+        @Override
         public InputStream getContentStream() {
             return new ByteArrayInputStream(content);
         }
 
-        /**
-         * Replace the file contents with new data.
-         *
-         * @param newContent Data that will replace the content
-         */
+        @Override
         public void replaceContentWith(byte[] newContent) {
             this.content = newContent;
         }
 
-        /**
-         * Replace the file contents with new data.
-         *
-         * @param content ByteBuffer that is ready to read
-         */
+        @Override
         public void replaceContentWith(ByteBuffer content) {
             byte[] bytes = new byte[content.remaining()];
             content.get(bytes);
             replaceContentWith(bytes);
         }
 
-        /**
-         * Replace the file contents with new data.
-         * The input stream will be read until EOF.
-         *
-         * @param in An open InputStream
-         * @throws IOException If failed to read the stream
-         */
+        @Override
         public void replaceContentWith(InputStream in) throws IOException {
             byte[] bytes = in.readAllBytes();
             replaceContentWith(bytes);

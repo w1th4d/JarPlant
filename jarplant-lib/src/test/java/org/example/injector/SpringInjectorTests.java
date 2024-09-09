@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -64,8 +63,8 @@ public class SpringInjectorTests {
     }
 
     @Before
-    public void setupSpringInjector() {
-        this.injector = new SpringInjector(testConfigImplantHandler, testBeanImplantHandler);
+    public void setupSpringInjector() throws ImplantException {
+        this.injector = SpringInjector.createLoadedWith(testBeanImplantHandler, testConfigImplantHandler);
     }
 
     @Before
@@ -76,70 +75,74 @@ public class SpringInjectorTests {
 
     @After
     public void removeTempInputFile() throws IOException {
-        Files.delete(tempInputFile);
+        if (tempInputFile != null && Files.exists(tempInputFile)) {
+            Files.delete(tempInputFile);
+        }
     }
 
     @After
     public void removeTempOutputFile() throws IOException {
-        if (Files.exists(tempOutputFile)) {
+        if (tempOutputFile != null && Files.exists(tempOutputFile)) {
             Files.delete(tempOutputFile);
         }
     }
 
-    @Test
-    public void testInfect_SpringJar_Success() throws IOException {
+    @Test(expected = ImplantException.class)
+    public void testCreate_InvalidImplant_ImplantException() throws ImplantException {
         // Arrange
-        Map<String, String> hashesBeforeInfect = hashAllJarContents(simpleSpringBootApp);
+        ImplantHandler invalidImplant = new ImplantHandlerMock(generateDummyClassFile("org.example.InvalidImplant"));
 
         // Act
-        boolean didInfect = injector.infect(simpleSpringBootApp, tempOutputFile);
+        SpringInjector.createLoadedWith(invalidImplant, invalidImplant);    // Should throw up
+    }
+
+    @Test
+    public void testInjectInto_SpringJar_Success() throws IOException {
+        // Arrange
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+        Map<String, String> hashesBeforeInfect = hashAllJarContents(jar);
+
+        // Act
+        boolean didInfect = injector.injectInto(jar);
 
         // Assert
         assertTrue("Did successfully inject.", didInfect);
-        Map<String, String> hashesAfterInfect = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfterInfect = hashAllJarContents(jar);
         assertNotEquals("At least one class file in JAR has changed.", hashesAfterInfect, hashesBeforeInfect);
     }
 
-    @Test(expected = Exception.class)
-    public void testInfect_NotAJar_Exception() throws IOException {
-        // Arrange
-        Random rng = new Random(1);
-        byte[] someRandomData = new byte[10];
-        rng.nextBytes(someRandomData);
-        Files.write(tempInputFile, someRandomData, StandardOpenOption.WRITE);
-
-        // Act + Assert
-        injector.infect(tempInputFile, tempOutputFile);
-    }
-
     @Test
-    public void testInfect_EmptyJar_Untouched() throws IOException {
+    public void testInjectInto_EmptyJar_Untouched() throws IOException {
         // Arrange: Create an empty JAR
         JarOutputStream createJar = new JarOutputStream(new FileOutputStream(tempInputFile.toFile()));
         createJar.close();
+        JarFiddler jar = JarFiddler.buffer(tempInputFile);
 
         // Act
-        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+        boolean didInfect = injector.injectInto(jar);
 
         // Assert
         assertFalse("Did not infect anything in an empty JAR.", didInfect);
     }
 
     @Test
-    public void testInfect_EmptyJarWithManifest_Untouched() throws IOException {
+    public void testInjectInto_EmptyJarWithManifest_Untouched() throws IOException {
         // Arrange: Create a JAR with only a manifest but no classes
         populateJarEntriesIntoEmptyFile(tempInputFile, null);
+        JarFiddler jar = JarFiddler.buffer(tempInputFile);
 
         // Act
-        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+        boolean didInfect = injector.injectInto(jar);
 
         // Assert
         assertFalse("Did not infect anything in an empty JAR.", didInfect);
     }
 
     @Test
-    public void testInfect_SignedJar_Untouched() throws IOException {
+    public void testInjectInto_SignedJar_Untouched() throws IOException, DuplicateEntryException {
         // Arrange
+        BufferedJarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+
         // This is a rather fake way of simulating a signed JAR. Consider the real deal by Maven.
         String manifestAmendment = "\r\n"
                 + "Name: com/example/restservice/RestServiceApplication.class\r\n"
@@ -151,40 +154,39 @@ public class SpringInjectorTests {
                 + "\r\n";
 
         // Add a .SF file
-        BufferedJarFiddler fiddler = BufferedJarFiddler.read(simpleSpringBootApp);
-        fiddler.addNewEntry(
+        jar.addNewEntry(
                 new JarEntry("META-INF/SOMETHING.SF"),
                 signatureFile.getBytes(StandardCharsets.UTF_8)
         );
 
         // Append entries to MANIFEST.MF and copy all other entries
-        BufferedJarFiddler.BufferedJarEntry manifestEntry = fiddler.getEntry("META-INF/MANIFEST.MF").orElseThrow();
+        JarFiddler.Entry manifestEntry = jar.getEntry("META-INF/MANIFEST.MF").orElseThrow();
         ByteArrayOutputStream newManifestContent = new ByteArrayOutputStream();
         newManifestContent.write(manifestEntry.getContent());
         newManifestContent.write(manifestAmendment.getBytes(StandardCharsets.UTF_8));
         manifestEntry.replaceContentWith(newManifestContent.toByteArray());
 
-        fiddler.write(tempInputFile);
-
         // Act
-        boolean didInfect = injector.infect(tempInputFile, tempOutputFile);
+        boolean didInfect = injector.injectInto(jar);
 
         // Assert
         assertFalse("Did not infect signed JAR.", didInfect);
-        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test
-    public void testInfect_NoSpringConfig_Untouched() throws IOException {
+    public void testInjectInto_NoSpringConfig_Untouched() throws IOException {
+        // Arrange
+        JarFiddler jar = JarFiddler.buffer(regularApp);
+
         // Act
-        boolean didInfect = injector.infect(regularApp, tempOutputFile);
+        boolean didInfect = injector.injectInto(jar);
 
         // Assert
         assertFalse("Did not infect JAR without a Spring config (like a regular app JAR).", didInfect);
     }
 
     @Test
-    public void testInfect_SeveralSpringConfigsNoComponentScanning_AnyInfected() throws IOException {
+    public void testInjectInto_SeveralSpringConfigsNoComponentScanning_AnyInfected() throws IOException {
         // Arrange
         Set<String> knownConfigClasses = Set.of(
                 "BOOT-INF/classes/com/example/complex/ComplexApplication.class",
@@ -192,13 +194,14 @@ public class SpringInjectorTests {
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(complexSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(complexSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.infect(complexSpringBootApp, tempOutputFile);
+        injector.injectInto(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter);
         assertFalse("Any of the configuration classes were modified.",
                 setIntersection(classesModified, knownConfigClasses).isEmpty());
@@ -206,7 +209,7 @@ public class SpringInjectorTests {
 
     @Test
     @Ignore // TODO Fix failing test. See comment block.
-    public void testInfect_SeveralSpringConfigsNoComponentScanning_AllInfected() throws IOException {
+    public void testInjectInto_SeveralSpringConfigsNoComponentScanning_AllInfected() throws IOException {
         // Arrange
         Set<String> knownConfigClasses = Set.of(
                 "BOOT-INF/classes/com/example/complex/ComplexApplication.class",
@@ -214,13 +217,14 @@ public class SpringInjectorTests {
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/FirstConfiguration.class",
                 "BOOT-INF/classes/com/example/complex/multipleconfigs/SecondConfiguration.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(complexSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(complexSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.infect(complexSpringBootApp, tempOutputFile);
+        injector.injectInto(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> classesModified = getDiffingEntries(hashesBefore, hashesAfter, knownConfigClasses);
         assertEquals("All Spring Configuration/Application classes were modified.", knownConfigClasses, classesModified);
         /*
@@ -241,80 +245,89 @@ public class SpringInjectorTests {
      * `@SpringBootApplication` or `@ComponentScan` and this test will be able to test both.
      */
     @Test
-    public void testInfect_ComponentScanningEnabled_ConfigUntouched() throws IOException {
+    public void testInjectInto_ComponentScanningEnabled_ConfigUntouched() throws IOException {
         // Arrange
         Set<String> knownConfigClasses = Set.of(
                 "BOOT-INF/classes/com/example/simple/SimpleApplication.class"
         );
-        Map<String, String> hashesBefore = hashAllJarContents(simpleSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.infect(simpleSpringBootApp, tempOutputFile);
+        injector.injectInto(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> modifiedFiles = getDiffingEntries(hashesBefore, hashesAfter);
         assertTrue("No Spring configurations were modified because the app uses component scanning.",
                 setIntersection(modifiedFiles, knownConfigClasses).isEmpty());
     }
 
     @Test
-    public void testInfect_ValidJar_AddedSpringComponent() throws IOException {
+    public void testInjectInto_ValidJar_AddedSpringComponent() throws IOException {
         // Arrange
-        Map<String, String> hashesBefore = hashAllJarContents(simpleSpringBootApp);
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+        Map<String, String> hashesBefore = hashAllJarContents(jar);
 
         // Act
-        injector.infect(simpleSpringBootApp, tempOutputFile);
+        injector.injectInto(jar);
 
         // Assert
-        Map<String, String> hashesAfter = hashAllJarContents(tempOutputFile);
+        Map<String, String> hashesAfter = hashAllJarContents(jar);
         Set<String> addedClasses = new HashSet<>(hashesAfter.keySet());
         addedClasses.removeAll(hashesBefore.keySet());
         assertFalse("Some class was added.", addedClasses.isEmpty());
     }
 
     @Test
-    public void testInfect_AlreadyInfectedJar_Untouched() throws IOException {
+    public void testInjectInto_AlreadyInfectedJar_Untouched() throws IOException {
+        // Arrange
+        JarFiddler jar = JarFiddler.buffer(simpleSpringBootApp);
+
         // Act
-        boolean didInfectFirst = injector.infect(simpleSpringBootApp, tempInputFile);
-        boolean didInfectSecond = injector.infect(tempInputFile, tempOutputFile);
+        boolean didInfectFirst = injector.injectInto(jar);
+        boolean didInfectSecond = injector.injectInto(jar);
 
         // Assert
         assertTrue("Did infect the first time.", didInfectFirst);
         assertFalse("Did not infect the second time.", didInfectSecond);
-        assertFalse("Did not write any output JAR.", Files.exists(tempOutputFile));
     }
 
     @Test
-    public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() throws Exception {
+    public void testAddBeanToSpringConfig_ExistingConfigWithBeans_AddedBean() {
         // Arrange
         ClassFile existingConfigClass = createSpringConfWithBean("com.example.target.ExistingConfiguration", "ExistingBean");
         ClassFile injectConfigClass = createSpringConfWithBean("com.example.implant.ImplantConfiguration", "ImplantBean");
         ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
         // Act
-        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+        Optional<ClassFile> modifiedSpringConfig = SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
 
         // Assert
-        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertTrue("Spring config is modified.", modifiedSpringConfig.isPresent());
+
+        MethodInfo injectedBean = modifiedSpringConfig.get().getMethod("ImplantBean");
         assertNotNull("Config implant exists.", injectedBean);
+
         AttributeInfo annotationsAttr = injectedBean.getAttribute("RuntimeVisibleAnnotations");
         assertNotNull("Config implant has annotations.", annotationsAttr);
         assertTrue("Config implant has annotations.", annotationsAttr.length() > 0);
     }
 
     @Test
-    public void testAddBeanToSpringConfig_ExistingConfigWithoutBeans_AddedBean() throws ClassNotFoundException {
+    public void testAddBeanToSpringConfig_ExistingConfigWithoutBeans_AddedBean() {
         // Arrange
         ClassFile existingConfigClass = new ClassFile(false, "com.example.ExistingConfiguration", null);    // <---
         ClassFile injectConfigClass = createSpringConfWithBean("com.example.implant.ImplantConfiguration", "ImplantBean");
         ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
         // Act
-        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+        Optional<ClassFile> modifiedSpringConfig = SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
 
         // Assert
-        MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
+        assertTrue("Spring config is modified.", modifiedSpringConfig.isPresent());
+
+        MethodInfo injectedBean = modifiedSpringConfig.get().getMethod("ImplantBean");
         assertNotNull("Config implant exists.", injectedBean);
 
         AttributeInfo annotationsAttr = injectedBean.getAttribute("RuntimeVisibleAnnotations");
@@ -326,16 +339,17 @@ public class SpringInjectorTests {
     }
 
     @Test
-    public void testAddBeanToSpringConfig_ImplantConfigWithoutBeans_Untouched() throws ClassNotFoundException {
+    public void testAddBeanToSpringConfig_ImplantConfigWithoutBeans_Untouched() {
         // Arrange
         ClassFile existingConfigClass = createSpringConfWithBean("com.example.target.ExistingConfiguration", "ExistingBean");
         ClassFile injectConfigClass = new ClassFile(false, "com.example.implants.EmptyConfiguration", null);    // <---
         ClassFile injectComponentClass = new ClassFile(false, "com.example.implant.ImplantBean", null);
 
         // Act
-        SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
+        Optional<ClassFile> modifiedSpringConfig = SpringInjector.addBeanToSpringConfig(existingConfigClass, injectConfigClass, injectComponentClass);
 
         // Assert
+        assertTrue("Spring config is modified.", modifiedSpringConfig.isPresent());
         MethodInfo injectedBean = existingConfigClass.getMethod("ImplantBean");
         assertNull("There was no config to implant, so nothing was implanted into existing config.", injectedBean);
     }

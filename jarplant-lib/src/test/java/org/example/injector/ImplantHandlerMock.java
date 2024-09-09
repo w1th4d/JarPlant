@@ -1,7 +1,6 @@
 package org.example.injector;
 
 import javassist.bytecode.ClassFile;
-import org.example.TestHelpers;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -25,7 +24,7 @@ public class ImplantHandlerMock implements ImplantHandler {
         this.specimen = specimen;
     }
 
-    public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself
@@ -81,8 +80,8 @@ public class ImplantHandlerMock implements ImplantHandler {
     }
 
     @Override
-    public String getImplantClassName() {
-        return specimen.getName();
+    public ClassName getImplantClassName() {
+        return ClassName.of(specimen);
     }
 
     @Override
@@ -91,32 +90,31 @@ public class ImplantHandlerMock implements ImplantHandler {
     }
 
     @Override
-    public void setConfig(Map<String, Object> bulkConfigs) throws ImplantConfigException {
+    public void setConfig(Map<String, Object> bulkConfigs) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void setConfig(String key, Object value) throws ImplantConfigException {
+    public void setConfig(String key, Object value) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ClassFile loadFreshConfiguredSpecimen() throws IOException {
+    public ClassFile loadFreshConfiguredSpecimen() {
         return copy(specimen);
     }
 
     @Override
-    public ClassFile loadFreshRawSpecimen() throws IOException {
+    public ClassFile loadFreshRawSpecimen() {
         return copy(specimen);
     }
 
     @Override
-    public Map<String, byte[]> getDependencies() {
+    public Map<ClassName, byte[]> getDependencies() {
         return Map.of();
     }
 
-    private static ClassFile copy(ClassFile original) throws IOException {
-        byte[] bytecode = TestHelpers.asBytes(original);
-        return new ClassFile(new DataInputStream(new ByteArrayInputStream(bytecode)));
+    private static ClassFile copy(ClassFile original) {
+        return Helpers.cloneClassFile(original);
     }
 }

@@ -4,29 +4,26 @@ import javassist.bytecode.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.*;
-import java.util.function.Function;
-import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 
-import static org.example.injector.Helpers.*;
+import static org.example.injector.Helpers.searchForEndOfMethodIndex;
 
 public class ImplantHandlerImpl implements ImplantHandler {
     private final static Logger log = Logger.getLogger("ImplantHandler");
     private final byte[] classData;
-    private final String implantClassName;
+    private final ClassName implantClassName;
     private final Map<String, ConfDataType> availableConfig;
     private final Map<String, Object> configModifications;
-    private final Map<String, byte[]> dependencies;
+    private final Map<ClassName, byte[]> dependencies;
 
-    ImplantHandlerImpl(byte[] classData, String implantClassName, Map<String, ConfDataType> availableConfig, Map<String, byte[]> dependencies) {
+    ImplantHandlerImpl(byte[] classData, ClassName implantClassName, Map<String, ConfDataType> availableConfig, Map<ClassName, byte[]> dependencies) {
         this.classData = classData;
         this.implantClassName = implantClassName;
         this.availableConfig = Collections.unmodifiableMap(availableConfig);
@@ -35,15 +32,15 @@ public class ImplantHandlerImpl implements ImplantHandler {
     }
 
     public static ImplantHandler createFor(Path classFilePath) throws IOException {
-        byte[] bytes = bufferFrom(classFilePath);
+        byte[] bytes = Files.readAllBytes(classFilePath);
         ClassFile classFile = readClassFile(bytes);
-        String className = classFile.getName();
+        ClassName className = ClassName.of(classFile);
         Map<String, ConfDataType> availableConfig = readImplantConfig(classFile);
         return new ImplantHandlerImpl(bytes, className, availableConfig, Collections.emptyMap());
     }
 
     // Finds the class file using some weird Java quirks
-    public static ImplantHandler findAndCreateFor(final Class<?> clazz) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException, ImplantException {
         CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
         if (codeSource == null) {
             // Can't find oneself
@@ -51,94 +48,79 @@ public class ImplantHandlerImpl implements ImplantHandler {
         }
         Path sourcePath = Path.of(codeSource.getLocation().getPath());
 
-        return findAndCreateFor(sourcePath, clazz.getName());
+        return findAndCreateFor(sourcePath, ClassName.of(clazz));
     }
 
     // This method may be used when extracting the implant from another place than self
-    public static ImplantHandler findAndCreateFor(final Path path, final String className) throws ClassNotFoundException, IOException {
+    public static ImplantHandler findAndCreateFor(Path path, ClassName className) throws ClassNotFoundException, IOException, ImplantException {
+        ImplantHandler ret;
         if (Files.isDirectory(path)) {
-            return findAndReadFromDirectory(path, className);
+            ret = findAndReadFromDirectory(path, className);
         } else {
-            return findAndReadFromJar(path, className);
+            ret = findAndReadFromJar(path, className);
         }
+
+        return ret;
     }
 
-    private static ImplantHandler findAndReadFromDirectory(final Path directory, final String className) throws ClassNotFoundException, IOException {
-        if (!Files.isDirectory(directory)) {
-            throw new UnsupportedOperationException("Not a directory");
-        }
-
-        byte[] implantRawClassBytes = bufferFrom(calcSourcePath(directory, className));
-        Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(implantRawClassBytes));
-
-        // Dig through the implant class and snatch its dependencies, too
-        Function<String, Optional<byte[]>> readEntryFromDirectory = (name) -> {
-            String dependencyPath = convertToJarEntryPathName(name);
-            Optional<byte[]> result = Optional.empty();
-            try {
-                byte[] dependencyRawClassBytes = bufferFrom(calcSourcePath(directory, dependencyPath));
-                result = Optional.of(dependencyRawClassBytes);
-            } catch (ClassNotFoundException ignored) {
-                // It's likely a provided dependency (like the standard library)
-            } catch (IOException e) {
-                throw new RuntimeException("Cannot read class " + name, e);
+    private static ImplantHandler findAndReadFromDirectory(Path directory, ClassName implantClassName) throws ClassNotFoundException, IOException {
+        // Lambda function for reading a class from this directory
+        ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromDirectory = (name) -> {
+            Path sourcePath = Path.of(directory.toString(), name.getClassFilePath());
+            if (!Files.exists(sourcePath)) {
+                return Optional.empty();
             }
-            return result;
+
+            return Optional.of(Files.readAllBytes(sourcePath));
         };
-        Map<String, byte[]> readDependencies = readAllDependencies(className, readEntryFromDirectory);
 
-        return new ImplantHandlerImpl(implantRawClassBytes, className, availableConfig, readDependencies);
-    }
-
-    private static Path calcSourcePath(Path directory, String className) throws ClassNotFoundException {
-        Path sourcePath = Path.of(directory.toString(), convertToJarEntryPathName(className));
-
-        if (!Files.exists(sourcePath)) {
-            throw new ClassNotFoundException(sourcePath.toString());
+        // Read the implant class
+        Optional<byte[]> implantClassBytes = readEntryFromDirectory.apply(implantClassName);
+        if (implantClassBytes.isEmpty()) {
+            throw new ClassNotFoundException(directory.resolve(implantClassName.getClassFilePath()).toString());
         }
 
-        return sourcePath;
+        // Read its available config properties
+        ClassFile sample = readClassFile(implantClassBytes.get());
+        Map<String, ConfDataType> availableConfig = readImplantConfig(sample);
+
+        // Read its dependencies using the lambda specific for class directories
+        Map<ClassName, byte[]> dependencies = readAllDependencies(implantClassName, readEntryFromDirectory);
+
+        return new ImplantHandlerImpl(implantClassBytes.get(), implantClassName, availableConfig, dependencies);
     }
 
-    private static ImplantHandler findAndReadFromJar(final Path jarFilePath, final String className) throws ClassNotFoundException, IOException {
+    private static ImplantHandler findAndReadFromJar(Path jarFilePath, ClassName implantClassName) throws ClassNotFoundException, IOException {
         try (JarFile jarFile = new JarFile(jarFilePath.toFile())) {
-            String lookingForFileName = className.replace(".", File.separator) + ".class";
-
-            JarEntry classFileInJar = (JarEntry) jarFile.getEntry(lookingForFileName);
-            if (classFileInJar == null) {
-                throw new ClassNotFoundException(lookingForFileName);
-            }
-
-            byte[] bytes;
-            try (DataInputStream inputStream = new DataInputStream(jarFile.getInputStream(classFileInJar))) {
-                bytes = bufferFrom(inputStream);
-            }
-
-            // Dig through the implant class and snatch its dependencies, too
-            Function<String, Optional<byte[]>> readEntryFromJar = (name) -> {
-                String dependencyPath = convertToJarEntryPathName(name);
-                ZipEntry entry = jarFile.getEntry(dependencyPath);
+            // Lambda function for reading a class from this JAR
+            ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromJar = (name) -> {
+                ZipEntry entry = jarFile.getEntry(name.getClassFilePath());
                 if (entry == null) {
-                    // This is probably a provided dependency (like the standard library)
                     return Optional.empty();
                 }
 
-                try {
-                    byte[] dependencyRawClassBytes = jarFile.getInputStream(entry).readAllBytes();
-                    return Optional.of(dependencyRawClassBytes);
-                } catch (IOException e) {
-                    throw new RuntimeException("Cannot read class " + name, e);
-                }
+                return Optional.of(jarFile.getInputStream(entry).readAllBytes());
             };
-            Map<String, byte[]> readDependencies = readAllDependencies(className, readEntryFromJar);
 
-            Map<String, ConfDataType> availableConfig = readImplantConfig(readClassFile(bytes));
-            return new ImplantHandlerImpl(bytes, className, availableConfig, readDependencies);
+            // Read the implant class
+            Optional<byte[]> implantClassBytes = readEntryFromJar.apply(implantClassName);
+            if (implantClassBytes.isEmpty()) {
+                throw new ClassNotFoundException("File '" + implantClassName.getClassFilePath() + "' in JAR '" + jarFilePath + "'");
+            }
+
+            // Read its available config properties
+            ClassFile sample = readClassFile(implantClassBytes.get());
+            Map<String, ConfDataType> availableConfig = readImplantConfig(sample);
+
+            // Read its dependencies using the lambda specific for JARs
+            Map<ClassName, byte[]> dependencies = readAllDependencies(implantClassName, readEntryFromJar);
+
+            return new ImplantHandlerImpl(implantClassBytes.get(), implantClassName, availableConfig, dependencies);
         }
     }
 
     @Override
-    public String getImplantClassName() {
+    public ClassName getImplantClassName() {
         return implantClassName;
     }
 
@@ -198,21 +180,23 @@ public class ImplantHandlerImpl implements ImplantHandler {
 
     // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
     @Override
-    public ClassFile loadFreshConfiguredSpecimen() throws IOException {
+    public ClassFile loadFreshConfiguredSpecimen() {
         ClassFile instance = readClassFile(classData);
         overrideImplantConfig(instance, configModifications);
         return instance;
     }
 
     @Override
-    public ClassFile loadFreshRawSpecimen() throws IOException {
+    public ClassFile loadFreshRawSpecimen() {
         return readClassFile(classData);
     }
 
-    private static ClassFile readClassFile(byte[] classData) throws IOException {
+    private static ClassFile readClassFile(byte[] classData) {
         ClassFile instance;
         try (DataInputStream classDataInput = new DataInputStream(new ByteArrayInputStream(classData))) {
             instance = new ClassFile(classDataInput);
+        } catch (IOException e) {
+            throw new RuntimeException("Cannot interpret class.", e);
         }
         return instance;
     }
@@ -239,7 +223,7 @@ public class ImplantHandlerImpl implements ImplantHandler {
         return configFields;
     }
 
-    private static void overrideImplantConfig(ClassFile instance, Map<String, Object> newConfig) throws IOException {
+    private static void overrideImplantConfig(ClassFile instance, Map<String, Object> newConfig) {
         if (newConfig.isEmpty()) {
             return;
         }
@@ -306,52 +290,57 @@ public class ImplantHandlerImpl implements ImplantHandler {
      * @return A map of paths and class data, like <code>com/example/MyDep.class -> {1,2,3,4}</code>
      * @throws IOException If the class data could not be parsed
      */
-    private static Map<String, byte[]> readAllDependencies(
-            String className,
-            Function<String, Optional<byte[]>> classDataReader
+    private static Map<ClassName, byte[]> readAllDependencies(
+            ClassName className,
+            ThrowingFunction<ClassName, Optional<byte[]>, IOException> classDataReader
     ) throws IOException {
-        Map<String, byte[]> dependencies = new HashMap<>();
+        Map<ClassName, byte[]> dependencies = new HashMap<>();
         readAllDependencies(className, classDataReader, dependencies);
         return dependencies;
     }
 
     // This is not meant to be used directly
     private static void readAllDependencies(
-            String className,
-            Function<String, Optional<byte[]>> classDataReader,
-            Map<String, byte[]> accumulator
+            ClassName className,
+            ThrowingFunction<ClassName, Optional<byte[]>, IOException> classDataReader,
+            Map<ClassName, byte[]> accumulator
     ) throws IOException {
         byte[] thisClassData = classDataReader.apply(className).orElseThrow();
 
         ClassFile thisClass = readClassFile(thisClassData);
+        ClassName thisClassName = ClassName.of(thisClass);
         Set<String> classReferences = thisClass.getConstPool().getClassNames();
         for (String classReference : classReferences) {
-            String classReferenceName = classReference.replace("/", ".");
-            if (thisClass.getName().equals(classReferenceName)) {
+            ClassName classReferenceName;
+            try {
+                classReferenceName = ClassName.fromClassFormatInternalName(classReference);
+            } catch (ClassNameException e) {
+                continue;
+            }
+            if (classReferenceName.equals(thisClassName)) {
                 // Don't go recursing on ourselves again
                 continue;
             }
 
-            String classReferenceKey = convertToJarEntryPathName(classReference);
-            if (accumulator.containsKey(classReferenceKey)) {
+            if (accumulator.containsKey(classReferenceName)) {
                 // This dependency is already noted (don't get lost in circular dependencies)
                 continue;
             }
 
-            Optional<byte[]> classRawData = classDataReader.apply(classReference);
+            Optional<byte[]> classRawData = classDataReader.apply(classReferenceName);
             if (classRawData.isEmpty()) {
                 continue;
             }
 
-            accumulator.put(classReferenceKey, classRawData.get());
+            accumulator.put(classReferenceName, classRawData.get());
 
             // Recursively go through the whole dependency tree
-            readAllDependencies(classReference, classDataReader, accumulator);
+            readAllDependencies(classReferenceName, classDataReader, accumulator);
         }
     }
 
     @Override
-    public Map<String, byte[]> getDependencies() {
+    public Map<ClassName, byte[]> getDependencies() {
         return Collections.unmodifiableMap(dependencies);
     }
 
@@ -386,5 +375,10 @@ public class ImplantHandlerImpl implements ImplantHandler {
             }
             return UNSUPPORTED;
         }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingFunction<T, R, E extends Throwable> {
+        R apply(T t) throws E;
     }
 }

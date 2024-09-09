@@ -2,11 +2,10 @@ package org.example.injector;
 
 import javassist.bytecode.ClassFile;
 
-import java.io.IOException;
 import java.util.Map;
 
 public interface ImplantHandler {
-    String getImplantClassName();
+    ClassName getImplantClassName();
 
     Map<String, ImplantHandlerImpl.ConfDataType> getAvailableConfig();
 
@@ -15,9 +14,9 @@ public interface ImplantHandler {
     void setConfig(String key, Object value) throws ImplantConfigException;
 
     // Unfortunately, ClassFile is not Cloneable so a fresh instance needs to be read for every injection
-    ClassFile loadFreshConfiguredSpecimen() throws IOException;
+    ClassFile loadFreshConfiguredSpecimen();
 
-    ClassFile loadFreshRawSpecimen() throws IOException;
+    ClassFile loadFreshRawSpecimen();
 
-    Map<String, byte[]> getDependencies();
+    Map<ClassName, byte[]> getDependencies();
 }

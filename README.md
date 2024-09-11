@@ -193,7 +193,7 @@ public class Demo {
             }
         } catch (ClassNotFoundException | IOException | ImplantException |
                  ImplantConfigException e) {
-            throw new untimeException(e);
+            throw new RuntimeException(e);
         }
     }
 }

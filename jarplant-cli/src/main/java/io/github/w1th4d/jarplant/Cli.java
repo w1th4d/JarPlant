@@ -216,7 +216,7 @@ public class Cli {
         } else if (implantClassName.equals("StealerExfil")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(StealerExfil.class);
-            } catch (ClassNotFoundException | IOException e) {
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }
         } else {

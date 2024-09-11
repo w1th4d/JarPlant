@@ -166,7 +166,7 @@ Then, include it in the `pom.xml` (or equivalent) of your own project:
 
 ```xml
 <dependency>
-  <groupId>org.example</groupId>
+  <groupId>io.github.w1th4d.jarplant</groupId>
   <artifactId>jarplant-lib</artifactId>
   <version>1.0-SNAPSHOT</version>
 </dependency>
@@ -203,7 +203,7 @@ You may want to include the `jarplant-implants` submodule for access to `ClassIm
 
 ```xml
 <dependency>
-    <groupId>org.example</groupId>
+  <groupId>io.github.w1th4d.jarplant</groupId>
     <artifactId>jarplant-implants</artifactId>
     <version>1.0-SNAPSHOT</version>
 </dependency>
@@ -321,7 +321,7 @@ mkdir /tmp/jarplant-debug
 cd /tmp/jarplant-debug
 unzip ../path/to/jarfile/my-app.jar
 
-javap -c -v org/example/target/Main.class | less
+javap -c -v io/github/w1th4d/jarplant/test/Main.class | less
 ```
 
 Replace directories and paths as appropriate. The key here is the `javap` command. It's great for disassembling and

@@ -272,7 +272,7 @@ Please delve into it, read its Javadoc and fill in the `payload()` method approp
 The `SpringInjector` uses two different implants: A _Spring component_ implant and a _Spring configuration_ implant.
 Both needs to be supplied and maintained, but the `SpringInjector` may skip the Spring configuration implant if it's not
 necessary.
-Future versions may (hopefully) be able to generate the Spring configuration implant during injection, but itt needs to
+Future versions may (hopefully) be able to generate the Spring configuration implant during injection, but it needs to
 be supplied explicitly for now.
 
 ## Maven modules

@@ -92,7 +92,7 @@ java -jar jarplant.jar spring-injector \
    --implant-config SpringImplantConfiguration 
 ````
 
-You'll want to modify `StringImplantController.jara` for this one do to anything interesting.
+You'll want to modify `StringImplantController.java` for this one do to anything interesting.
 The default is to create a REST controller routed to `/implant` that just gives a dummy response.
 
 Spike any JAR with your own custom implant code:

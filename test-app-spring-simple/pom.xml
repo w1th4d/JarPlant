@@ -10,7 +10,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
-    <groupId>com.example</groupId>
+    <groupId>io.github.w1th4d.jarplant</groupId>
     <artifactId>test-app-spring-simple</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>test-app-spring-simple</name>
@@ -54,7 +54,7 @@
                             <stripVersion>true</stripVersion>
                             <artifactItems>
                                 <artifactItem>
-                                    <groupId>com.example</groupId>
+                                    <groupId>io.github.w1th4d.jarplant</groupId>
                                     <artifactId>test-app-spring-simple</artifactId>
                                     <version>${project.version}</version>
                                     <type>jar</type>

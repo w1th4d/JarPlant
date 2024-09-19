@@ -93,6 +93,78 @@ public class StealerExfilDecoder {
         return allFqdns;
     }
 
+    static Set<String> findFinalRequestFqdns(Set<String> fqdns, String expectedTopDomain) {
+        final int expectedTopDomainSubdomainCount = expectedTopDomain.split("\\.").length;
+
+        // Group FQDNs by uniqueId
+        Map<String, SortedSet<String>> subqueriesPerId = new HashMap<>();
+        Comparator<String> sorter = new DnsQueryComparator();
+        for (String fqdn : fqdns) {
+            // Filter queries for the top domain (like "abc123.oast.fun")
+            if (!fqdn.endsWith(expectedTopDomain)) {
+                continue;
+            }
+
+            // Filter queries that does not contain at least one extra part (the uniqueId+seqNo)
+            String[] parts = fqdn.split("\\.");
+            if (parts.length <= expectedTopDomainSubdomainCount + 1) {
+                continue;
+            }
+
+            // Expect this part to be "uniqueId-seqNo"
+            String queryId = parts[parts.length - expectedTopDomainSubdomainCount - 1];
+            if (queryId.split("-").length != 2) {
+                continue;
+            }
+
+            // Get or create the list of FQDNs for this uniqueId
+            Set<String> subqueries = subqueriesPerId.computeIfAbsent(queryId, k -> new TreeSet<>(sorter));
+
+            subqueries.add(fqdn);
+        }
+
+        // For each queryId, go through all subqueries and figure out which one holds all the data
+        Set<String> mostCompleteQueries = new HashSet<>(subqueriesPerId.size());
+        for (Map.Entry<String, SortedSet<String>> entry : subqueriesPerId.entrySet()) {
+            String queryId = entry.getKey();
+            SortedSet<String> subqueries = entry.getValue();
+
+            mostCompleteQueries.add(subqueries.first());
+        }
+
+        return mostCompleteQueries;
+    }
+
+    private static class DnsQueryComparator implements Comparator<String> {
+        DnsQueryComparator() {
+            super();
+        }
+
+        @Override
+        public int compare(String self, String other) {
+            String[] selfParts = self.toLowerCase().split("\\.");
+            String[] otherParts = other.toLowerCase().split("\\.");
+
+            // Do a sanity check while we're at it
+            int selfI = selfParts.length - 1;
+            int otherI = otherParts.length - 1;
+            while (selfI >= 0 && otherI >= 0) {
+                String selfPartAtI = selfParts[selfI];
+                String otherPartAtI = otherParts[otherI];
+
+                if (!selfPartAtI.equals(otherPartAtI)) {
+                    // These aren't even in the same query!
+                    throw new RuntimeException("Subquery mismatch: '" + selfPartAtI + "' != '" + otherPartAtI + "'.");
+                }
+
+                selfI--;
+                otherI--;
+            }
+
+            return otherParts.length - selfParts.length;
+        }
+    }
+
     public Map<String, Map<String, String>> decodeRequests(List<String> requests) throws Exception {
         Map<String, Map<String, String>> res = new HashMap<>();
         Map<String, Map<Integer, String>> idSeqPart = new HashMap<>();

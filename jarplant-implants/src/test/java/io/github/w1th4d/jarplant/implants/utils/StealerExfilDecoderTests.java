@@ -1,13 +1,10 @@
 package io.github.w1th4d.jarplant.implants.utils;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.io.InputStream;
+import java.util.*;
 
 import static org.junit.Assert.*;
 
@@ -160,6 +157,90 @@ public class StealerExfilDecoderTests {
         // Assert
         assertFalse("Found something", foundFqdns.isEmpty());
         assertEquals("Found exact number of queries", 130, foundFqdns.size());
+    }
+
+    @Test
+    public void testFindFinalRequestFqdns_OnlyOneQuery_Result() {
+        // Arrange
+        SortedSet<String> query = new TreeSet<>();
+        query.add("b.c.12345-0.something.example.com");
+        query.add("a.b.c.12345-0.something.example.com");
+        query.add("c.12345-0.something.example.com");
+
+        // Act
+        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(query, "something.example.com");
+
+        // Assert
+        assertEquals(1, relevantQuery.size());
+        String fqdn = relevantQuery.iterator().next();
+        assertEquals("a.b.c.12345-0.something.example.com", fqdn);
+    }
+
+    @Test
+    public void testFindFinalRequestFqdns_SeveralQueries_Result() {
+        // Arrange
+        SortedSet<String> queries = new TreeSet<>();
+        // First query
+        queries.add("b.c.12345-0.something.example.com");
+        queries.add("a.b.c.12345-0.something.example.com");
+        queries.add("c.12345-0.something.example.com");
+        // Sedond query
+        queries.add("b.c.12345-1.something.example.com");
+        queries.add("c.12345-1.something.example.com");
+        queries.add("a.b.c.12345-1.something.example.com");
+        // Third query
+        queries.add("one.two.three.6789-0.something.example.com");
+        queries.add("three.6789-0.something.example.com");
+        queries.add("two.three.6789-0.something.example.com");
+
+        // Act
+        Set<String> relevantQueries = StealerExfilDecoder.findFinalRequestFqdns(queries, "something.example.com");
+
+        // Assert
+        assertEquals(3, relevantQueries.size());
+        Iterator<String> iterator = relevantQueries.iterator();
+        String first = iterator.next();
+        String second = iterator.next();
+        String third = iterator.next();
+        assertEquals("a.b.c.12345-0.something.example.com", first);
+        assertEquals("a.b.c.12345-1.something.example.com", second);
+        assertEquals("one.two.three.6789-0.something.example.com", third);
+    }
+
+    @Test
+    public void testFindFinalRequestFqdns_Nothing_Nothing() {
+        // Arrange
+        SortedSet<String> nothing = Collections.emptySortedSet();
+
+        // Act
+        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(nothing, "something.example.com");
+
+        // Assert
+        assertEquals(0, relevantQuery.size());
+    }
+
+    @Test
+    public void testFindFinalRequestFqdns_WrongExpectedDomain_Nothing() {
+        // Arrange
+        SortedSet<String> someOtherQuery = new TreeSet<>();
+        someOtherQuery.add("a.b.c.12345-0.something-else.example.com");
+
+        // Act
+        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(someOtherQuery, "something.example.com");
+
+        // Assert
+        assertEquals(0, relevantQuery.size());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testFindFinalRequestFqdns_NotSubqueries_Exception() {
+        // Arrange
+        SortedSet<String> notSubqueries = new TreeSet<>();
+        notSubqueries.add("a.b.c.12345-0.something.example.com");
+        notSubqueries.add("d.e.f.12345-0.something.example.com");
+
+        // Act
+        StealerExfilDecoder.findFinalRequestFqdns(notSubqueries, "something.example.com");
     }
 
     @Test

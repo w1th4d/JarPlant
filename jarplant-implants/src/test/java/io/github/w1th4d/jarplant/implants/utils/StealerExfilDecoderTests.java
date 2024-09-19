@@ -35,7 +35,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_InteractshRequestOutput_Fqdn() throws DecoderException {
+    public void testExtractFqdns_InteractshRequestOutput_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
@@ -48,7 +48,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
-        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+        Set<String> fqdns = decoder.extractFqdns(copyPasteFromInteractsh);
 
         // Assert
         assertFalse(fqdns.isEmpty());
@@ -56,7 +56,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_SeveralInteractshOutputs_Fqdn() throws DecoderException {
+    public void testExtractFqdns_SeveralInteractshOutputs_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
@@ -78,7 +78,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
-        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+        Set<String> fqdns = decoder.extractFqdns(copyPasteFromInteractsh);
 
         // Assert
         assertFalse(fqdns.isEmpty());
@@ -87,7 +87,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_InteractshResponseOutput_Fqdn() throws DecoderException {
+    public void testExtractFqdns_InteractshResponseOutput_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
@@ -108,7 +108,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
-        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+        Set<String> fqdns = decoder.extractFqdns(copyPasteFromInteractsh);
 
         // Assert
         assertFalse(fqdns.isEmpty());
@@ -116,7 +116,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_SeveralInteractshResponseOutputs_Fqdn() throws DecoderException {
+    public void testExtractFqdns_SeveralInteractshResponseOutputs_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
@@ -154,7 +154,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
-        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+        Set<String> fqdns = decoder.extractFqdns(copyPasteFromInteractsh);
 
         // Assert
         assertFalse(fqdns.isEmpty());
@@ -185,7 +185,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFinalRequestFqdns_OnlyOneQuery_Result() {
+    public void testFindLongestFqdns_OnlyOneQuery_Result() {
         // Arrange
         SortedSet<String> query = new TreeSet<>();
         query.add("b.c.12345-0.something.example.com");
@@ -193,7 +193,7 @@ public class StealerExfilDecoderTests {
         query.add("c.12345-0.something.example.com");
 
         // Act
-        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(query, "something.example.com");
+        Set<String> relevantQuery = StealerExfilDecoder.findLongestFqdns(query, "something.example.com");
 
         // Assert
         assertEquals(1, relevantQuery.size());
@@ -202,7 +202,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFinalRequestFqdns_SeveralQueries_Result() {
+    public void testFindLongestFqdns_SeveralQueries_Result() {
         // Arrange
         SortedSet<String> queries = new TreeSet<>();
         // First query
@@ -219,7 +219,7 @@ public class StealerExfilDecoderTests {
         queries.add("two.three.6789-0.something.example.com");
 
         // Act
-        Set<String> relevantQueries = StealerExfilDecoder.findFinalRequestFqdns(queries, "something.example.com");
+        Set<String> relevantQueries = StealerExfilDecoder.findLongestFqdns(queries, "something.example.com");
 
         // Assert
         assertEquals(3, relevantQueries.size());
@@ -233,69 +233,69 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFinalRequestFqdns_Nothing_Nothing() {
+    public void testFindLongestFqdns_Nothing_Nothing() {
         // Arrange
         SortedSet<String> nothing = Collections.emptySortedSet();
 
         // Act
-        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(nothing, "something.example.com");
+        Set<String> relevantQuery = StealerExfilDecoder.findLongestFqdns(nothing, "something.example.com");
 
         // Assert
         assertEquals(0, relevantQuery.size());
     }
 
     @Test
-    public void testFindFinalRequestFqdns_WrongExpectedDomain_Nothing() {
+    public void testFindLongestFqdns_WrongExpectedDomain_Nothing() {
         // Arrange
         SortedSet<String> someOtherQuery = new TreeSet<>();
         someOtherQuery.add("a.b.c.12345-0.something-else.example.com");
 
         // Act
-        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(someOtherQuery, "something.example.com");
+        Set<String> relevantQuery = StealerExfilDecoder.findLongestFqdns(someOtherQuery, "something.example.com");
 
         // Assert
         assertEquals(0, relevantQuery.size());
     }
 
     @Test(expected = DecoderRuntimeException.class)
-    public void testFindFinalRequestFqdns_NotSubqueries_Exception() {
+    public void testFindLongestFqdns_NotSubqueries_Exception() {
         // Arrange
         SortedSet<String> notSubqueries = new TreeSet<>();
         notSubqueries.add("a.b.c.12345-0.something.example.com");
         notSubqueries.add("d.e.f.12345-0.something.example.com");
 
         // Act
-        StealerExfilDecoder.findFinalRequestFqdns(notSubqueries, "something.example.com");
+        StealerExfilDecoder.findLongestFqdns(notSubqueries, "something.example.com");
     }
 
     @Test
-    public void testFindFinalRequestFqdns_TopDomainOnly_Nothing() {
+    public void testFindLongestFqdns_TopDomainOnly_Nothing() {
         // Arrange
         SortedSet<String> onlyTopDomain = new TreeSet<>();
         onlyTopDomain.add("something.example.com");
 
         // Act
-        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(onlyTopDomain, "something.example.com");
+        Set<String> relevantQuery = StealerExfilDecoder.findLongestFqdns(onlyTopDomain, "something.example.com");
 
         // Assert
         assertTrue(relevantQuery.isEmpty());
     }
 
     @Test
-    public void testFindFinalRequestFqdns_MetadataPartOnly_Nothing() {
+    public void testFindLongestFqdns_MetadataPartOnly_Nothing() {
         // Arrange
         SortedSet<String> onlyTopDomain = new TreeSet<>();
         onlyTopDomain.add("12345-0.something.example.com");
 
         // Act
-        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(onlyTopDomain, "something.example.com");
+        Set<String> relevantQuery = StealerExfilDecoder.findLongestFqdns(onlyTopDomain, "something.example.com");
 
         // Assert
         assertTrue(relevantQuery.isEmpty());
     }
 
     @Test
-    public void testDecodeRequests_OneRequest_DecodedData() throws Exception {
+    public void testDecodeFqdn_OneRequest_DecodedData() throws Exception {
         // Arrange
         String baseDomain = "something.example.com";
         // Only 'host' and 'user':
@@ -303,7 +303,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
-        Map<String, Map<String, String>> decodedData = decoder.decodeRequests(List.of(request));
+        Map<String, Map<String, String>> decodedData = decoder.decodeFqdn(List.of(request));
 
         // Assert
         assertEquals(1, decodedData.size());
@@ -314,7 +314,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testDecodeRequests_SeveralRequests_DecodedData() throws Exception {
+    public void testDecodeRequests_SeveralFqdn_DecodedData() throws Exception {
         // Arrange
         String baseDomain = "something.example.com";
         List<String> requests = new ArrayList<>(4);
@@ -325,7 +325,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
-        Map<String, Map<String, String>> decodedData = decoder.decodeRequests(requests);
+        Map<String, Map<String, String>> decodedData = decoder.decodeFqdn(requests);
 
         // Assert
         assertEquals("Found one ID", 1, decodedData.size());
@@ -341,7 +341,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testDecodeRequests_SeveralRequestsInRandomOrder_DecodedData() throws Exception {
+    public void testDecodeRequests_SeveralFqdnInRandomOrder_DecodedData() throws Exception {
         // Arrange
         String baseDomain = "something.example.com";
         List<String> requests = new ArrayList<>(4);
@@ -352,7 +352,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
-        Map<String, Map<String, String>> decodedData = decoder.decodeRequests(requests);
+        Map<String, Map<String, String>> decodedData = decoder.decodeFqdn(requests);
 
         // Assert
         assertEquals("Found one ID", 1, decodedData.size());

@@ -39,7 +39,7 @@ public class StealerExfilDecoder {
         return new StealerExfilDecoder(expectedTopDomain, regex);
     }
 
-    public Set<String> findFqdns(String text) {
+    public Set<String> extractFqdns(String text) {
         Set<String> fqdns = new HashSet<>();
 
         Matcher matcher = regex.matcher(text);
@@ -79,13 +79,13 @@ public class StealerExfilDecoder {
 
             JsonNode request = dataObj.get("raw-request");
             if (request != null) {
-                Set<String> fqdns = findFqdns(request.asText());
+                Set<String> fqdns = extractFqdns(request.asText());
                 allFqdns.addAll(fqdns);
             }
 
             JsonNode response = dataObj.get("raw-response");
             if (response != null) {
-                Set<String> fqdns = findFqdns(response.asText());
+                Set<String> fqdns = extractFqdns(response.asText());
                 allFqdns.addAll(fqdns);
             }
         }
@@ -93,7 +93,7 @@ public class StealerExfilDecoder {
         return allFqdns;
     }
 
-    static Set<String> findFinalRequestFqdns(Set<String> fqdns, String expectedTopDomain) {
+    static Set<String> findLongestFqdns(Set<String> fqdns, String expectedTopDomain) {
         final int expectedTopDomainSubdomainCount = expectedTopDomain.split("\\.").length;
 
         // Group FQDNs by uniqueId
@@ -165,15 +165,15 @@ public class StealerExfilDecoder {
         }
     }
 
-    public Map<String, Map<String, String>> decodeRequests(List<String> requests) throws Exception {
+    public Map<String, Map<String, String>> decodeFqdn(List<String> fqdns) throws Exception {
         Map<String, Map<String, String>> res = new HashMap<>();
         Map<String, Map<Integer, String>> idSeqPart = new HashMap<>();
 
-        Collections.reverse(requests);
-        for (String request : requests) {
-            request = request.toLowerCase();
+        Collections.reverse(fqdns);
+        for (String fqdn : fqdns) {
+            fqdn = fqdn.toLowerCase();
             Pattern idRegex = Pattern.compile("([0-9]+)-([0-9]+)\\." + expectedTopDomain.replace(".", "\\."));
-            Matcher idMatcher = idRegex.matcher(request);
+            Matcher idMatcher = idRegex.matcher(fqdn);
             while (idMatcher.find()) {
                 if (idMatcher.groupCount() < 2) {
                     continue;
@@ -185,7 +185,7 @@ public class StealerExfilDecoder {
                     splitsForId = new HashMap<>();
                     idSeqPart.put(id, splitsForId);
                 }
-                String dataPart = request.substring(0, request.indexOf("." + id + "-" + seqNo + "." + expectedTopDomain));
+                String dataPart = fqdn.substring(0, fqdn.indexOf("." + id + "-" + seqNo + "." + expectedTopDomain));
                 String encodedData = dataPart.replace(".", "");
                 String currentValueForSeqNo = splitsForId.get(seqNo);
                 if (currentValueForSeqNo != null) {

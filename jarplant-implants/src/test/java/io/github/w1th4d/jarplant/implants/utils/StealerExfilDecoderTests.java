@@ -141,9 +141,25 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    @Ignore
-    public void testFindFqdns_InteractchFileExport_Fqdns() {
-        // TODO Do an entire file export from a lot of requests in Interactch
+    public void testParseInteractchExport_InteractchFileExport_Fqdns() throws IOException {
+        // Arrange
+        String expectedDomainName = "abc123.oast.fun";
+        String testFileName = "interactch_export_example.json";
+        byte[] jsonBytes;
+        try (InputStream resourceStream = getClass().getClassLoader().getResourceAsStream(testFileName)) {
+            if (resourceStream == null) {
+                throw new IOException("Cannot read resource file '" + testFileName + "'.");
+            }
+            jsonBytes = resourceStream.readAllBytes();
+        }
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(expectedDomainName);
+        Set<String> foundFqdns = decoder.parseInteractchExport(jsonBytes);
+
+        // Assert
+        assertFalse("Found something", foundFqdns.isEmpty());
+        assertEquals("Found exact number of queries", 130, foundFqdns.size());
     }
 
     @Test

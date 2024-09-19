@@ -1,6 +1,12 @@
 package io.github.w1th4d.jarplant.implants.utils;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,6 +52,45 @@ public class StealerExfilDecoder {
         }
 
         return fqdns;
+    }
+
+    public Set<String> parseInteractchExport(Path exportFile) throws IOException {
+        return parseInteractchExport(Files.readAllBytes(exportFile));
+    }
+
+    public Set<String> parseInteractchExport(byte[] exportFileContent) throws IOException {
+        return parseInteractchExport(new String(exportFileContent, StandardCharsets.UTF_8));
+    }
+
+    public Set<String> parseInteractchExport(String exportFileContent) throws IOException {
+        Set<String> allFqdns = new HashSet<>();
+
+        ObjectMapper jsonParser = new ObjectMapper();
+        JsonNode json = jsonParser.readTree(exportFileContent);
+
+        JsonNode appNode = json.get("app");
+        JsonNode appJson = new ObjectMapper().readTree(appNode.asText());   // They put JSON in your JSON...
+        JsonNode data = appJson.get("data");
+        // Maybe some day someone needs to parse terabytes of data. Until that day, we're keeping it simple.
+        for (JsonNode dataObj : data) {
+            if (!dataObj.get("protocol").asText().equals("dns")) {
+                continue;
+            }
+
+            JsonNode request = dataObj.get("raw-request");
+            if (request != null) {
+                Set<String> fqdns = findFqdns(request.asText());
+                allFqdns.addAll(fqdns);
+            }
+
+            JsonNode response = dataObj.get("raw-response");
+            if (response != null) {
+                Set<String> fqdns = findFqdns(response.asText());
+                allFqdns.addAll(fqdns);
+            }
+        }
+
+        return allFqdns;
     }
 
     public Map<String, Map<String, String>> decodeRequests(List<String> requests) throws Exception {

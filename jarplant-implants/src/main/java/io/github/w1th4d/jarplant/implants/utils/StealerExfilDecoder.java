@@ -1,5 +1,6 @@
 package io.github.w1th4d.jarplant.implants.utils;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -24,10 +25,9 @@ public class StealerExfilDecoder {
         this.regex = regex;
     }
 
-    public static StealerExfilDecoder create(String expectedTopDomain) throws IOException {
+    public static StealerExfilDecoder create(String expectedTopDomain) throws DecoderException {
         if (!topDomainValidator.matcher(expectedTopDomain).matches()) {
-            throw new IOException("Invalid top domain '" + expectedTopDomain + "'.");
-            // TODO Use a custom exception
+            throw new DecoderException("Invalid top domain '" + expectedTopDomain + "'.");
         }
 
         /*
@@ -58,11 +58,11 @@ public class StealerExfilDecoder {
         return parseInteractchExport(Files.readAllBytes(exportFile));
     }
 
-    public Set<String> parseInteractchExport(byte[] exportFileContent) throws IOException {
+    public Set<String> parseInteractchExport(byte[] exportFileContent) throws JsonProcessingException {
         return parseInteractchExport(new String(exportFileContent, StandardCharsets.UTF_8));
     }
 
-    public Set<String> parseInteractchExport(String exportFileContent) throws IOException {
+    public Set<String> parseInteractchExport(String exportFileContent) throws JsonProcessingException {
         Set<String> allFqdns = new HashSet<>();
 
         ObjectMapper jsonParser = new ObjectMapper();
@@ -154,7 +154,7 @@ public class StealerExfilDecoder {
 
                 if (!selfPartAtI.equals(otherPartAtI)) {
                     // These aren't even in the same query!
-                    throw new RuntimeException("Subquery mismatch: '" + selfPartAtI + "' != '" + otherPartAtI + "'.");
+                    throw new DecoderRuntimeException("Subquery mismatch: '" + self + "' and '" + other + "'.");
                 }
 
                 selfI--;

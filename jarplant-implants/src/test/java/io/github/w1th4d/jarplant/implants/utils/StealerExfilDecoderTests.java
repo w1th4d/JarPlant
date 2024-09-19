@@ -1,5 +1,6 @@
 package io.github.w1th4d.jarplant.implants.utils;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -12,7 +13,7 @@ import static org.junit.Assert.*;
 
 public class StealerExfilDecoderTests {
     @Test
-    public void testParseResponse_RequestDigOutput_Fqdn() throws IOException {
+    public void testFindFqdns_InteractchRequestOutput_Fqdn() throws IOException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
@@ -30,6 +31,119 @@ public class StealerExfilDecoderTests {
         // Assert
         assertFalse(fqdns.isEmpty());
         assertTrue(fqdns.contains("some-data-field.1379621077.abc123.oast.fun"));
+    }
+
+    @Test
+    public void testFindFqdns_SeveralInteractchOutputs_Fqdn() throws IOException {
+        // Arrange
+        String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
+                ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
+                "\n" +
+                ";; OPT PSEUDOSECTION:\n" +
+                "; EDNS: version 0; flags: do; udp: 1232\n" +
+                "\n" +
+                ";; QUESTION SECTION:\n" +
+                ";some-data-field.1379621077.abc123.oast.fun.\tIN\t AAAA\n" +
+                // Another one:
+                ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
+                ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
+                "\n" +
+                ";; OPT PSEUDOSECTION:\n" +
+                "; EDNS: version 0; flags: do; udp: 1232\n" +
+                "\n" +
+                ";; QUESTION SECTION:\n" +
+                ";another-data-field.7701269731.abc123.oast.fun.\tIN\t AAAA\n";
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
+        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+
+        // Assert
+        assertFalse(fqdns.isEmpty());
+        assertTrue(fqdns.contains("some-data-field.1379621077.abc123.oast.fun"));
+        assertTrue(fqdns.contains("another-data-field.7701269731.abc123.oast.fun"));
+    }
+
+    @Test
+    public void testFindFqdns_InteractchResponseOutput_Fqdn() throws IOException {
+        // Arrange
+        String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
+                ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
+                "\n" +
+                ";; QUESTION SECTION:\n" +
+                ";some-data-field.1379621077.abc123.oast.fun.\tIN\t AAAA\n" +
+                "\n" +
+                ";; ANSWER SECTION:\n" +
+                "some-data-field.1379621077.abc123.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                "\n" +
+                ";; AUTHORITY SECTION:\n" +
+                "some-data-field.1379621077.abc123.oast.fun.\t3600\tIN\tNS\tns1.oast.fun.\n" +
+                "some-data-field.1379621077.abc123.oast.fun.\t3600\tIN\tNS\tns2.oast.fun.\n" +
+                "\n" +
+                ";; ADDITIONAL SECTION:\n" +
+                "ns1.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                "ns2.oast.fun.\t3600\tIN\tA\t10.1.2.3\n";
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
+        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+
+        // Assert
+        assertFalse(fqdns.isEmpty());
+        assertTrue(fqdns.contains("some-data-field.1379621077.abc123.oast.fun"));
+    }
+
+    @Test
+    public void testFindFqdns_SeveralInteractchResponseOutputs_Fqdn() throws IOException {
+        // Arrange
+        String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
+                ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
+                "\n" +
+                ";; QUESTION SECTION:\n" +
+                ";some-data-field.1379621077.abc123.oast.fun.\tIN\t AAAA\n" +
+                "\n" +
+                ";; ANSWER SECTION:\n" +
+                "some-data-field.1379621077.abc123.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                "\n" +
+                ";; AUTHORITY SECTION:\n" +
+                "some-data-field.1379621077.abc123.oast.fun.\t3600\tIN\tNS\tns1.oast.fun.\n" +
+                "some-data-field.1379621077.abc123.oast.fun.\t3600\tIN\tNS\tns2.oast.fun.\n" +
+                "\n" +
+                ";; ADDITIONAL SECTION:\n" +
+                "ns1.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                "ns2.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                // Another one
+                ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
+                ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
+                "\n" +
+                ";; QUESTION SECTION:\n" +
+                ";another-data-field.7701269731.abc123.oast.fun.\tIN\t AAAA\n" +
+                "\n" +
+                ";; ANSWER SECTION:\n" +
+                "another-data-field.7701269731.abc123.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                "\n" +
+                ";; AUTHORITY SECTION:\n" +
+                "another-data-field.7701269731.abc123.oast.fun.\t3600\tIN\tNS\tns1.oast.fun.\n" +
+                "another-data-field.7701269731.abc123.oast.fun.\t3600\tIN\tNS\tns2.oast.fun.\n" +
+                "\n" +
+                ";; ADDITIONAL SECTION:\n" +
+                "ns1.oast.fun.\t3600\tIN\tA\t10.1.2.3\n" +
+                "ns2.oast.fun.\t3600\tIN\tA\t10.1.2.3\n";
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create("abc123.oast.fun");
+        Set<String> fqdns = decoder.findFqdns(copyPasteFromInteractsh);
+
+        // Assert
+        assertFalse(fqdns.isEmpty());
+        assertTrue(fqdns.contains("some-data-field.1379621077.abc123.oast.fun"));
+        assertTrue(fqdns.contains("another-data-field.7701269731.abc123.oast.fun"));
+    }
+
+    @Test
+    @Ignore
+    public void testFindFqdns_InteractchFileExport_Fqdns() {
+        // TODO Do an entire file export from a lot of requests in Interactch
     }
 
     @Test

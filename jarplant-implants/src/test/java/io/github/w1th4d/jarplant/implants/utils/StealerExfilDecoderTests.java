@@ -10,6 +10,31 @@ import static org.junit.Assert.*;
 
 public class StealerExfilDecoderTests {
     @Test
+    public void testCreate_ValidTopDomain_Instance() throws DecoderException {
+        StealerExfilDecoder.create("abc123.oast.fun");
+    }
+
+    @Test(expected = DecoderException.class)
+    public void testCreate_Regex1_Exception() throws DecoderException {
+        StealerExfilDecoder.create("[ab].oast.fun");
+    }
+
+    @Test(expected = DecoderException.class)
+    public void testCreate_Regex2_Exception() throws DecoderException {
+        StealerExfilDecoder.create("\\.");
+    }
+
+    @Test(expected = DecoderException.class)
+    public void testCreate_Regex3_Exception() throws DecoderException {
+        StealerExfilDecoder.create("\\b\\d+E");
+    }
+
+    @Test(expected = DecoderException.class)
+    public void testCreate_Glob_Exception() throws DecoderException {
+        StealerExfilDecoder.create("*.oast.fun");
+    }
+
+    @Test
     public void testFindFqdns_InteractshRequestOutput_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +

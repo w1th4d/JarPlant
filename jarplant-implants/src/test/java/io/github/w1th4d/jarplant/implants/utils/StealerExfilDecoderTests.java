@@ -10,7 +10,7 @@ import static org.junit.Assert.*;
 
 public class StealerExfilDecoderTests {
     @Test
-    public void testFindFqdns_InteractchRequestOutput_Fqdn() throws DecoderException {
+    public void testFindFqdns_InteractshRequestOutput_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
@@ -31,7 +31,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_SeveralInteractchOutputs_Fqdn() throws DecoderException {
+    public void testFindFqdns_SeveralInteractshOutputs_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags:; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1\n" +
@@ -62,7 +62,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_InteractchResponseOutput_Fqdn() throws DecoderException {
+    public void testFindFqdns_InteractshResponseOutput_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
@@ -91,7 +91,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testFindFqdns_SeveralInteractchResponseOutputs_Fqdn() throws DecoderException {
+    public void testFindFqdns_SeveralInteractshResponseOutputs_Fqdn() throws DecoderException {
         // Arrange
         String copyPasteFromInteractsh = ";; opcode: QUERY, status: NOERROR, id: 62053\n" +
                 ";; flags: qr aa; QUERY: 1, ANSWER: 1, AUTHORITY: 2, ADDITIONAL: 2\n" +
@@ -138,10 +138,10 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testParseInteractchExport_InteractchFileExport_Fqdns() throws IOException, DecoderException {
+    public void testParseInteractshExport_InteractshFileExport_Fqdns() throws IOException, DecoderException {
         // Arrange
         String expectedDomainName = "abc123.oast.fun";
-        String testFileName = "interactch_export_example.json";
+        String testFileName = "interactsh_export_example.json";
         byte[] jsonBytes;
         try (InputStream resourceStream = getClass().getClassLoader().getResourceAsStream(testFileName)) {
             if (resourceStream == null) {
@@ -152,7 +152,7 @@ public class StealerExfilDecoderTests {
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create(expectedDomainName);
-        Set<String> foundFqdns = decoder.parseInteractchExport(jsonBytes);
+        Set<String> foundFqdns = decoder.parseInteractshExport(jsonBytes);
 
         // Assert
         assertFalse("Found something", foundFqdns.isEmpty());

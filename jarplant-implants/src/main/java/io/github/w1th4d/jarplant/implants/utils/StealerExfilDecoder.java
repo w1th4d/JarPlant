@@ -54,15 +54,15 @@ public class StealerExfilDecoder {
         return fqdns;
     }
 
-    public Set<String> parseInteractchExport(Path exportFile) throws IOException {
-        return parseInteractchExport(Files.readAllBytes(exportFile));
+    public Set<String> parseInteractshExport(Path exportFile) throws IOException {
+        return parseInteractshExport(Files.readAllBytes(exportFile));
     }
 
-    public Set<String> parseInteractchExport(byte[] exportFileContent) throws JsonProcessingException {
-        return parseInteractchExport(new String(exportFileContent, StandardCharsets.UTF_8));
+    public Set<String> parseInteractshExport(byte[] exportFileContent) throws JsonProcessingException {
+        return parseInteractshExport(new String(exportFileContent, StandardCharsets.UTF_8));
     }
 
-    public Set<String> parseInteractchExport(String exportFileContent) throws JsonProcessingException {
+    public Set<String> parseInteractshExport(String exportFileContent) throws JsonProcessingException {
         Set<String> allFqdns = new HashSet<>();
 
         ObjectMapper jsonParser = new ObjectMapper();

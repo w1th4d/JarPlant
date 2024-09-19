@@ -244,6 +244,32 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
+    public void testFindFinalRequestFqdns_TopDomainOnly_Nothing() {
+        // Arrange
+        SortedSet<String> onlyTopDomain = new TreeSet<>();
+        onlyTopDomain.add("something.example.com");
+
+        // Act
+        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(onlyTopDomain, "something.example.com");
+
+        // Assert
+        assertTrue(relevantQuery.isEmpty());
+    }
+
+    @Test
+    public void testFindFinalRequestFqdns_MetadataPartOnly_Nothing() {
+        // Arrange
+        SortedSet<String> onlyTopDomain = new TreeSet<>();
+        onlyTopDomain.add("12345-0.something.example.com");
+
+        // Act
+        Set<String> relevantQuery = StealerExfilDecoder.findFinalRequestFqdns(onlyTopDomain, "something.example.com");
+
+        // Assert
+        assertTrue(relevantQuery.isEmpty());
+    }
+
+    @Test
     public void testDecodeRequests_OneRequest_DecodedData() throws Exception {
         // Arrange
         String baseDomain = "something.example.com";

@@ -77,7 +77,7 @@ public class StealerExfilTests {
         testValues.put("CLOUD_SECRET_UID", "secret-id");
         testValues.put("CLOUD_API_TOKEN", "super-sensitive-api-token");
 
-        StealerExfil.CONF_DOMAIN = "abc123.oast.fun";
+        StealerExfil.CONF_DOMAIN = "something.example.com";
         StealerExfil.CONF_SUBDOMAIN_MAX_LEN = 20;
         StealerExfil.CONF_FQDN_MAX_LEN = 100;
 

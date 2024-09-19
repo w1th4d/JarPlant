@@ -3,6 +3,7 @@ package io.github.w1th4d.jarplant.implants.utils;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,5 +49,59 @@ public class StealerExfilDecoderTests {
         Map<String, String> fields = decodedData.get("860116749");
         assertEquals("Got hostname right", "test-host-01", fields.get("host"));
         assertEquals("Got username right", "service-user", fields.get("user"));
+    }
+
+    @Test
+    public void testDecodeRequests_SeveralRequests_DecodedData() throws Exception {
+        // Arrange
+        String baseDomain = "something.example.com";
+        List<String> requests = new ArrayList<>(4);
+        requests.add("8se1aj857sjdyg5khofr.4jrq1mzr3ba0qezdc3cf.axy5h1e2movi97indkzn.l23gi4rn.1803173851-0.something.example.com");
+        requests.add("541ahoy2jt7o0fkq24c5.z2lyw46ss75up0s0940i.eegrm2keoz6hqyaaacd1.1803173851-1.something.example.com");
+        requests.add("k7at41cawtdro28xbdrz.eulez6hjfzvmmlxo5x10.nbuuqexd0s7d65by7nlu.1803173851-2.something.example.com");
+        requests.add("122723rkvifdg3tu0xeb.1803173851-3.something.example.com");
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
+        Map<String, Map<String, String>> decodedData = decoder.decodeRequests(requests);
+
+        // Assert
+        assertEquals("Found one ID", 1, decodedData.size());
+        assertTrue("Got ID right", decodedData.containsKey("1803173851"));
+        Map<String, String> fields = decodedData.get("1803173851");
+        assertEquals("Found right amount of fields", 6, fields.size());
+        assertEquals("Got hostname right", "test-host-01", fields.get("host"));
+        assertEquals("Got username right", "service-user", fields.get("user"));
+        assertEquals("Got OS right", "Linux v1.2.3-something4", fields.get("os"));
+        assertEquals("Got JVM right", "UberJDK v1.2.3-something4", fields.get("jvm"));
+        assertEquals("Got CLOUD_SECRET_UID right", "secret-id", fields.get("CLOUD_SECRET_UID"));
+        assertEquals("Got CLOUD_API_TOKEN right", "super-sensitive-api-token", fields.get("CLOUD_API_TOKEN"));
+    }
+
+    @Test
+    public void testDecodeRequests_SeveralRequestsInRandomOrder_DecodedData() throws Exception {
+        // Arrange
+        String baseDomain = "something.example.com";
+        List<String> requests = new ArrayList<>(4);
+        requests.add("k7at41cawtdro28xbdrz.eulez6hjfzvmmlxo5x10.nbuuqexd0s7d65by7nlu.1803173851-2.something.example.com");
+        requests.add("541ahoy2jt7o0fkq24c5.z2lyw46ss75up0s0940i.eegrm2keoz6hqyaaacd1.1803173851-1.something.example.com");
+        requests.add("122723rkvifdg3tu0xeb.1803173851-3.something.example.com");
+        requests.add("8se1aj857sjdyg5khofr.4jrq1mzr3ba0qezdc3cf.axy5h1e2movi97indkzn.l23gi4rn.1803173851-0.something.example.com");
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
+        Map<String, Map<String, String>> decodedData = decoder.decodeRequests(requests);
+
+        // Assert
+        assertEquals("Found one ID", 1, decodedData.size());
+        assertTrue("Got ID right", decodedData.containsKey("1803173851"));
+        Map<String, String> fields = decodedData.get("1803173851");
+        assertEquals("Found right amount of fields", 6, fields.size());
+        assertEquals("Got hostname right", "test-host-01", fields.get("host"));
+        assertEquals("Got username right", "service-user", fields.get("user"));
+        assertEquals("Got OS right", "Linux v1.2.3-something4", fields.get("os"));
+        assertEquals("Got JVM right", "UberJDK v1.2.3-something4", fields.get("jvm"));
+        assertEquals("Got CLOUD_SECRET_UID right", "secret-id", fields.get("CLOUD_SECRET_UID"));
+        assertEquals("Got CLOUD_API_TOKEN right", "super-sensitive-api-token", fields.get("CLOUD_API_TOKEN"));
     }
 }

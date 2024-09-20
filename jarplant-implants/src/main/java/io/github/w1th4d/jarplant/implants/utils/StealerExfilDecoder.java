@@ -165,7 +165,7 @@ public class StealerExfilDecoder {
         }
     }
 
-    public Map<String, Map<String, String>> decodeFqdn(List<String> fqdns) throws Exception {
+    public Map<String, Map<String, String>> decodeFqdn(List<String> fqdns) throws DecoderException {
         Map<String, Map<String, String>> res = new HashMap<>();
         Map<String, Map<Integer, String>> idSeqPart = new HashMap<>();
 
@@ -192,7 +192,7 @@ public class StealerExfilDecoder {
                     // Collision in uniqueId+sequenceNumber detected
                     if (!currentValueForSeqNo.equals(encodedData)) {
                         // ...and the data is not the same
-                        throw new Exception("Something fishy is going on");
+                        throw new DecoderException("Something fishy is going on");
                     }
                 } else {
                     splitsForId.put(seqNo, encodedData);

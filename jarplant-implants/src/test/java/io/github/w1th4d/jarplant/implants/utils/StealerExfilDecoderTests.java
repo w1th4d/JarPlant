@@ -295,7 +295,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testDecodeFqdn_OneRequest_DecodedData() throws Exception {
+    public void testDecodeFqdn_OneRequest_DecodedData() throws DecoderException {
         // Arrange
         String baseDomain = "something.example.com";
         // Only 'host' and 'user':
@@ -314,7 +314,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testDecodeRequests_SeveralFqdn_DecodedData() throws Exception {
+    public void testDecodeRequests_SeveralFqdn_DecodedData() throws DecoderException {
         // Arrange
         String baseDomain = "something.example.com";
         List<String> requests = new ArrayList<>(4);
@@ -341,7 +341,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testDecodeRequests_SeveralFqdnInRandomOrder_DecodedData() throws Exception {
+    public void testDecodeRequests_SeveralFqdnInRandomOrder_DecodedData() throws DecoderException {
         // Arrange
         String baseDomain = "something.example.com";
         List<String> requests = new ArrayList<>(4);

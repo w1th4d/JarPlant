@@ -362,7 +362,7 @@ public class StealerExfilDecoderTests {
     }
 
     @Test
-    public void testDecodeRequests_SeveralFqdn_DecodedData() throws DecoderException {
+    public void testDecodeFqdn_SeveralFqdn_DecodedData() throws DecoderException {
         // Arrange
         String baseDomain = "something.example.com";
         List<String> requests = new ArrayList<>(4);
@@ -413,5 +413,112 @@ public class StealerExfilDecoderTests {
         assertEquals("Got JVM right", "UberJDK v1.2.3-something4", fields.get("jvm"));
         assertEquals("Got CLOUD_SECRET_UID right", "secret-id", fields.get("CLOUD_SECRET_UID"));
         assertEquals("Got CLOUD_API_TOKEN right", "super-sensitive-api-token", fields.get("CLOUD_API_TOKEN"));
+    }
+
+    /**
+     * Test the sorting of recursive queries of subdomains.
+     * <p>For a domain 'x.y.z.example.com', DNS resolvers will issue sub-query for:</p>
+     * <li>
+     *     <ul>com</ul>
+     *     <ul>example.com</ul>
+     *     <ul>z.example.com</ul>
+     *     <ul>y.z.example.com</ul>
+     *     <ul>x.y.z.example.com</ul>
+     * </li>
+     * <p>Your authoritative DNS server at 'example.com' will not see the sub-query for 'com',
+     * but it will see and resolve the rest.</p>
+     *
+     * @throws DecoderException If the subdomains are wrong
+     */
+    @Test
+    public void testDecodeFqdn_RecursiveRequests_OneQuery() throws DecoderException {
+        // Arrange
+        String baseDomain = "something.example.com";
+        List<String> requests = new ArrayList<>(18);
+        // SeqNo 2 subdomains 2 3 0 1 D
+        requests.add("eulez6hjfzvmmlxo5x10.nbuuqexd0s7d65by7nlu.1803173851-2.something.example.com");
+        requests.add("k7at41cawtdro28xbdrz.eulez6hjfzvmmlxo5x10.nbuuqexd0s7d65by7nlu.1803173851-2.something.example.com");
+        requests.add("1803173851-2.something.example.com");
+        requests.add("nbuuqexd0s7d65by7nlu.1803173851-2.something.example.com");
+        requests.add("something.example.com");
+
+        // SeqNo 1 subdomains D 0 1 2 3
+        requests.add("something.example.com");
+        requests.add("1803173851-1.something.example.com");
+        requests.add("eegrm2keoz6hqyaaacd1.1803173851-1.something.example.com");
+        requests.add("z2lyw46ss75up0s0940i.eegrm2keoz6hqyaaacd1.1803173851-1.something.example.com");
+        requests.add("541ahoy2jt7o0fkq24c5.z2lyw46ss75up0s0940i.eegrm2keoz6hqyaaacd1.1803173851-1.something.example.com");
+
+        // SeqNo 3
+        requests.add("122723rkvifdg3tu0xeb.1803173851-3.something.example.com");
+        requests.add("1803173851-3.something.example.com");
+
+        // SeqNo 0 subdomains 4 0 3 1 2 D
+        requests.add("8se1aj857sjdyg5khofr.4jrq1mzr3ba0qezdc3cf.axy5h1e2movi97indkzn.l23gi4rn.1803173851-0.something.example.com");
+        requests.add("1803173851-0.something.example.com");
+        requests.add("4jrq1mzr3ba0qezdc3cf.axy5h1e2movi97indkzn.l23gi4rn.1803173851-0.something.example.com");
+        requests.add("l23gi4rn.1803173851-0.something.example.com");
+        requests.add("axy5h1e2movi97indkzn.l23gi4rn.1803173851-0.something.example.com");
+        requests.add("something.example.com");
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
+        Map<String, Map<String, String>> decodedData = decoder.decodeFqdn(requests);
+
+        // Assert
+        assertEquals("Found one ID", 1, decodedData.size());
+        assertTrue("Got ID right", decodedData.containsKey("1803173851"));
+        Map<String, String> fields = decodedData.get("1803173851");
+        assertEquals("Found right amount of fields", 6, fields.size());
+        assertEquals("Got hostname right", "test-host-01", fields.get("host"));
+        assertEquals("Got username right", "service-user", fields.get("user"));
+        assertEquals("Got OS right", "Linux v1.2.3-something4", fields.get("os"));
+        assertEquals("Got JVM right", "UberJDK v1.2.3-something4", fields.get("jvm"));
+        assertEquals("Got CLOUD_SECRET_UID right", "secret-id", fields.get("CLOUD_SECRET_UID"));
+        assertEquals("Got CLOUD_API_TOKEN right", "super-sensitive-api-token", fields.get("CLOUD_API_TOKEN"));
+    }
+
+    /**
+     * Test conflicting subdomains within the same recursive query.
+     * This would be an invalid behaviour by a DNS resolver.
+     *
+     * @throws DecoderException Expected
+     */
+    @Test(expected = DecoderException.class)
+    public void testDecodeFqdn_ConflictingSubdomains_Exception() throws DecoderException {
+        // Arrange
+        String baseDomain = "something.example.com";
+        List<String> requests = new ArrayList<>(18);
+        requests.add("y.z.123-0.something.example.com");
+        requests.add("z.123-0.something.example.com");
+        requests.add("x.B.z.123-0.something.example.com");  // This is wrong
+        requests.add("B.z.123-0.something.example.com");    // This is also wrong
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
+        decoder.decodeFqdn(requests);   // Expect exception
+    }
+
+    /**
+     * Test a collision on uniqueId and seqNo.
+     * This could either be a very odd chance (uniqueId collision) or someone/something enumerating subdomains of your
+     * uniqueId-seqNo combo.
+     * It's not unthinkable that a blue team would try to probe your domains for clues.
+     * As it stands right now, this would actually be an effective way of disrupting your data set (the decoder can't
+     * handle conflicting data on the same uniqueId).
+     *
+     * @throws DecoderException Expected
+     */
+    @Test(expected = DecoderException.class)
+    public void testDecodeFqdn_ConflictingSequenceNumbers_Exception() throws DecoderException {
+        // Arrange
+        String baseDomain = "something.example.com";
+        List<String> requests = new ArrayList<>(18);
+        requests.add("x.y.z.123-0.something.example.com");
+        requests.add("a.b.c.123-0.something.example.com");
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
+        decoder.decodeFqdn(requests);   // Expect exception
     }
 }

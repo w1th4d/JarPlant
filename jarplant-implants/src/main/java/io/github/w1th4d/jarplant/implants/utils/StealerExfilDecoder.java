@@ -174,7 +174,7 @@ public class StealerExfilDecoder {
         Collections.reverse(fqdns);
         for (String fqdn : fqdns) {
             fqdn = fqdn.toLowerCase();
-            Pattern idRegex = Pattern.compile("([0-9]+)-([0-9]+)\\." + expectedTopDomain.replace(".", "\\."));
+            Pattern idRegex = Pattern.compile("\\.([0-9]+)-([0-9]+)\\." + expectedTopDomain.replace(".", "\\."));
             Matcher idMatcher = idRegex.matcher(fqdn);
             while (idMatcher.find()) {
                 if (idMatcher.groupCount() < 2) {
@@ -194,7 +194,16 @@ public class StealerExfilDecoder {
                     // Collision in uniqueId+sequenceNumber detected
                     if (!currentValueForSeqNo.equals(encodedData)) {
                         // ...and the data is not the same
-                        throw new DecoderException("Something fishy is going on");
+                        if (encodedData.endsWith(currentValueForSeqNo)) {
+                            // ...but this one is a continuation of the data
+                            splitsForId.put(seqNo, encodedData);
+                        } else if (currentValueForSeqNo.endsWith(encodedData)) {
+                            // What we have is greater
+                            continue;
+                        } else {
+                            // It's a complete mismatch
+                            throw new DecoderException("Collision detected on sub-query '" + id + "-" + seqNo + "'.");
+                        }
                     }
                 } else {
                     splitsForId.put(seqNo, encodedData);

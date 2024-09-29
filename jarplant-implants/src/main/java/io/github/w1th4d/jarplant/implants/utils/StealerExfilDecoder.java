@@ -182,32 +182,10 @@ public class StealerExfilDecoder {
                 }
                 String id = idMatcher.group(1);
                 int seqNo = Integer.parseInt(idMatcher.group(2));
-                Map<Integer, String> splitsForId = idSeqPart.get(id);
-                if (splitsForId == null) {
-                    splitsForId = new HashMap<>();
-                    idSeqPart.put(id, splitsForId);
-                }
+                Map<Integer, String> splitsForId = idSeqPart.computeIfAbsent(id, k -> new HashMap<>());
                 String dataPart = fqdn.substring(0, fqdn.indexOf("." + id + "-" + seqNo + "." + expectedTopDomain));
                 String encodedData = dataPart.replace(".", "");
-                String currentValueForSeqNo = splitsForId.get(seqNo);
-                if (currentValueForSeqNo != null) {
-                    // Collision in uniqueId+sequenceNumber detected
-                    if (!currentValueForSeqNo.equals(encodedData)) {
-                        // ...and the data is not the same
-                        if (encodedData.endsWith(currentValueForSeqNo)) {
-                            // ...but this one is a continuation of the data
-                            splitsForId.put(seqNo, encodedData);
-                        } else if (currentValueForSeqNo.endsWith(encodedData)) {
-                            // What we have is greater
-                            continue;
-                        } else {
-                            // It's a complete mismatch
-                            throw new DecoderException("Collision detected on sub-query '" + id + "-" + seqNo + "'.");
-                        }
-                    }
-                } else {
-                    splitsForId.put(seqNo, encodedData);
-                }
+                updateSplits(splitsForId, encodedData, id, seqNo);
             }
         }
 
@@ -231,5 +209,32 @@ public class StealerExfilDecoder {
         }
 
         return res;
+    }
+
+    private static void updateSplits(Map<Integer, String> splitsForId, String encodedData, String uniqueId, int seqNo) throws DecoderException {
+        String currentValueForSeqNo = splitsForId.get(seqNo);
+        if (currentValueForSeqNo == null) {
+            // There's no value already - just set this value and be done
+            splitsForId.put(seqNo, encodedData);
+            return;
+        }
+
+        // Collision in uniqueId-sequenceNumber detected
+        if (currentValueForSeqNo.equals(encodedData)) {
+            // ...but the data is the same - don't bother
+            return;
+        }
+
+        // There's a diff in the data
+        if (encodedData.endsWith(currentValueForSeqNo)) {
+            // The newly discovered data is a superset of what we already have - update with this new data
+            splitsForId.put(seqNo, encodedData);
+        } else if (currentValueForSeqNo.endsWith(encodedData)) {
+            // The newly discovered data is a subset of what we already have - discard it
+            return;
+        } else {
+            // The newly discovered and current data has nothing in common - this is bad
+            throw new DecoderException("Collision detected on sub-query '" + uniqueId + "-" + seqNo + "'.");
+        }
     }
 }

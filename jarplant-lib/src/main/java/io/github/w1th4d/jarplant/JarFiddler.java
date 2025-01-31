@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.jar.JarEntry;
@@ -35,9 +36,10 @@ public interface JarFiddler extends Iterable<JarFiddler.Entry> {
      * The output file can be the same as the input file.
      *
      * @param outputFile File to create or overwrite
+     * @param options OpenOptions indicating on how to treat an existing file etc
      * @throws IOException If unable to create or write file
      */
-    void write(Path outputFile) throws IOException;
+    void write(Path outputFile, OpenOption... options) throws IOException;
 
     /**
      * Write the current state to a stream.

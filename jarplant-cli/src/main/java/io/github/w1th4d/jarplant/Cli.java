@@ -1,7 +1,11 @@
 package io.github.w1th4d.jarplant;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.w1th4d.jarplant.implants.*;
+import io.github.w1th4d.jarplant.implants.utils.DecoderException;
 import io.github.w1th4d.jarplant.implants.utils.DnsBeaconDecoder;
+import io.github.w1th4d.jarplant.implants.utils.StealerExfilDecoder;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.*;
@@ -146,7 +150,7 @@ public class Cli {
                 .action(storeTrue())
                 .setDefault(false);
         decoderParser.addArgument("-i", "--input-file")
-                .help("Path to the JAR file to spike.")
+                .help("Path to file containing, DNS requests.")
                 .metavar("FILE")
                 .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
                 .required(false);
@@ -156,6 +160,11 @@ public class Cli {
                 .type(String.class)
                 .nargs("*")
                 .required(false);
+        decoderParser.addArgument("--domain")
+                .help("Domain name used for exfiltration")
+                .metavar("DOMAIN")
+                .type(String.class)
+                .required(true);
 
         Namespace namespace;
         try {
@@ -446,44 +455,53 @@ public class Cli {
         boolean verbose = namespace.getBoolean("verbose");
 
         List<String> inputs = new ArrayList<>();
-
-        // Add all inputs from file
-        String inputFile = namespace.getString("input_file");
-        if (inputFile != null) {
-            if (inputFile.equals("-")) {
-                // Read from stdin instead
-                Scanner stdin = new Scanner(System.in);
-                while (stdin.hasNextLine()) {
-                    String stdinInput = stdin.nextLine();
-                    inputs.add(stdinInput);
-                }
-            } else {
-                // Add inputs from a regular text file
-                try {
-                    inputs.addAll(Files.readAllLines(Path.of(inputFile)));
-                    if (verbose) {
-                        System.err.println("Using input file: " + inputFile);
+        String domain = namespace.getString("domain");
+        try {
+            if (verbose) {
+               System.out.println("Using domain: " + domain);
+            }
+            StealerExfilDecoder decoder = StealerExfilDecoder.create(domain);
+            // Add all inputs from file
+            String inputFile = namespace.getString("input_file");
+            if (inputFile != null) {
+                if (inputFile.equals("-")) {
+                    // Read from stdin instead
+                    Scanner stdin = new Scanner(System.in);
+                    while (stdin.hasNextLine()) {
+                        String stdinInput = stdin.nextLine();
+                        inputs.add(stdinInput);
                     }
-                } catch (IOException e) {
-                    System.err.println("Failed to read input file: " + inputFile);
+                } else {
+                    // Add inputs from a regular text file
+                    try {
+                        // TODO: Make file input coherent with stdin and args input.
+                        inputs.addAll(decoder.parseInteractshExport(Path.of(inputFile)));
+                        if (verbose) {
+                            System.err.println("Using input file: " + inputFile);
+                        }
+                    } catch (IOException e) {
+                        System.err.println("Failed to read input file: " + inputFile);
+                    }
                 }
             }
-        }
 
-        // Add any inputs specified on the command-line
-        ArrayList<String> cliInputs = namespace.get("input");
-        if (cliInputs != null) {
-            inputs.addAll(cliInputs);
-        }
-
-        for (String input : inputs) {
-            Optional<Map<String, String>> decoded = DnsBeaconDecoder.decode(input);
-            if (decoded.isEmpty()) {
-                System.err.println("Could not parse: " + input);
-            } else {
-                String json = DnsBeaconDecoder.toJson(decoded.get());
-                System.out.println(json);
+            // Add any inputs specified on the command-line
+            ArrayList<String> cliInputs = namespace.get("input");
+            if (cliInputs != null) {
+                inputs.addAll(cliInputs);
             }
+            if (verbose) {
+                System.out.println("These are the input FQDNS: \n" + String.join("\n", inputs));
+            }
+            Map<String, Map<String, String>> decodedData = decoder.decodeFqdn(inputs);
+            ObjectMapper objectMapper = new ObjectMapper();
+            String json = objectMapper.writeValueAsString(decodedData);
+            System.out.println("Decoded data: " + json);
+        } catch (DecoderException e) {
+            System.err.println("Could not use domain: " + domain);
+            throw new RuntimeException("Missing valid domain argument. " + e.getMessage());
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
         }
     }
 

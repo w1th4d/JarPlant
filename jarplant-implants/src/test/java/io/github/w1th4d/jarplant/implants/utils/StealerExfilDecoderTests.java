@@ -1,5 +1,6 @@
 package io.github.w1th4d.jarplant.implants.utils;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -516,6 +517,20 @@ public class StealerExfilDecoderTests {
         List<String> requests = new ArrayList<>(18);
         requests.add("x.y.z.123-0.something.example.com");
         requests.add("a.b.c.123-0.something.example.com");
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);
+        decoder.decodeFqdn(requests);   // Expect exception
+    }
+    @Ignore("This test covers the case of packet loss, something the application does not support.")
+    @Test(expected = DecoderException.class)
+    public void testDecodeFqdn_MissingSequenceNumbers_Exception() throws DecoderException {
+        // Arrange
+        String baseDomain = "something.example.com";
+        List<String> requests = new ArrayList<>(18);
+        requests.add("4jrq1mzr3ba0qezdc3cf.axy5h1e2movi97indkzn.l23gi4rn.572518471-0.something.example.com");
+        requests.add("z2lyw46ss75up0s0940i.eegrm2keoz6hqyaaacd1.8se1aj857sjdyg5khofr.572518471-1.something.example.com");
+        requests.add("122723rkvifdg3tu0xeb.k7at41cawtdro28xbdrz.572518471-3.something.example.com");
 
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create(baseDomain);

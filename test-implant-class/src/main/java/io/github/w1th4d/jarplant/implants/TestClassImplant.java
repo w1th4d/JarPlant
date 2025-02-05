@@ -1,8 +1,15 @@
 package io.github.w1th4d.jarplant.implants;
 
+import org.apache.commons.io.HexDump;
+
+import java.io.IOException;
+
 public class TestClassImplant {
+    @SuppressWarnings("all")
     private static volatile String CONF_STRING = "Original";
+    @SuppressWarnings("all")
     private static volatile boolean CONF_BOOLEAN = false;
+    @SuppressWarnings("all")
     private static volatile int CONF_INT = 1;
 
     /*
@@ -15,6 +22,17 @@ public class TestClassImplant {
     @SuppressWarnings("unused")
     public static String init() {
         Thread.dumpStack();
+
+        // Use something from an internal dependency (ie just another class form this project)
+        TestDependencyClass otherClass = new TestDependencyClass();
+        otherClass.doSomething();
+
+        // Use something from an external dependency
+        try {
+            HexDump.dump(new byte[]{1, 2, 3, 4, 5}, System.out);
+        } catch (IOException ignored) {
+        }
+
         return getConfigDump();
     }
 

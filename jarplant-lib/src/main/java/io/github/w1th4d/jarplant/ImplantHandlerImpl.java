@@ -4,6 +4,7 @@ import javassist.bytecode.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,84 +40,91 @@ public class ImplantHandlerImpl implements ImplantHandler {
         return new ImplantHandlerImpl(bytes, className, availableConfig, Collections.emptyMap());
     }
 
-    // Finds the class file using some weird Java quirks
-    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException, ImplantException {
-        CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
-        if (codeSource == null) {
-            // Can't find oneself
-            throw new ClassNotFoundException("Can't determine the path to the class file");
+    public static ImplantHandler createFromJar(Path jarFilePath, ClassName nameOfPayloadBearingClass) throws IOException, ClassNotFoundException, ImplantException {
+        if (!looksLikeAJarFile(jarFilePath)) {
+            throw new IOException("Does not looks like a JAR file: " + jarFilePath);
         }
-        Path sourcePath = Path.of(codeSource.getLocation().getPath());
-
-        return findAndCreateFor(sourcePath, ClassName.of(clazz));
+        return findAndCreateFor(jarFilePath, nameOfPayloadBearingClass);
     }
 
-    // This method may be used when extracting the implant from another place than self
-    public static ImplantHandler findAndCreateFor(Path path, ClassName className) throws ClassNotFoundException, IOException, ImplantException {
-        ImplantHandler ret;
-        if (Files.isDirectory(path)) {
-            ret = findAndReadFromDirectory(path, className);
+    private static boolean looksLikeAJarFile(Path path) throws IOException {
+        JarFile openAttempt = new JarFile(path.toFile());
+        openAttempt.close();
+        return true;
+    }
+
+    static Path getSourcePathFor(ClassName className) throws ClassNotFoundException, FileNotFoundException {
+        String theFullName = className.getFullClassName();
+        Class<?> classFromFullName = Class.forName(theFullName);
+        return getSourcePathFor(classFromFullName);
+    }
+
+    static Path getSourcePathFor(Class<?> clazz) throws FileNotFoundException {
+        CodeSource codeSource = clazz.getProtectionDomain().getCodeSource();
+        if (codeSource == null) {
+            // This class is likely a part of the SDK (or something else we can't find)
+            throw new FileNotFoundException("Cannot find code source path for '" + clazz.getName() + "'.");
+        }
+
+        return Path.of(codeSource.getLocation().getPath());
+    }
+
+    private static ThrowingFunction<ClassName, Optional<byte[]>, IOException> getReaderFunctionFor(Path codePath) {
+        ThrowingFunction<ClassName, Optional<byte[]>, IOException> ret;
+
+        if (Files.isDirectory(codePath)) {
+            // Lambda function for reading a class from this directory
+            ret = (name) -> {
+                Path sourcePath = Path.of(codePath.toString(), name.getClassFilePath());
+                if (!Files.exists(sourcePath)) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(Files.readAllBytes(sourcePath));
+            };
         } else {
-            ret = findAndReadFromJar(path, className);
+            // Lambda function for reading a class from this JAR
+            ret = (name) -> {
+                byte[] entryBytes;
+
+                try (JarFile jarFile = new JarFile(codePath.toFile())) {
+                    ZipEntry entry = jarFile.getEntry(name.getClassFilePath());
+                    if (entry == null) {
+                        return Optional.empty();
+                    }
+
+                    entryBytes = jarFile.getInputStream(entry).readAllBytes();
+                }
+
+                return Optional.of(entryBytes);
+            };
         }
 
         return ret;
     }
 
-    private static ImplantHandler findAndReadFromDirectory(Path directory, ClassName implantClassName) throws ClassNotFoundException, IOException {
-        // Lambda function for reading a class from this directory
-        ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromDirectory = (name) -> {
-            Path sourcePath = Path.of(directory.toString(), name.getClassFilePath());
-            if (!Files.exists(sourcePath)) {
-                return Optional.empty();
-            }
+    public static ImplantHandler findAndCreateFor(Class<?> clazz) throws ClassNotFoundException, IOException, ImplantException {
+        Path sourcePath = getSourcePathFor(clazz);
 
-            return Optional.of(Files.readAllBytes(sourcePath));
-        };
+        return findAndCreateFor(sourcePath, ClassName.of(clazz));
+    }
 
-        // Read the implant class
-        Optional<byte[]> implantClassBytes = readEntryFromDirectory.apply(implantClassName);
-        if (implantClassBytes.isEmpty()) {
-            throw new ClassNotFoundException(directory.resolve(implantClassName.getClassFilePath()).toString());
+    public static ImplantHandler findAndCreateFor(Path path, ClassName className) throws ClassNotFoundException, IOException, ImplantException {
+        ThrowingFunction<ClassName, Optional<byte[]>, IOException> classReaderFunction = getReaderFunctionFor(path);
+
+        Optional<byte[]> rawClassDataMaybe = classReaderFunction.apply(className);
+        if (rawClassDataMaybe.isEmpty()) {
+            throw new ClassNotFoundException("Cannot figure out how to find class '" + className + "'.");
         }
 
         // Read its available config properties
-        ClassFile sample = readClassFile(implantClassBytes.get());
+        ClassFile sample = readClassFile(rawClassDataMaybe.get());
         Map<String, ConfDataType> availableConfig = readImplantConfig(sample);
 
-        // Read its dependencies using the lambda specific for class directories
-        Map<ClassName, byte[]> dependencies = readAllDependencies(implantClassName, readEntryFromDirectory);
+        // Read its dependencies
+        Map<ClassName, byte[]> dependencies = readAllDependencies(className, classReaderFunction);
 
-        return new ImplantHandlerImpl(implantClassBytes.get(), implantClassName, availableConfig, dependencies);
-    }
-
-    private static ImplantHandler findAndReadFromJar(Path jarFilePath, ClassName implantClassName) throws ClassNotFoundException, IOException {
-        try (JarFile jarFile = new JarFile(jarFilePath.toFile())) {
-            // Lambda function for reading a class from this JAR
-            ThrowingFunction<ClassName, Optional<byte[]>, IOException> readEntryFromJar = (name) -> {
-                ZipEntry entry = jarFile.getEntry(name.getClassFilePath());
-                if (entry == null) {
-                    return Optional.empty();
-                }
-
-                return Optional.of(jarFile.getInputStream(entry).readAllBytes());
-            };
-
-            // Read the implant class
-            Optional<byte[]> implantClassBytes = readEntryFromJar.apply(implantClassName);
-            if (implantClassBytes.isEmpty()) {
-                throw new ClassNotFoundException("File '" + implantClassName.getClassFilePath() + "' in JAR '" + jarFilePath + "'");
-            }
-
-            // Read its available config properties
-            ClassFile sample = readClassFile(implantClassBytes.get());
-            Map<String, ConfDataType> availableConfig = readImplantConfig(sample);
-
-            // Read its dependencies using the lambda specific for JARs
-            Map<ClassName, byte[]> dependencies = readAllDependencies(implantClassName, readEntryFromJar);
-
-            return new ImplantHandlerImpl(implantClassBytes.get(), implantClassName, availableConfig, dependencies);
-        }
+        return new ImplantHandlerImpl(rawClassDataMaybe.get(), className, availableConfig, dependencies);
     }
 
     @Override
@@ -317,25 +325,70 @@ public class ImplantHandlerImpl implements ImplantHandler {
             } catch (ClassNameException e) {
                 continue;
             }
+
             if (classReferenceName.equals(thisClassName)) {
                 // Don't go recursing on ourselves again
                 continue;
             }
 
             if (accumulator.containsKey(classReferenceName)) {
-                // This dependency is already noted (don't get lost in circular dependencies)
+                // This dependency is already noted
                 continue;
             }
 
-            Optional<byte[]> classRawData = classDataReader.apply(classReferenceName);
-            if (classRawData.isEmpty()) {
-                continue;
+            /*
+             * First try to read the class from the code source path that's already given.
+             * This works if the dependency is a class defined by the implant project itself.
+             */
+            Optional<byte[]> classRefDataMaybe = classDataReader.apply(classReferenceName);
+            if (classRefDataMaybe.isPresent()) {
+                // Found it! Add it and keep recursing down on any sub-dependencies it may have.
+                accumulator.put(classReferenceName, classRefDataMaybe.get());
+                readAllDependencies(classReferenceName, classDataReader, accumulator);
+            } else {
+                /*
+                 * The referenced dependency class is not bundled with the implant.
+                 * Go look for it on the classpath of this JVM.
+                 * This may sound weird, but it's a common scenario when running in the context of an IDE, Maven or
+                 * unit test, and it's using external dependencies (aka libraries).
+                 */
+                Path sourcePath;
+                try {
+                    sourcePath = getSourcePathFor(classReferenceName);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException("Cannot get code source path for '" + classReferenceName + "'.", e);
+                } catch (FileNotFoundException e) {
+                    /*
+                     * The code source for this dependency is still unknown.
+                     * This is typically the case for classes in the SDK.
+                     * Skip this and assume it's provided by the runtime environment when the implant runs.
+                     */
+                    log.fine("Assuming that '" + classReferenceName + "' is part of the SDK or otherwise provided during runtime. Skipping.");
+                    continue;
+                }
+
+                // Get a new class reader function specific for this new code source path and use that instead.
+                ThrowingFunction<ClassName, Optional<byte[]>, IOException> classRefSourcePathReader = getReaderFunctionFor(sourcePath);
+                classRefDataMaybe = classRefSourcePathReader.apply(classReferenceName);
+                if (classRefDataMaybe.isEmpty()) {
+                    /*
+                     * The referenced dependency class is not available somewhere on the current classpath either.
+                     * This is an exotic case where we've loaded an implant in a JAR on disk and that's not a
+                     * "fat JAR" (a JAR with all of its dependencies included). The implant JAR is probably
+                     * assuming that dependencies are available (aka "provided") at runtime. This is a bold assumption
+                     * for an implant JAR...
+                     * Either way, there's nothing more we can do.
+                     */
+                    log.warning("Could not find referenced dependency class '" + classReferenceName + "'! Skipping. Expect trouble...");
+                    continue;
+                }
+
+                log.fine("Found dependency '" + classReferenceName + "' on current classpath.");
+
+                // Recurse down on the external dependency that's only available on the current classpath
+                accumulator.put(classReferenceName, classRefDataMaybe.get());
+                readAllDependencies(classReferenceName, classRefSourcePathReader, accumulator);
             }
-
-            accumulator.put(classReferenceName, classRawData.get());
-
-            // Recursively go through the whole dependency tree
-            readAllDependencies(classReferenceName, classDataReader, accumulator);
         }
     }
 

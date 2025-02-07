@@ -43,32 +43,27 @@
         <dependency>
             <groupId>io.github.w1th4d.jarplant</groupId>
             <artifactId>test-app-pojo</artifactId>
-            <version>${project.parent.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.github.w1th4d.jarplant</groupId>
             <artifactId>test-implant-class</artifactId>
-            <version>${project.parent.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>io.github.w1th4d.jarplant</groupId>
             <artifactId>test-app-spring-simple</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.github.w1th4d.jarplant</groupId>
             <artifactId>test-app-spring-complex</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.github.w1th4d.jarplant</groupId>
             <artifactId>test-implant-spring</artifactId>
-            <version>${project.parent.version}</version>
             <scope>test</scope>
         </dependency>
 

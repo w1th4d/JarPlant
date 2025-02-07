@@ -227,10 +227,32 @@ public class StealerExfilDecoderTests {
         // Act
         StealerExfilDecoder decoder = StealerExfilDecoder.create(expectedDomainName);
         Set<String> foundFqdns = decoder.parseInteractshExport(jsonBytes);
-
+        //System.out.println(foundFqdns.toString());
         // Assert
         assertFalse("Found something", foundFqdns.isEmpty());
         assertEquals("Found exact number of queries", 63, foundFqdns.size());
+    }
+
+    @Test
+    public void testParseInteractshExport_InteractshFileCli_Fqdns() throws IOException, DecoderException {
+        // Arrange
+        String expectedDomainName = "abc123.oast.fun";
+        String testFileName = "interactsh_cli_example.json";
+        byte[] jsonBytes;
+        try (InputStream resourceStream = getClass().getClassLoader().getResourceAsStream(testFileName)) {
+            if (resourceStream == null) {
+                throw new IOException("Cannot read resource file '" + testFileName + "'.");
+            }
+            jsonBytes = resourceStream.readAllBytes();
+        }
+
+        // Act
+        StealerExfilDecoder decoder = StealerExfilDecoder.create(expectedDomainName);
+        Set<String> foundFqdns = decoder.parseInteractshExport(jsonBytes);
+        System.out.println(foundFqdns.toString());
+        // Assert
+        assertFalse("Found something", foundFqdns.isEmpty());
+        assertEquals("Found exact number of queries", 58, foundFqdns.size());
     }
 
     @Test

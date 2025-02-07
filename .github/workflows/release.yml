@@ -1,16 +1,53 @@
-name: Release
-
+name: Release workflow
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
-  build-and-release:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate and extract version from git tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          SEMVER_REGEX="^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+
+          if [[ ! "$TAG" =~ $SEMVER_REGEX ]]; then
+            echo "❌ ERROR: Invalid SemVer tag! Expected 'vMAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]'."
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          PATCH="${BASH_REMATCH[3]}"
+          PRERELEASE="${BASH_REMATCH[4]}"  # May be empty
+          BUILD="${BASH_REMATCH[5]}"       # May be empty
+
+          echo "✅ Valid SemVer tag detected: $TAG"
+          echo "MAJOR=$MAJOR" >> $GITHUB_ENV
+          echo "MINOR=$MINOR" >> $GITHUB_ENV
+          echo "PATCH=$PATCH" >> $GITHUB_ENV
+          echo "PRERELEASE=$PRERELEASE" >> $GITHUB_ENV
+          echo "BUILD=$BUILD" >> $GITHUB_ENV
+
+          RELEASE_VERSION="${TAG#v}"
+          echo "🔍 Extracted version: $RELEASE_VERSION"
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+
+      - name: Validate POM version matches git tag
+        run: |
+          POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          
+          if [[ "$POM_VERSION" != "$RELEASE_VERSION" ]]; then
+            echo "❌ ERROR: Version in pom.xml ($POM_VERSION) does not match the tag ($RELEASE_VERSION)."
+            exit 1
+          fi
+
+          echo "✅ POM version matches tag!"
 
       - name: Set up Java
         uses: actions/setup-java@v3
@@ -18,16 +55,41 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Build JAR
+      - name: Maven build
         run: mvn clean package --batch-mode
 
-      - name: Create GitHub Release
+      - name: Extract artifacts for release
+        run: |
+          mkdir -p release-artifacts
+          cp jarplant-cli/target/*-jar-with-dependencies.jar release-artifacts/
+          cp jarplant-lib/target/*.jar release-artifacts/
+
+      - name: Upload JARs as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-modules
+          path: release-artifacts/
+
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            jarplant-cli/target/*-jar-with-dependencies.jar
-            jarplant-lib/target/*.jar
+          tag_name: "${{ github.ref_name }}"
+          files: release-artifacts/*
           draft: false
-          prerelease: false
+          prerelease: ${{ env.PRERELEASE != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set next snapshot version
+        run: |
+          NEXT_PATCH=$(( ${{ env.PATCH }} + 1 ))
+          NEXT_VERSION="${{ env.MAJOR }}.${{ env.MINOR }}.${NEXT_PATCH}-SNAPSHOT"
+
+          echo "🔄 Bumping version to: $NEXT_VERSION"
+          mvn versions:set -DnewVersion=$NEXT_VERSION -DgenerateBackupPoms=false
+          
+          echo "🚀 Committing version bump to repository"
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git commit -am "Prepare next development iteration: $NEXT_VERSION"
+          git push origin main

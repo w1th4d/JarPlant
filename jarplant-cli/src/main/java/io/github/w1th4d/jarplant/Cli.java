@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.w1th4d.jarplant.implants.*;
 import io.github.w1th4d.jarplant.implants.utils.DecoderException;
-import io.github.w1th4d.jarplant.implants.utils.DnsBeaconDecoder;
 import io.github.w1th4d.jarplant.implants.utils.StealerExfilDecoder;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
@@ -214,12 +213,6 @@ public class Cli {
         if (implantClassName.equals("ClassImplant")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
-            } catch (ClassNotFoundException | IOException | ImplantException e) {
-                throw new RuntimeException("Cannot find built-in implant class.", e);
-            }
-        } else if (implantClassName.equals("DnsBeaconImplant")) {
-            try {
-                implantHandler = ImplantHandlerImpl.findAndCreateFor(DnsBeaconImplant.class);
             } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }

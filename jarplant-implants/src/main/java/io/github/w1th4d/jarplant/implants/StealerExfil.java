@@ -129,7 +129,13 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
      */
     static Map<String, String> propToMap(Properties prop) {
         Map<String, String> map = new HashMap<>();
-        prop.forEach((key, value) -> map.put((String) key, (String) value));
+
+        for (Enumeration<?> e = prop.propertyNames(); e.hasMoreElements();) {
+            String key = (String) e.nextElement();
+            String value = prop.getProperty(key); // Safely get value as String
+            map.put(key, value);
+        }
+
         return map;
     }
 

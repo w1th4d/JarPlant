@@ -160,7 +160,7 @@ public class Cli {
                 .type(String.class)
                 .nargs("*")
                 .required(false);
-        decoderParser.addArgument("--domain")
+        decoderParser.addArgument("-d", "--domain")
                 .help("Domain name used for exfiltration")
                 .metavar("DOMAIN")
                 .type(String.class)
@@ -474,7 +474,6 @@ public class Cli {
                 } else {
                     // Add inputs from a regular text file
                     try {
-                        // TODO: Make file input coherent with stdin and args input.
                         inputs.addAll(decoder.parseInteractshExport(Path.of(inputFile)));
                         if (verbose) {
                             System.err.println("Using input file: " + inputFile);

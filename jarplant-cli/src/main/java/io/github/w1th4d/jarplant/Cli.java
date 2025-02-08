@@ -496,10 +496,12 @@ public class Cli {
             Map<String, Map<String, String>> decodedData = decoder.decodeFqdn(inputs);
             ObjectMapper objectMapper = new ObjectMapper();
             String json = objectMapper.writeValueAsString(decodedData);
-            System.out.println("Decoded data: " + json);
+            if (verbose) {
+                System.out.println("Decoded data: ");
+            }
+            System.out.println(json);
         } catch (DecoderException e) {
-            System.err.println("Could not use domain: " + domain);
-            throw new RuntimeException("Missing valid domain argument. " + e.getMessage());
+            throw new RuntimeException("Could not use domain. " + e.getMessage());
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

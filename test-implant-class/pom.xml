@@ -18,6 +18,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <!-- It's a bold move to include external dependencies into implants. -->
+        <!-- JarPlant will fail to inject the implant if any of its dependency classes already exist in the target JAR. -->
+        <!-- This POM is for the implant that's only used internally by the tests. Avoid big libraries like this in an actual implant. -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.18.0</version>
+        </dependency>
+    </dependencies>
 
     <profiles>
         <profile>
@@ -163,6 +173,87 @@
                                             <version>${project.version}</version>
                                             <type>jar</type>
                                             <classifier>without-debug</classifier>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${project.basedir}/../jarplant-lib/src/test/resources
+                                            </outputDirectory>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- JAR to test using implants packaged as a fat JAR on disk -->
+        <profile>
+            <id>implant-as-jar-on-disk</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- Compile without debugging info for this JAR -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.13.0</version>
+                        <executions>
+                            <execution>
+                                <id>compile-without-debug-with-deps</id>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <compilerArgs>
+                                        <arg>-g:none</arg>
+                                    </compilerArgs>
+                                    <outputDirectory>${project.build.directory}/classes-without-debug-with-deps
+                                    </outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Make a fat JAR -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <version>3.6.0</version>
+                        <executions>
+                            <execution>
+                                <id>assemble-without-debug-with-deps</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <descriptorRefs>
+                                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                                    </descriptorRefs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Copy the artifact into the resource folder of the jarplant-lib tests (that's what this module is for) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-without-debug-with-deps</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <stripVersion>true</stripVersion>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>io.github.w1th4d.jarplant</groupId>
+                                            <artifactId>test-implant-class</artifactId>
+                                            <version>${project.version}</version>
+                                            <type>jar</type>
+                                            <classifier>jar-with-dependencies</classifier>
                                             <overWrite>true</overWrite>
                                             <outputDirectory>${project.basedir}/../jarplant-lib/src/test/resources
                                             </outputDirectory>

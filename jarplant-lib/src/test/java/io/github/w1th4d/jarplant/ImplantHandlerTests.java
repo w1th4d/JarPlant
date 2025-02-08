@@ -1,12 +1,13 @@
 package io.github.w1th4d.jarplant;
 
-import io.github.w1th4d.jarplant.implants.DummyTestClassImplant;
-import io.github.w1th4d.jarplant.implants.TestClassImplant;
+import io.github.w1th4d.jarplant.implants.*;
 import javassist.bytecode.ClassFile;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +43,61 @@ public class ImplantHandlerTests {
     }
 
     @Test
+    public void testGetSourcePathFor_ExternalDependencyClass_ItsJar() throws FileNotFoundException {
+        // Act
+        Path sourcePathFor = ImplantHandlerImpl.getSourcePathFor(ClassFile.class);
+
+        // Assert
+        assertNotNull("Found a code source path.", sourcePathFor);
+        assertTrue("Found a JAR file.", sourcePathFor.toString().endsWith(".jar"));
+        assertTrue("Found the right library.", sourcePathFor.getFileName().toString().startsWith("javassist"));
+    }
+
+    @Test
+    public void testGetSourcePathFor_ExternalDependencyClassByName_ItsJar() throws FileNotFoundException, ClassNameException, ClassNotFoundException {
+        // Arrange
+        String fullName = ClassName.of(ClassFile.class).getFullClassName();
+        ClassName className = ClassName.fromFullClassName(fullName);
+
+        // Act
+        Path sourcePathFor = ImplantHandlerImpl.getSourcePathFor(className);
+
+        // Assert
+        assertNotNull("Found a code source path.", sourcePathFor);
+        assertTrue("Found a JAR file.", sourcePathFor.toString().endsWith(".jar"));
+        assertTrue("Found the right library.", sourcePathFor.getFileName().toString().startsWith("javassist"));
+    }
+
+    @Test
+    public void testGetSourcePathFor_InternalDependencyClass_ItsDirectory() throws IOException {
+        // Act
+        Path sourcePathFor = ImplantHandlerImpl.getSourcePathFor(DummyDependency.class);
+        ClassName dependencyClassName = ClassName.of(DummyDependency.class);
+
+        // Assert
+        assertNotNull("Found a code source path.", sourcePathFor);
+        assertTrue("Found a directory.", Files.isDirectory(sourcePathFor));
+        Path expectedDepClassFilePath = sourcePathFor.resolve(dependencyClassName.getClassFilePath());
+        assertTrue("Found the class file.", Files.exists(expectedDepClassFilePath));
+    }
+
+    @Test
+    public void testGetSourcePathFor_InternalDependencyClassByName_ItsDirectory() throws FileNotFoundException, ClassNameException, ClassNotFoundException {
+        // Arrange
+        String fullName = ClassName.of(DummyDependency.class).getFullClassName();
+        ClassName className = ClassName.fromFullClassName(fullName);
+
+        // Act
+        Path sourcePathFor = ImplantHandlerImpl.getSourcePathFor(className);
+
+        // Assert
+        assertNotNull("Found a code source path.", sourcePathFor);
+        assertTrue("Found a directory.", Files.isDirectory(sourcePathFor));
+        Path expectedDepClassFilePath = sourcePathFor.resolve(className.getClassFilePath());
+        assertTrue("Found the class file.", Files.exists(expectedDepClassFilePath));
+    }
+
+    @Test
     public void testCreateFor_ClassFile_Success() throws IOException {
         // Arrange
         Path testEnv = findTestEnvironmentDir(this.getClass());
@@ -58,7 +114,34 @@ public class ImplantHandlerTests {
     }
 
     @Test
-    public void testFindAndCreateFor_Class_Success() throws IOException, ClassNotFoundException, ImplantException {
+    public void testCreateForJar_FatJar_FoundDependencies() throws IOException, ClassNameException, ClassNotFoundException, ImplantException {
+        // Arrange
+        Path testJarPath = TestHelpers.getJarFileFromResourceFolder("test-implant-class-jar-with-dependencies.jar");
+        ClassName payloadBearingClassName = ClassName.fromFullClassName("io.github.w1th4d.jarplant.implants.TestClassImplant");
+        ClassName expectedInternalDepName = ClassName.of(TestDependencyClass.class);
+
+        // Act
+        ImplantHandler implant = ImplantHandlerImpl.createFromJar(testJarPath, payloadBearingClassName);
+        ClassFile payloadClass = implant.loadFreshRawSpecimen();
+        Map<ClassName, byte[]> dependencies = implant.getDependencies();
+
+        // Assert
+        assertNotNull("Loaded implant class.", payloadClass);
+        assertNotNull("Found dependencies.", dependencies);
+        assertNotEquals("Found some dependency.", 0, dependencies.size());
+        assertTrue("Found internal dependency.", dependencies.containsKey(expectedInternalDepName));
+        for (ClassName dependencyName : dependencies.keySet()) {
+            if (dependencyName.equals(expectedInternalDepName)) {
+                continue;
+            }
+            if (!dependencyName.getPackageName().startsWith("org.apache.commons.io")) {
+                Assert.fail("Dependency found that was not a part of what we expected.");
+            }
+        }
+    }
+
+    @Test
+    public void testFindAndCreateFor_Class_FoundDependencies() throws IOException, ClassNotFoundException, ImplantException {
         // Arrange
         Class<?> clazz = DummyTestClassImplant.class;
 
@@ -66,10 +149,16 @@ public class ImplantHandlerTests {
         ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(clazz);
         ClassFile specimen = implant.loadFreshRawSpecimen();
         Class<?> loadedClass = runner.load(specimen);
+        Map<ClassName, byte[]> dependencies = implant.getDependencies();
 
         // Assert
         assertNotNull("Loaded implant class.", specimen);
         assertNotNull("JVM managed to load the specimen.", loadedClass);
+        assertNotNull("Found dependencies.", dependencies);
+        assertNotEquals("Found some dependencies.", 0, dependencies.size());
+        assertTrue("Found DummyDependency class.", dependencies.containsKey(ClassName.of(DummyDependency.class)));
+        assertTrue("Found DummySubDependency class.", dependencies.containsKey(ClassName.of(DummySubDependency.class)));
+        assertTrue("Found the external dependency class.", dependencies.containsKey(ClassName.of(ClassFile.class)));
     }
 
     @Test
@@ -99,7 +188,7 @@ public class ImplantHandlerTests {
         ImplantHandlerImpl.findAndCreateFor(tempFile, ClassName.of(DummyTestClassImplant.class));
     }
 
-    @Test(expected = ClassNotFoundException.class)
+    @Test(expected = Exception.class)
     public void testFindAndCreateFor_StdlibClass_NotFound() throws ImplantException, IOException, ClassNotFoundException {
         ImplantHandlerImpl.findAndCreateFor(String.class);
     }

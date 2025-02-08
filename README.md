@@ -168,7 +168,7 @@ Then, include it in the `pom.xml` (or equivalent) of your own project:
 <dependency>
   <groupId>io.github.w1th4d.jarplant</groupId>
   <artifactId>jarplant-lib</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -205,7 +205,7 @@ You may want to include the `jarplant-implants` submodule for access to `ClassIm
 <dependency>
   <groupId>io.github.w1th4d.jarplant</groupId>
     <artifactId>jarplant-implants</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
 

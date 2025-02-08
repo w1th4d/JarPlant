@@ -10,37 +10,40 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetches the whole repo. Required to be able to commit and push later.
 
-      - name: Validate and extract version from git tag
+      - name: Validate that tag is on main branch
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          SEMVER_REGEX="^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
-
-          if [[ ! "$TAG" =~ $SEMVER_REGEX ]]; then
-            echo "❌ ERROR: Invalid SemVer tag! Expected 'vMAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]'."
+          TAG_COMMIT=$(git rev-list -n 1 $GITHUB_REF)
+          echo "TAG_COMMIT=$TAG_COMMIT"
+          
+          if git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "✅ Tag commit is on main branch."
+          else
+            echo "❌ ERROR: Tag does not point to a commit on main. Aborting release."
             exit 1
           fi
 
-          MAJOR="${BASH_REMATCH[1]}"
-          MINOR="${BASH_REMATCH[2]}"
-          PATCH="${BASH_REMATCH[3]}"
-          PRERELEASE="${BASH_REMATCH[4]}"  # May be empty
-          BUILD="${BASH_REMATCH[5]}"       # May be empty
-
-          echo "✅ Valid SemVer tag detected: $TAG"
-          echo "MAJOR=$MAJOR" >> $GITHUB_ENV
-          echo "MINOR=$MINOR" >> $GITHUB_ENV
-          echo "PATCH=$PATCH" >> $GITHUB_ENV
-          echo "PRERELEASE=$PRERELEASE" >> $GITHUB_ENV
-          echo "BUILD=$BUILD" >> $GITHUB_ENV
-
-          RELEASE_VERSION="${TAG#v}"
-          echo "🔍 Extracted version: $RELEASE_VERSION"
+      - name: Extract version from tag
+        run: |
+          RELEASE_VERSION=${GITHUB_REF#refs/tags/v}
+          echo "RELEASE_VERSION=$RELEASE_VERSION"
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
 
-      - name: Validate POM version matches git tag
+      - name: Parse semver string
+        id: semver_parser
+        uses: booxmedialtd/ws-action-parse-semver@v1
+        with:
+          input_string: ${{ env.RELEASE_VERSION }}
+
+      - name: Validate that POM version matches git tag
         run: |
           POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          RELEASE_VERSION=${{ steps.semver_parser.outputs.fullversion }}
+          echo "POM_VERSION=$POM_VERSION"
+          echo "RELEASE_VERSION=$RELEASE_VERSION"
+          echo ""
           
           if [[ "$POM_VERSION" != "$RELEASE_VERSION" ]]; then
             echo "❌ ERROR: Version in pom.xml ($POM_VERSION) does not match the tag ($RELEASE_VERSION)."
@@ -68,28 +71,50 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: built-modules
-          path: release-artifacts/
+          path: target/release-artifacts/
+
+      - name: Check if tag is at HEAD of main
+        run: |
+          TAG_COMMIT=$(git rev-list -n 1 $GITHUB_REF)
+          MAIN_HEAD=$(git rev-parse origin/main)
+
+          if [[ "$TAG_COMMIT" == "$MAIN_HEAD" ]]; then
+            echo "✅ Tag is at HEAD of main."
+            echo "TAG_AT_HEAD=true" >> $GITHUB_ENV
+          else
+            echo "⚠️ Tag is not at HEAD of main. Skipping POM version bump."
+            echo "TAG_AT_HEAD=false" >> $GITHUB_ENV
+          fi
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "${{ github.ref_name }}"
-          files: release-artifacts/*
+          files: target/release-artifacts/*
           draft: false
-          prerelease: ${{ env.PRERELEASE != '' }}
+          prerelease: ${{ steps.semver_parser.outputs.prerelease != '' }}
+          make_latest: ${{ env.TAG_AT_HEAD == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set next snapshot version
+        if: env.TAG_AT_HEAD == 'true'
         run: |
-          NEXT_PATCH=$(( ${{ env.PATCH }} + 1 ))
-          NEXT_VERSION="${{ env.MAJOR }}.${{ env.MINOR }}.${NEXT_PATCH}-SNAPSHOT"
+          NEXT_PATCH=$(( ${{ steps.semver_parser.outputs.patch }} + 1 ))
+          NEXT_VERSION="${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${NEXT_PATCH}-SNAPSHOT"
 
           echo "🔄 Bumping version to: $NEXT_VERSION"
-          mvn versions:set -DnewVersion=$NEXT_VERSION -DgenerateBackupPoms=false
-          
-          echo "🚀 Committing version bump to repository"
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git commit -am "Prepare next development iteration: $NEXT_VERSION"
-          git push origin main
+          mvn versions:set -DnewVersion=$NEXT_VERSION -DgenerateBackupPoms=false --batch-mode
+
+      - name: Commit updated POM to repository
+        if: env.TAG_AT_HEAD == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git stash push
+          git checkout main
+          git stash pop --quiet
+          git add --verbose .
+          git status
+          git commit -m "Preparing next snapshot"
+          git push

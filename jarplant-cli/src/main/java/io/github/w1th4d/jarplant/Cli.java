@@ -11,6 +11,7 @@ import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.*;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -150,7 +151,7 @@ public class Cli {
                 .action(storeTrue())
                 .setDefault(false);
         decoderParser.addArgument("-i", "--input-file")
-                .help("Path to file containing, DNS requests.")
+                .help("Path to file containing, interactsh JSON DNS requests.")
                 .metavar("FILE")
                 .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
                 .required(false);
@@ -466,11 +467,9 @@ public class Cli {
             if (inputFile != null) {
                 if (inputFile.equals("-")) {
                     // Read from stdin instead
-                    Scanner stdin = new Scanner(System.in);
-                    while (stdin.hasNextLine()) {
-                        String stdinInput = stdin.nextLine();
-                        inputs.add(stdinInput);
-                    }
+                    byte[] inputBytes = System.in.readAllBytes();
+                    String inputString = new String(inputBytes, StandardCharsets.UTF_8);
+                    inputs.addAll(decoder.parseInteractshExport(inputString));
                 } else {
                     // Add inputs from a regular text file
                     try {
@@ -502,6 +501,8 @@ public class Cli {
         } catch (DecoderException e) {
             throw new RuntimeException("Could not use domain. " + e.getMessage());
         } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

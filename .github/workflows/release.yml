@@ -64,14 +64,14 @@ jobs:
       - name: Extract artifacts for release
         run: |
           mkdir -p release-artifacts
-          cp jarplant-cli/target/*-jar-with-dependencies.jar release-artifacts/
-          cp jarplant-lib/target/*.jar release-artifacts/
+          cp -v jarplant-cli/target/*-jar-with-dependencies.jar release-artifacts/
+          cp -v jarplant-lib/target/*.jar release-artifacts/
 
       - name: Upload JARs as Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: built-modules
-          path: target/release-artifacts/
+          path: release-artifacts/
 
       - name: Check if tag is at HEAD of main
         run: |
@@ -90,7 +90,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "${{ github.ref_name }}"
-          files: target/release-artifacts/*
+          files: release-artifacts/*
           draft: false
           prerelease: ${{ steps.semver_parser.outputs.prerelease != '' }}
           make_latest: ${{ env.TAG_AT_HEAD == 'true' }}

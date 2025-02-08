@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.w1th4d.jarplant</groupId>
         <artifactId>jarplant-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>test-app-pojo</artifactId>

@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
@@ -46,8 +47,15 @@ public class BufferedJarFiddler implements JarFiddler {
     }
 
     @Override
-    public void write(Path outputFile) throws IOException {
-        try (OutputStream outputStream = Files.newOutputStream(outputFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
+    public void write(Path outputFile, OpenOption... options) throws IOException {
+        // Set some default options if none were given
+        if (options == null || options.length == 0) {
+            options = new OpenOption[]{
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING
+            };
+        }
+        try (OutputStream outputStream = Files.newOutputStream(outputFile, options)) {
             write(outputStream);
         }
     }

@@ -150,7 +150,7 @@ public class Cli {
                 .action(storeTrue())
                 .setDefault(false);
         decoderParser.addArgument("-i", "--input-file")
-                .help("Path to file containing, interactsh JSON DNS requests.")
+                .help("Path to file containing interactsh JSON DNS requests.")
                 .metavar("FILE")
                 .type(Arguments.fileType().acceptSystemIn().verifyExists().verifyCanRead())
                 .required(false);

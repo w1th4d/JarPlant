@@ -78,7 +78,7 @@ public class Cli {
                 .required(false);
         classInjectorParser.addArgument("-i", "--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
-                .choices("ClassImplant", "DnsBeaconImplant", "StealerExfil")
+                .choices("ClassImplant", "StealerExfil")
                 .setDefault("ClassImplant");
         classInjectorParser.addArgument("-c", "--config")
                 .help("Override one or more configuration properties inside the implant.")

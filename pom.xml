@@ -87,4 +87,12 @@
         </plugins>
     </build>
 
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages for JarPlant</name>
+            <url>https://maven.pkg.github.com/w1th4d/JarPlant</url>
+        </repository>
+    </distributionManagement>
+
 </project>

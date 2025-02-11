@@ -269,7 +269,11 @@ public class Cli {
         if (didInfect) {
             try {
                 jar.write(outputPath);
-                log.info("Successfully spiked JAR '" + targetPath + "'.");
+                if (targetPath.equals(outputPath)) {
+                    log.info("Successfully spiked JAR '" + targetPath + "'.");
+                } else {
+                    log.info("Successfully spiked JAR '" + targetPath + "' -> '" + outputPath + "'.");
+                }
             } catch (IOException e) {
                 log.severe("Cannot write output JAR '" + outputPath + "'.");
             }

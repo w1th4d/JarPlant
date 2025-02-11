@@ -30,7 +30,7 @@ public class Cli {
                     "     _|     |.---.-..----.|   __ \\|  |.---.-..-----.|  |_ \n" +
                     "    |       ||  _  ||   _||    __/|  ||  _  ||     ||   _|\n" +
                     "    |_______||___._||__|  |___|   |__||___._||__|__||____|\n" +
-                    "    Java archive implant toolkit   v0.1   by w1th4d & kugg";
+                    "    Java archive implant toolkit v0.1.1   by w1th4d & kugg";
 
     private final static String examples = "for more options, see command help pages:\n" +
             "  $ java -jar jarplant.jar class-injector -h\n" +

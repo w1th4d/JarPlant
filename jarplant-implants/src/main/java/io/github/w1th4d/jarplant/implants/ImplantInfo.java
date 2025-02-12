@@ -4,15 +4,15 @@ package io.github.w1th4d.jarplant.implants;
  * A kind of inventory for the bundled implants.
  * <p>There's no need to add custom implants to this list if you only intend to use it privately and load it
  * directly from a file.</p>
- * <p>However, if you want to publish it as a general purpose implant and bundle it with JarPlant, then please
+ * <p>However, if you want to publish it as a general purpose implant and bundle it with JarPlant, then please:</p>
  * <ul>
  *    <li>Fork the project over at GitHub.</li>
  *    <li>Add your implant class(es) to the Maven module `jarplant-implants` under the `io.github.w1th4d.jarplant.implants`
  *  package.</li>
  *    <li>dd a new value to the `ImplantInfo` enum as appropriate.</li>
  *    <li>Create a Pull Request on the official GitHub repo.</li>
- * </ul></p>
- * <p>Sharing is caring! <3</p>
+ * </ul>
+ * <p>Sharing is caring!</p>
  */
 public enum ImplantInfo {
     ClassImplant(

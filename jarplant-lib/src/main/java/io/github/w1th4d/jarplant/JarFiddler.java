@@ -90,6 +90,8 @@ public interface JarFiddler extends Iterable<JarFiddler.Entry> {
     interface Entry {
         /**
          * Get the full file name of this entry.
+         *
+         * @return The name of this entry
          */
         String getName();
 

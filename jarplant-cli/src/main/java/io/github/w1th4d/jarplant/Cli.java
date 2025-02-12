@@ -30,7 +30,7 @@ public class Cli {
                     "     _|     |.---.-..----.|   __ \\|  |.---.-..-----.|  |_ \n" +
                     "    |       ||  _  ||   _||    __/|  ||  _  ||     ||   _|\n" +
                     "    |_______||___._||__|  |___|   |__||___._||__|__||____|\n" +
-                    "    Java archive implant toolkit   v0.1   by w1th4d & kugg";
+                    "    Java archive implant toolkit v0.1.1   by w1th4d & kugg";
 
     private final static String examples = "for more options, see command help pages:\n" +
             "  $ java -jar jarplant.jar class-injector -h\n" +
@@ -269,7 +269,11 @@ public class Cli {
         if (didInfect) {
             try {
                 jar.write(outputPath);
-                log.info("Successfully spiked JAR '" + targetPath + "'.");
+                if (targetPath.equals(outputPath)) {
+                    log.info("Successfully spiked JAR '" + targetPath + "'.");
+                } else {
+                    log.info("Successfully spiked JAR '" + targetPath + "' -> '" + outputPath + "'.");
+                }
             } catch (IOException e) {
                 log.severe("Cannot write output JAR '" + outputPath + "'.");
             }

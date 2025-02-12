@@ -78,7 +78,7 @@ public class Cli {
                 .required(false);
         classInjectorParser.addArgument("-i", "--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
-                .choices("ClassImplant", "StealerExfil")
+                .choices("ClassImplant", "StealerExfil", "JMXImplant")
                 .setDefault("ClassImplant");
         classInjectorParser.addArgument("-c", "--config")
                 .help("Override one or more configuration properties inside the implant.")
@@ -219,6 +219,12 @@ public class Cli {
         } else if (implantClassName.equals("StealerExfil")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(StealerExfil.class);
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
+                throw new RuntimeException("Cannot find built-in implant class.", e);
+            }
+        } else if (implantClassName.equals("JMXImplant")) {
+            try {
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(JMXImplant.class);
             } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }

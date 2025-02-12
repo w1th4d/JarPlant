@@ -9,6 +9,35 @@
     <version>0.1.2-SNAPSHOT</version>
     <packaging>pom</packaging>
 
+    <name>jarplant-parent</name>
+    <description>Java Archive Implant Toolkit (JarPlant). This is the parent POM used by the actual JarPlant modules.
+        This is probably not the dependency you're looking to include in your project. You're probably looking for
+        jarplant-lib.
+    </description>
+    <url>https://github.com/w1th4d/JarPlant</url>
+
+    <licenses>
+        <license>
+            <name>LGPL-2.1</name>
+            <url>https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Johnny Withad</name>
+            <email>119284044+w1th4d@users.noreply.github.com</email>
+            <organizationUrl>https://github.com/w1th4d</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/w1th4d/JarPlant.git</connection>
+        <developerConnection>scm:git:ssh://github.com:w1th4d/JarPlant.git</developerConnection>
+        <url>https://github.com/w1th4d/JarPlant</url>
+    </scm>
+
     <modules>
         <module>jarplant-cli</module>
         <module>jarplant-implants</module>
@@ -72,19 +101,93 @@
         </dependencies>
     </dependencyManagement>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-release-plugin</artifactId>
-                <version>3.0.1</version>
-                <configuration>
-                    <tagNameFormat>v@{project.version}</tagNameFormat>
-                    <goals>clean verify</goals>
-                    <autoVersionSubmodules>true</autoVersionSubmodules>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <profiles>
+        <profile>
+            <id>release</id>
+            <activation>
+                <property>
+                    <name>release</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <modules>
+                <module>jarplant-lib</module>
+                <module>jarplant-implants</module>
+            </modules>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-release-plugin</artifactId>
+                        <version>3.1.1</version>
+                        <configuration>
+                            <tagNameFormat>v@{project.version}</tagNameFormat>
+                            <goals>clean verify</goals>
+                            <autoVersionSubmodules>true</autoVersionSubmodules>
+                            <useReleaseProfile>false</useReleaseProfile>
+                            <releaseProfiles>release</releaseProfiles>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <excludeArtifacts>
+                                <excludeArtifact>jarplant-cli</excludeArtifact>
+                                <excludeArtifact>test-app-pojo</excludeArtifact>
+                                <excludeArtifact>test-app-spring-simple</excludeArtifact>
+                                <excludeArtifact>test-app-spring-complex</excludeArtifact>
+                                <excludeArtifact>test-implant-class</excludeArtifact>
+                                <excludeArtifact>test-implant-spring</excludeArtifact>
+                            </excludeArtifacts>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

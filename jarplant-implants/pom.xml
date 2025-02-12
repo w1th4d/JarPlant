@@ -12,6 +12,32 @@
 
     <artifactId>jarplant-implants</artifactId>
 
+    <name>jarplant-implants</name>
+    <description>Java Archive Implant Toolkit (JarPlant). This package contains some generic implants.</description>
+    <url>https://github.com/w1th4d/JarPlant</url>
+
+    <licenses>
+        <license>
+            <name>LGPL-2.1</name>
+            <url>https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Johnny Withad</name>
+            <email>119284044+w1th4d@users.noreply.github.com</email>
+            <organizationUrl>https://github.com/w1th4d</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/w1th4d/JarPlant.git</connection>
+        <developerConnection>scm:git:ssh://github.com:w1th4d/JarPlant.git</developerConnection>
+        <url>https://github.com/w1th4d/JarPlant</url>
+    </scm>
+
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>

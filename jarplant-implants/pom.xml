@@ -32,6 +32,15 @@
         </developer>
     </developers>
 
+    <contributors>
+        <contributor>
+            <name>Christoffer Jerkeby</name>
+            <email>kugghjul@gmail.com</email>
+            <organization>Jerkeby Security AB</organization>
+            <organizationUrl>https://www.jerkeby.se/</organizationUrl>
+        </contributor>
+    </contributors>
+
     <scm>
         <connection>scm:git:git://github.com/w1th4d/JarPlant.git</connection>
         <developerConnection>scm:git:ssh://github.com:w1th4d/JarPlant.git</developerConnection>

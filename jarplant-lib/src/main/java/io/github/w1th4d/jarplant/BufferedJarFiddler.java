@@ -18,7 +18,7 @@ import java.util.jar.JarOutputStream;
  * Utility for modifying contents of a JAR file.
  * <p>This class will read the entire contents of a JAR file and buffer it into memory.
  * Use the iterator to go through all entries and replace its content as appropriate.</p>
- * <p>The iterator is thread safe as it's backed by a <copy>CopyOnWriteArrayList</copy>, but
+ * <p>The iterator is thread safe as it's backed by a <code>CopyOnWriteArrayList</code>, but
  * modifying the content of an entry is not (by design).
  * This class is not designed to be used by multithreaded code.</p>
  * <p>All methods of this class will operate upon the buffered state in memory.

@@ -1,42 +1,34 @@
-name: Release workflow
+name: Release a new version
+
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
 
 jobs:
   release:
+    name: Publish to GitHub and Maven Central
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
-          fetch-depth: 0  # Fetches the whole repo. Required to be able to commit and push later.
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
-
-      - name: Validate that tag is on main branch
-        run: |
-          TAG_COMMIT=$(git rev-list -n 1 $GITHUB_REF)
-          echo "TAG_COMMIT=$TAG_COMMIT"
-          
-          if git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
-            echo "✅ Tag commit is on main branch."
-          else
-            echo "❌ ERROR: Tag does not point to a commit on main. Aborting release."
-            exit 1
-          fi
-
-      - name: Extract version from tag
-        run: |
-          RELEASE_VERSION=${GITHUB_REF#refs/tags/v}
-          echo "RELEASE_VERSION=$RELEASE_VERSION"
-          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+          distribution: 'temurin'
+          java-version: '17'
+          cache: maven
 
       - name: Parse semver string
         id: semver_parser
         uses: booxmedialtd/ws-action-parse-semver@v1
         with:
-          input_string: ${{ env.RELEASE_VERSION }}
+          input_string: ${{ github.event.inputs.release_version }}
 
       - name: Detect pre-release
         run: |
@@ -44,26 +36,43 @@ jobs:
           echo "IS_PRE_RELEASE=$IS_PRE_RELEASE"
           echo "IS_PRE_RELEASE=$IS_PRE_RELEASE" >> $GITHUB_ENV
 
-      - name: Validate that POM version matches git tag
+      - name: Decrypt and import GPG key
+        env:
+          PGP_PRIVATE_KEY: ${{ secrets.PGP_PRIVATE_KEY }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         run: |
-          POM_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          RELEASE_VERSION=${{ steps.semver_parser.outputs.fullversion }}
-          echo "POM_VERSION=$POM_VERSION"
-          echo "RELEASE_VERSION=$RELEASE_VERSION"
-          echo ""
-          
-          if [[ "$POM_VERSION" != "$RELEASE_VERSION" ]]; then
-            echo "❌ ERROR: Version in pom.xml ($POM_VERSION) does not match the tag ($RELEASE_VERSION)."
-            exit 1
-          fi
+          echo "$PGP_PRIVATE_KEY" | base64 --decode > private-key.asc
+          gpg --batch --import private-key.asc
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | awk '{print $2}' | cut -d'/' -f2)
+          echo "KEY_ID=$KEY_ID" >> $GITHUB_ENV
+          rm private-key.asc
 
-          echo "✅ POM version matches tag!"
+      - name: Configure Maven Settings
+        run: |
+          mkdir -p ~/.m2
+          echo "<settings>
+                  <servers>
+                    <server>
+                      <id>central</id>
+                      <username>${{ secrets.OSSRH_USERNAME }}</username>
+                      <password>${{ secrets.OSSRH_TOKEN }}</password>
+                    </server>
+                  </servers>
+                  <profiles>
+                    <profile>
+                      <id>release</id>
+                      <properties>
+                        <gpg.keyname>${{ env.KEY_ID }}</gpg.keyname>
+                        <gpg.passphrase>${{ secrets.PGP_PASSPHRASE }}</gpg.passphrase>
+                      </properties>
+                    </profile>
+                  </profiles>
+                </settings>" > ~/.m2/settings.xml
 
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      - name: Set release version
+        run: |
+          mvn versions:set -DnewVersion=${{ github.event.inputs.release_version }} --batch-mode
+          mvn versions:commit --batch-mode
 
       - name: Maven build
         run: mvn clean package --batch-mode
@@ -73,7 +82,6 @@ jobs:
           mkdir -p release-artifacts
           cp -v jarplant-cli/target/*-jar-with-dependencies.jar release-artifacts/
           cp -v jarplant-lib/target/*.jar release-artifacts/
-          cp -v jarplant-implants/target/*.jar release-artifacts/
 
       - name: Upload JARs as Artifacts
         uses: actions/upload-artifact@v4
@@ -81,50 +89,21 @@ jobs:
           name: built-modules
           path: release-artifacts/
           if-no-files-found: 'error'
-          overwrite: ${{ env.IS_PRE_RELEASE }}
-
-      - name: Check if tag is at HEAD of main
-        run: |
-          TAG_COMMIT=$(git rev-list -n 1 $GITHUB_REF)
-          MAIN_HEAD=$(git rev-parse origin/main)
-
-          if [[ "$TAG_COMMIT" == "$MAIN_HEAD" ]]; then
-            echo "✅ Tag is at HEAD of main."
-            echo "TAG_AT_HEAD=true" >> $GITHUB_ENV
-          else
-            echo "⚠️ Tag is not at HEAD of main. Skipping POM version bump."
-            echo "TAG_AT_HEAD=false" >> $GITHUB_ENV
-          fi
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "${{ github.ref_name }}"
+          tag_name: "${{ github.event.inputs.release_version }}"
           files: release-artifacts/*
           draft: false
-          prerelease: ${{ steps.semver_parser.outputs.prerelease != '' }}
-          make_latest: ${{ env.TAG_AT_HEAD == 'true' }}
+          prerelease: ${{ env.IS_PRE_RELEASE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set next snapshot version
-        if: env.TAG_AT_HEAD == 'true' && env.IS_PRE_RELEASE == 'false'
+      - name: Create and push git tag
         run: |
-          NEXT_PATCH=$(( ${{ steps.semver_parser.outputs.patch }} + 1 ))
-          NEXT_VERSION="${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}.${NEXT_PATCH}-SNAPSHOT"
+          git tag v${{ github.event.inputs.release_version }}
+          git push --tags
 
-          echo "🔄 Bumping version to: $NEXT_VERSION"
-          mvn versions:set -DnewVersion=$NEXT_VERSION -DgenerateBackupPoms=false --batch-mode
-
-      - name: Commit updated POM to repository
-        if: env.TAG_AT_HEAD == 'true' && env.IS_PRE_RELEASE == 'false'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git stash push
-          git checkout main
-          git stash pop --quiet
-          git add --verbose .
-          git status
-          git commit -m "Preparing next snapshot"
-          git push
+      - name: Deploy  to Maven Central
+        run: mvn deploy -Prelease --batch-mode

@@ -15,14 +15,13 @@ import java.util.regex.Pattern;
  * <code>com/example/MyClass.class</code>. This is typically the case when dealing with a CLASSPATH directory or
  * JAR files.</p>
  * <p>This class only deals with names. The named classes or paths does not have to exist.</p>
- * <p>Example usage:
+ * <p>Example usage:</p>
  * <pre>{@code
  * ClassName cn = ClassName.of(MyClass.class);
  * JarEntry newEntry = new JarEntry(cn.getClassFilePath());
  * System.out.println("Created entry " + cn);
  * }</pre>
- * The JarEntry will have the name <code>com/example/MyClass.class</code></p>.
- * <p>
+ * <p>The JarEntry will have the name <code>com/example/MyClass.class</code></p>.
  */
 public class ClassName implements Comparable<ClassName>, Cloneable {
     private final static Pattern FULL_CLASS_NAME_PATTERN = Pattern.compile("^(?:([\\w-]+(?:\\.[\\w-]+)*)\\.)?([\\w\\$]+)$");

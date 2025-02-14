@@ -82,7 +82,6 @@ jobs:
           mkdir -p release-artifacts
           cp -v jarplant-cli/target/*-jar-with-dependencies.jar release-artifacts/
           cp -v jarplant-lib/target/*.jar release-artifacts/
-          cp -v jarplant-implants/target/*.jar release-artifacts/
 
       - name: Upload JARs as Artifacts
         uses: actions/upload-artifact@v4

@@ -145,7 +145,10 @@
                         <configuration>
                             <publishingServerId>central</publishingServerId>
                             <excludeArtifacts>
+                                <!-- The jarplant-parent will be included (ant it's needed) -->
                                 <excludeArtifact>jarplant-cli</excludeArtifact>
+                                <excludeArtifact>jarplant-implants</excludeArtifact>
+                                <!-- Do include jarplant-lib -->
                                 <excludeArtifact>test-app-pojo</excludeArtifact>
                                 <excludeArtifact>test-app-spring-simple</excludeArtifact>
                                 <excludeArtifact>test-app-spring-complex</excludeArtifact>

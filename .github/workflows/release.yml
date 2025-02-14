@@ -93,6 +93,11 @@ jobs:
           path: release-artifacts/
           if-no-files-found: 'error'
 
+      - name: Create and push git tag
+        run: |
+          git tag v${{ github.event.inputs.release_version }}
+          git push --tags
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -102,11 +107,6 @@ jobs:
           prerelease: ${{ env.IS_PRE_RELEASE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create and push git tag
-        run: |
-          git tag v${{ github.event.inputs.release_version }}
-          git push --tags
 
       - name: Deploy  to Maven Central
         run: mvn deploy -Prelease --batch-mode

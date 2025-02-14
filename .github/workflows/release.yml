@@ -14,10 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        fetch-depth: 0  # Fetches the whole repo. Required to be able to commit and push later.
-        ssh-key: ${{ secrets.DEPLOY_KEY }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetches the whole repo. Required to be able to commit and push later.
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3

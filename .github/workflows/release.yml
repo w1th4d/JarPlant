@@ -96,7 +96,7 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "${{ github.event.inputs.release_version }}"
+          tag_name: "v${{ github.event.inputs.release_version }}"
           files: release-artifacts/*
           draft: false
           prerelease: ${{ env.IS_PRE_RELEASE }}

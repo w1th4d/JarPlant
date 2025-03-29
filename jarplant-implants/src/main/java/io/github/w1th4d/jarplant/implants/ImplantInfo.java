@@ -24,11 +24,19 @@ public enum ImplantInfo {
     SpringImplantConfiguration(
             io.github.w1th4d.jarplant.implants.SpringImplantConfiguration.class,
             "Template for adding your Spring implant component to a Spring configuration class."),
+    RevShell(
+            RevShellImplant.class,
+            "Classic reverse shell that connects to a specified hostname, IPv4 or IPv6 address and TCP port."
+                    + " Popping shells is fun but bad OpSec."
+                    + " Perfect for CTF:s, but not so good for Red Team engagements when faced with a competent Blue Team."
+                    + " Be sure to set CONF_LHOST to your attack box or C2 infra. Optionally set CONF_LPORT (default 12345)."
+    ),
     StealerExfil(
             StealerExfil.class,
             "Exfiltrate host environment information and access tokens."
                     + " Exfiltrate interesting environment variables and properties that may contain various cloud tokens and secrets."
                     + " It encodes all exfil data using a custom compression/encoding scheme optimized for token data and splits it ut into sub-requests as necessary."
+                    + " Be sure to set CONF_DOMAIN to a domain under your control. Preferably one where you run an instance of Interactsh."
     );
 
     public final Class<?> clazz;

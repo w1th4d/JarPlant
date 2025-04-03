@@ -6,12 +6,65 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Optional;
 
 public class RevShellImplantTests {
+    @Test
+    public void testHandleCommunications_HappyCase_Fine() throws IOException, InterruptedException {
+        // Arrange
+        PipedOutputStream sendFromFakeShell = new PipedOutputStream();
+        PipedInputStream recvFromFakeShell = new PipedInputStream();
+        PipedOutputStream sendFromFakeSocket = new PipedOutputStream();
+        PipedInputStream recvFromFakeSocket = new PipedInputStream();
+
+        PipedInputStream fromShell = new PipedInputStream(sendFromFakeShell);
+        PipedOutputStream toShell = new PipedOutputStream(recvFromFakeShell);
+        PipedInputStream fromSocket = new PipedInputStream(sendFromFakeSocket);
+        PipedOutputStream toSocket = new PipedOutputStream(recvFromFakeSocket);
+
+        Socket dummySocket = new Socket();
+
+        // Act
+        Thread comms = new Thread(() -> {
+            try {
+                RevShellImplant.handleCommunications(fromShell, toShell, fromSocket, toSocket, dummySocket); // Blocking call.
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        comms.start();
+
+        // Assert
+        // Simulate shell outputting something.
+        byte[] shellGreeting = "This is FakeShell!\n".getBytes(StandardCharsets.UTF_8);
+        sendFromFakeShell.write(shellGreeting);
+        Assert.assertArrayEquals(shellGreeting, recvFromFakeSocket.readNBytes(shellGreeting.length));
+
+        // Simulate socket sending a command.
+        byte[] command = "whoami\n".getBytes(StandardCharsets.UTF_8);
+        sendFromFakeSocket.write(command);
+        Assert.assertArrayEquals(command, recvFromFakeShell.readNBytes(command.length));
+
+        // Simulate receiving the result of the command.
+        byte[] commandRet = "root\n".getBytes(StandardCharsets.UTF_8);
+        sendFromFakeShell.write(commandRet);
+        Assert.assertArrayEquals(commandRet, recvFromFakeSocket.readNBytes(commandRet.length));
+
+        // Simulate disconnection.
+        sendFromFakeSocket.close();
+        recvFromFakeSocket.close();
+        comms.join(Duration.ofSeconds(10).toMillis());   // Should return fast, but don't wait for too long.
+        Assert.assertFalse(comms.isAlive());
+    }
+
     @Test
     public void testFindUnixShellExecutable_RichLinuxSystem_FoundBash() throws IOException {
         // Arrange

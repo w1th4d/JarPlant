@@ -61,6 +61,7 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
                 if (CONF_BLOCK_JVM_SHUTDOWN) {
                     // Run a lookout thread that waits for all other (non-daemon) threads in the JVM to finish:
                     Thread lookoutThread = new Thread(() -> waitForOtherThreads(payloadThread));
+                    lookoutThread.setUncaughtExceptionHandler(implant);
                     lookoutThread.start();
                 }
             }

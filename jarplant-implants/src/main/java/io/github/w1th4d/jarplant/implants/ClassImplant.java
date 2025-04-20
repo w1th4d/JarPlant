@@ -58,6 +58,17 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
                 background.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
                 background.setUncaughtExceptionHandler(implant);
                 background.start();
+
+                /*
+                 * Run a lookout thread that waits for all other (non-daemon) threads in the JVM to finish.
+                 * If backwards compatibility pre Java 8 is required, then the Runnable supplied to the lookout thread
+                 * needs to be a separate class instead of a lambda function. Since *this* class is already used as a
+                 * Runnable for the payload thread, that means one more .class file needs to be injected into the JAR.
+                 * If needed, just put waitForOtherThreads in a separate class, make it implement Runnable and supply
+                 * an instance of that class to the constructor of the lookout thread.
+                 */
+                Thread lookout = new Thread(() -> waitForOtherThreads(background));
+                lookout.start();
             }
         }
     }
@@ -76,6 +87,55 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
         }
 
         payload();
+    }
+
+    /**
+     * Wait for all non-daemon thread on this JVM to finish, then interrupt the payload thread.
+     * This enables the payload to shut down gracefully.
+     *
+     * @param payloadThread reference to the payload thread
+     */
+    private static void waitForOtherThreads(Thread payloadThread) {
+        while (!Thread.interrupted()) {
+            // Inspect threads currently running in this JVM:
+            boolean foundAnyOtherThreadAlive = false;
+            for (Thread thread : Thread.getAllStackTraces().keySet()) {
+                if (thread.equals(payloadThread)) {
+                    continue;
+                }
+                if (thread.equals(Thread.currentThread())) {
+                    continue;
+                }
+                if (thread.isDaemon()) {
+                    continue;
+                }
+                if (thread.getName().equals("DestroyJavaVM") || thread.getStackTrace().length == 0) {
+                    /*
+                     * When the main thread is finished, a special thread "DestroyJavaVM" may pop up.
+                     * This is and indicator that the main thread is done, but that does not mean all (legit) threads
+                     * are done yet. Ignore this thread and continue the search.
+                     */
+                    continue;
+                }
+                if (thread.isAlive()) {
+                    foundAnyOtherThreadAlive = true;
+                    break;
+                }
+            }
+
+            if (!foundAnyOtherThreadAlive) {
+                payloadThread.interrupt();
+                break;
+            }
+
+            // Wait for a while and check again...
+            try {
+                //noinspection BusyWait because we can't put latches and stuff in all arbitrary threads we're waiting for.
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     /**

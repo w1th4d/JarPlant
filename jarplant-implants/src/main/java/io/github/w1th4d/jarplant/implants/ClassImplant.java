@@ -28,9 +28,9 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
      * it seems like the app is finished executing. <b>Make sure your payload properly handles thread interruption when
      * performing long-running or blocking operations.</b> Failing to do so may cause the JVM to not exit properly when
      * the target app is done executing.</p>
-     * <p>Default value is <code>false</code>.</p>
+     * <p>Default value is <code>true</code>.</p>
      */
-    static volatile boolean CONF_GRACEFUL_SHUTDOWN = false;
+    static volatile boolean CONF_GRACEFUL_SHUTDOWN = true;
 
     /**
      * Optional delay (in milliseconds) before the implant payload will detonate.

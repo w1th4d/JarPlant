@@ -78,11 +78,14 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
         if (CONF_DELAY_MS > 0) {
             try {
                 Thread.sleep(CONF_DELAY_MS);
-            } catch (InterruptedException ignored) {
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
 
-        payload();
+        if (!Thread.currentThread().isInterrupted()) {
+            payload();
+        }
     }
 
     /**

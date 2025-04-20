@@ -125,11 +125,8 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
 
             if (!foundAnyOtherThreadAlive) {
                 payloadThread.interrupt();
-                System.out.println("[lookout] Interrupting payload thread!");
                 break;
             }
-
-            System.out.println("[lookout] Still alive.");
 
             // Wait for a while and check again...
             try {
@@ -166,30 +163,5 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
         System.out.println(" __\\||/__");
         System.out.println(" \\ pwnd /");
         System.out.println("  \\____/");
-
-        while (!Thread.interrupted()) {
-            System.out.println("[payload] Running.");
-
-            try {
-                //noinspection BusyWait
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                System.out.println("[payload] Got interrupted!");
-            }
-        }
-        System.out.println("[payload] Interrupted and/or done!");
-    }
-
-    public static void main(String[] argv) {
-        System.out.println("[main] Initializing implant.");
-        ClassImplant.init();
-
-        System.out.println("[main] Pretending to do something...");
-        try {
-            Thread.sleep(5500);
-        } catch (InterruptedException ignored) {
-        }
-        System.out.println("[main] Done.");
     }
 }

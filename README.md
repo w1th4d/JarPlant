@@ -116,7 +116,6 @@ Spike any JAR with an implant that will always finish no matter what:
 java -jar jarplant-cli.jar class-injector \
    --target path/to/target.jar \
    --implant ClassImplant
-   --config CONF_BLOCK_JVM_SHUTDOWN=true 
 ```
 
 Be careful with blocking operations in your payload code.
@@ -127,28 +126,32 @@ JarPlant supports injection of custom values with the implants. A set of common 
 with the template and built-in implants.
 These are:
 
-| Configuration property    | Data type | Description                                                                                                    | Default value     |
-|---------------------------|-----------|----------------------------------------------------------------------------------------------------------------|-------------------|
-| `CONF_JVM_MARKER_PROP`    | String    | JVM system property to create and use as a "marker" to determine if an implant has been detonated in this JVM. | `java.class.init` |
-| `CONF_BLOCK_JVM_SHUTDOWN` | boolean   | Controls whether the implant's thread will block the JVM from fully exiting until the implant is done.         | `false`           |
-| `CONF_DELAY_MS`           | int       | Optional delay (in milliseconds) before the implant payload will detonate.                                     | `0`               |
+| Configuration property   | Data type | Description                                                                                                    | Default value     |
+|--------------------------|-----------|----------------------------------------------------------------------------------------------------------------|-------------------|
+| `CONF_JVM_MARKER_PROP`   | String    | JVM system property to create and use as a "marker" to determine if an implant has been detonated in this JVM. | `java.class.init` |
+| `CONF_GRACEFUL_SHUTDOWN` | boolean   | Controls whether the implant will attempt to shut down the payload thread gracefully.                          | `true`            |
+| `CONF_DELAY_MS`          | int       | Optional delay (in milliseconds) before the implant payload will detonate.                                     | `0`               |
 
 See the `ClassImplant` template Javadoc for mor info in these properties.
 
-### Blocking the JVM exit
+### Graceful implant shutdown
 
-Be extra careful with the `CONF_BLOCK_JVM_SHUTDOWN` property. If this is set to `true`, then the JVM will wait for your
-payload to finish its execution. If your payload takes a long time, then the spiked app will fail to exit properly. It's
-_not_ recommended to set a non-zero `CONF_DELAY_MS` value together with `CONF_BLOCK_JVM_SHUTDOWN=true`.
+If `CONF_GRACEFUL_SHUTDOWN` is set to `true`, the implant will attempt to shut down the payload thread gracefully when
+the affected Java application is done executing. It does so by spawning a separate "lookout thread" that will poll the
+state of all threads running on the JVM. If all regular (non-daemon) threads have finished executing, the implant
+thread will be _interrupted_. **It's therefor very important that the implant payload code properly handles thread
+interruption.** This is typically done by checking `Thread.interrupted()` and catching `InterruptedException`s properly.
+See [Oracle documentation on thread interruption](https://docs.oracle.com/javase/tutorial/essential/concurrency/interrupt.html)
+for more details.
 
-If you've injected an implant into an app that exits very quickly, then your payload may not get enough time to execute
-if `CONF_BLOCK_JVM_SHUTDOWN` is set to `false` (which is the default setting).
+Setting `CONF_GRACEFUL_SHUTDOWN` to `false` will make the payload thread a daemon thread.
+The [JVM Shutdown Sequence](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Runtime.html#shutdown)
+will not wait for daemon threads to finish executing. Thus, the payload thread will be abruptly killed when the
+affected application is done executing. If the affected application is very short-lived in its execution, the implant
+payload may not even run at all!
 
-As a general rule of thumb, only set `CONF_BLOCK_JVM_SHUTDOWN` to `true` if your implant is quick to execute and/or it's
-absolutely essential that it _must_ finish.
-
-For any target apps that takes some time to run (like a back-end service), there should be plenty time for your implant
-to do its thing with `CONF_BLOCK_JVM_SHUTDOWN` set to its default value of `false`.
+`CONF_GRACEFUL_SHUTDOWN` is set to `true` by default. Set it to `false` if there are any problems with affected
+applications not exiting properly (or even better: debug, fix and submit a Pull Request).
 
 ## Quickly implement a custom implant
 
@@ -193,7 +196,9 @@ public class Demo {
     public static void main(String[] args) {
         try {
             ImplantHandler implant = ImplantHandlerImpl.findAndCreateFor(YourCustomImplant.class);
-            implant.setConfig("CONF_BLOCK_JVM_SHUTDOWN", true);
+            implant.setConfig("CONF_CUSTOM_VALUE", "some custom string value");
+            implant.setConfig("CONF_SOME_NUM", 1337);
+            implant.setConfig("CONF_ENABLE_WICKEDNESS", true);
 
             Path target = Path.of("target.jar");
             JarFiddler jar = JarFiddler.buffer(target);

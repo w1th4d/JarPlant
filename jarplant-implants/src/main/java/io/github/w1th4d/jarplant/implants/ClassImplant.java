@@ -34,9 +34,6 @@ public class ClassImplant implements Runnable, Thread.UncaughtExceptionHandler {
 
     /**
      * Optional delay (in milliseconds) before the implant payload will detonate.
-     * <p>This can be used in combination with <code>CONF_BLOCK_JVM_SHUTDOWN</code> in order to only run the payload
-     * when the app is a long-running one (like a service). Just set it to <code>0</code> in order to run the payload
-     * as soon as possible.</p>
      * <p>The default value is <code>0</code>.</p>
      */
     static volatile int CONF_DELAY_MS = 0;
